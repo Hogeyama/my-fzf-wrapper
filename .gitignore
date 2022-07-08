@@ -1,0 +1,5 @@
+/target/
+.direnv/
+Session.vim
+note.md
+/result
