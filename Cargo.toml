@@ -12,8 +12,12 @@ rmpv = { version = "1.0", features = ["with-serde"] }
 async-trait = "0.1"
 clap = { version = "3.2", features = ["derive", "env"] }
 serde = { version = "1.0",  features = ["derive"]  }
+erased-serde = { version = "0.3" }
 serde_json = { version = "1.0" }
 rand = { version = "0.8" }
-log = { version = "0.4" }
-log4rs = { version = "1.1", features = ["file_appender", "json_encoder"] }
+slog = { version = "2.7", features = ["nested-values"] }
+slog-json = { version = "2.6", features = ["nested-values"] }
+slog-scope = { version = "4.4" }
+slog-async = { version = "2.7", features = ["nested-values"]  }
 futures = { version = "0.3" }
+chrono = { version = "0.4" }

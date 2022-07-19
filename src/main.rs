@@ -15,6 +15,11 @@ use std::error::Error;
 use std::fs;
 use std::path::Path;
 
+// log
+#[macro_use(o)]
+extern crate slog;
+#[macro_use]
+extern crate slog_scope;
 
 // rand
 use rand::distributions::Alphanumeric;
@@ -32,6 +37,7 @@ use tokio::net::UnixListener;
 use crate::client::run_command;
 use crate::client::Command;
 use crate::config::Config;
+use crate::logger::Serde;
 use crate::method::LoadParam;
 use crate::nvim::start_nvim;
 use crate::types::Mode;
@@ -119,7 +125,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
         };
         let r = server::server(&config, initial_state, socket).await;
         if let Err(e) = r {
-            logger::error("server: error", json!({ "error": e }));
+            error!("server: error"; "error" => e);
         }
     });
 
@@ -151,7 +157,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn Error>> {
-    logger::init()?;
+    let _guard = logger::init()?;
     let args = Cli::parse();
     match args.command {
         None => init(args).await,

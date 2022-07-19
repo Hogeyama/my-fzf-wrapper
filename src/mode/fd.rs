@@ -1,6 +1,6 @@
 use crate::{
     external_command::fd,
-    logger,
+    logger::{self, Serde},
     method::{Load, LoadResp, Method, PreviewResp, RunResp},
     types::State,
 };
@@ -79,12 +79,12 @@ impl Mode for Fd {
                     "MoveToLastWin".to_string(),
                     "startinsert".to_string(),
                 ];
-                logger::info("fd.run.nvim_command", &commands);
+                info!("fd.run.nvim_command"; "commands" => Serde(commands.clone()));
                 let capture_output = false;
                 let _ = nvim.command("stopinsert").await; // 個別に実行する必要がある
                 let r = nvim.exec(&commands.join("\n"), capture_output).await;
                 if let Err(e) = r {
-                    logger::error("fd.run.nvim_command", e.to_string());
+                    error!("fd.run.nvim_command failed"; "error" => e.to_string());
                 }
             });
             RunResp

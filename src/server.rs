@@ -7,7 +7,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::net::UnixListener;
 
-use crate::logger;
+use crate::logger::Serde;
 use crate::method;
 use crate::method::Method;
 use crate::types::State;
@@ -19,16 +19,16 @@ pub async fn server<'a>(
     listener: UnixListener,
 ) -> Result<(), String> {
     while let Ok((unix_stream, _addr)) = listener.accept().await {
-        logger::info("server: new client", ());
+        info!("server: new client");
         let (rx, mut tx) = tokio::io::split(unix_stream);
         let mut rx = BufReader::new(rx).lines();
 
         // request/response loop
         while let Some(line) = rx.next_line().await.map_err(|e| e.to_string())? {
             let req: Option<method::Request> = serde_json::from_str(&line).ok();
-            logger::info(
-                "server: get request",
-                json!({ "raw": &line, "parsed": &req }),
+            info!(
+                "server: get request";
+                "request" => Serde(json!({ "raw": &line, "parsed": &req })),
             );
             match req {
                 Some(method::Request::Load { method, params }) => {
