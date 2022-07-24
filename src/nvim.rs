@@ -140,6 +140,15 @@ pub async fn focusing_last_tab<'a, T>(
     Ok(r)
 }
 
+#[allow(dead_code)]
+pub async fn last_opened_file(nvim: &Neovim) -> Result<String, Box<dyn Error>> {
+    let r = nvim.eval("g:myfzf_last_file").await?;
+    match r {
+        nvim_rs::Value::String(s) => Ok(s.into_str().unwrap()),
+        _ => Err("g:myfzf_last_file is not string".into()),
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Impl
 ////////////////////////////////////////////////////////////////////////////////

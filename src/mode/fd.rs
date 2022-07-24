@@ -3,7 +3,7 @@ use std::error::Error;
 use crate::{
     external_command::fd,
     method::{Load, LoadResp, Method, PreviewResp, RunResp},
-    nvim::{focusing_last_win, leaving_insert_mode, move_to_last_tab, Neovim},
+    nvim::{focusing_last_win, last_opened_file, leaving_insert_mode, move_to_last_tab, Neovim},
     types::{Mode, State},
 };
 
@@ -25,13 +25,22 @@ impl Mode for Fd {
     fn load<'a>(
         &self,
         state: &'a mut State,
-        _arg: Vec<String>,
+        opts: Vec<String>,
     ) -> BoxFuture<'a, <Load as Method>::Response> {
-        async {
+        let nvim = state.nvim.clone();
+        async move {
+            match clap_parse_from::<LoadOpts>(opts) {
+                Ok(opts) => {
+                    let () = change_directory(&nvim, opts).await;
+                }
+                Err(e) => {
+                    error!("fd.run.opts failed"; "error" => e.to_string());
+                }
+            }
             let fd_result = fd::new().output().await;
             match fd_result {
                 Ok(fd_output) => {
-                    let pwd = state.pwd.clone().into_os_string();
+                    let pwd = std::env::current_dir().unwrap().into_os_string();
                     let fd_output = String::from_utf8_lossy(&fd_output.stdout)
                         .lines()
                         .map(|line| line.to_string())
@@ -94,6 +103,66 @@ impl Mode for Fd {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Load
 ////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Parser, Debug, Clone)]
+struct LoadOpts {
+    // Change directory to the given dir.
+    // If a file is specified, change to the directory containing the file.
+    #[clap(long)]
+    cd: Option<String>,
+
+    // Change directory to the parent directory.
+    #[clap(long)]
+    cd_up: bool,
+
+    // Change directory to the parent directory.
+    #[clap(long)]
+    cd_last_file: bool,
+}
+
+// TODO これは util に置いた方がよいかもしれない
+async fn change_directory(nvim: &Neovim, opts: LoadOpts) {
+    fn cd_to(path: &str) {
+        let path = std::fs::canonicalize(path).unwrap();
+        match std::fs::metadata(&path) {
+            // std::fs::metadata は symlink を follow してくれる
+            Ok(metadata) => {
+                if metadata.is_dir() {
+                    std::env::set_current_dir(path).unwrap();
+                } else {
+                    let dir = path.parent().unwrap();
+                    std::env::set_current_dir(dir).unwrap();
+                }
+            }
+            Err(_) => {
+                error!("fd: load: cd: directory not found"; "path" => path.into_os_string().into_string().unwrap());
+            }
+        }
+    }
+    info!("fd: load: opts"; "opts" => format!("{:?}", opts));
+    match opts {
+        LoadOpts { cd: Some(path), .. } => {
+            cd_to(&path);
+        }
+        LoadOpts { cd_up, .. } if cd_up => {
+            let mut dir = std::env::current_dir().unwrap();
+            dir.pop();
+            std::env::set_current_dir(dir).unwrap();
+        }
+        LoadOpts { cd_last_file, .. } if cd_last_file => {
+            let last_file = last_opened_file(&nvim).await;
+            match last_file {
+                Ok(last_file) => {
+                    cd_to(&last_file);
+                }
+                Err(e) => {
+                    error!("fd: load: cd: last_file failed"; "error" => e.to_string());
+                }
+            }
+        }
+        _ => {}
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Run

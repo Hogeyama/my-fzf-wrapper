@@ -11,11 +11,30 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
         "--preview",
         &format!("{myself} preview --socket {socket} {{}}"),
     ]);
-    // reload
+    // fd: default
+    fzf.args(vec![
+        "--bind",
+        &format!("ctrl-f:reload[{myself} load --socket {socket} -- fd]+change-prompt[files>]"),
+    ]);
+    // fd: cd-up
     fzf.args(vec![
         "--bind",
         &format!(
-            "ctrl-f:reload[{myself} load --socket {socket} -- fd {{q}}]+change-prompt[files>]"
+            "ctrl-u:reload[{myself} load --socket {socket} -- fd --cd-up]+change-prompt[files>]"
+        ),
+    ]);
+    // fd: cd-arg
+    fzf.args(vec![
+        "--bind",
+        &format!(
+            "ctrl-l:reload[{myself} load --socket {socket} -- fd --cd {{}}]+change-prompt[files>]+clear-query"
+        ),
+    ]);
+    // fd: cd-last-file
+    fzf.args(vec![
+        "--bind",
+        &format!(
+            "ctrl-n:reload[{myself} load --socket {socket} -- fd --cd-last-file]+change-prompt[files>]"
         ),
     ]);
     // run: default
@@ -33,18 +52,12 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     fzf.args(vec!["--prompt", "files>"]);
     fzf.env(
         "FZF_DEFAULT_COMMAND",
-        format!("{myself} load --socket {socket} -- fd ."),
+        format!("{myself} load --socket {socket} -- fd"),
     );
     fzf
 }
 
-// exec("ctrl-o", nvimR.cmd.default, []),
-// exec("ctrl-v", vifmR.cmd.default, []),
 // reload("ctrl-r", `${prog} reload`, []),
-// reload("ctrl-f", fd.cmd.default, [prompt("files")]),
-// reload("ctrl-u", fd.cmd.cdUp, [prompt("files")]),
-// reload("ctrl-l", fd.cmd.cdArg, [prompt("files"), clQuery]),
-// reload("ctrl-n", fd.cmd.cdLastFile, [prompt("files"), clQuery]),
 // reload("ctrl-b", buffer.cmd.default, [prompt("buffer")]),
 // reload("ctrl-h", mru.cmd.default, [prompt("file-history")]),
 // reload("ctrl-d", zoxide.cmd.default, [prompt("dir-history")]),
