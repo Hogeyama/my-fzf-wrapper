@@ -1,15 +1,15 @@
+use std::error::Error;
+
 use crate::{
     external_command::fd,
-    logger::{self, Serde},
     method::{Load, LoadResp, Method, PreviewResp, RunResp},
-    types::State,
+    nvim::{focusing_last_win, leaving_insert_mode, move_to_last_tab, Neovim},
+    types::{Mode, State},
 };
 
+use clap::Parser;
 use futures::{future::BoxFuture, FutureExt};
-
 use tokio::process::Command as TokioCommand;
-
-use crate::types::Mode;
 
 #[derive(Clone)]
 pub struct Fd;
@@ -67,28 +67,87 @@ impl Mode for Fd {
     fn run<'a>(
         &self,
         state: &'a mut State,
-        item: String,
-        _args: Vec<String>,
+        path: String,
+        opts: Vec<String>,
     ) -> BoxFuture<'a, RunResp> {
         async move {
             let nvim = state.nvim.clone();
-            let _ = tokio::spawn(async move {
-                let commands = vec![
-                    "MoveToLastWin".to_string(),
-                    format!("execute 'edit '.fnameescape('{item}')"),
-                    "MoveToLastWin".to_string(),
-                    "startinsert".to_string(),
-                ];
-                info!("fd.run.nvim_command"; "commands" => Serde(commands.clone()));
-                let capture_output = false;
-                let _ = nvim.command("stopinsert").await; // 個別に実行する必要がある
-                let r = nvim.exec(&commands.join("\n"), capture_output).await;
-                if let Err(e) = r {
-                    error!("fd.run.nvim_command failed"; "error" => e.to_string());
+            match clap_parse_from::<RunOpts>(opts) {
+                Ok(opts) => {
+                    let _ = tokio::spawn(async move {
+                        let r = nvim_open(&nvim, path.clone(), opts).await;
+                        if let Err(e) = r {
+                            error!("fd: run: nvim_open failed"; "error" => e.to_string());
+                        }
+                    });
                 }
-            });
+                Err(e) => {
+                    error!("fd.run.opts failed"; "error" => e.to_string());
+                }
+            }
             RunResp
         }
         .boxed()
     }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Load
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Run
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Parser, Debug, Clone)]
+struct RunOpts {
+    #[clap(long)]
+    line: Option<u32>,
+
+    #[clap(long)]
+    tabedit: bool,
+}
+
+async fn nvim_open(nvim: &Neovim, path: String, opts: RunOpts) -> Result<(), Box<dyn Error>> {
+    let line_opt = match opts.line {
+        Some(line) => format!("+{line}"),
+        None => "".to_string(),
+    };
+    let path = std::fs::canonicalize(path).unwrap();
+    let path = path.to_string_lossy();
+
+    if opts.tabedit {
+        let cmd = format!("execute 'tabedit {line_opt} '.fnameescape('{path}')",);
+        // open in new tab
+        nvim.command(&cmd).await.map_err(|e| e.to_string())?;
+        // return to fzf tab
+        move_to_last_tab(&nvim).await?;
+        Ok(())
+    } else {
+        leaving_insert_mode(&nvim, || {
+            async {
+                focusing_last_win(&nvim, || {
+                    async {
+                        let cmd = format!("execute 'edit {line_opt} '.fnameescape('{path}')");
+                        nvim.command(&cmd).await.map_err(|e| e.to_string())?;
+                        Ok(())
+                    }
+                    .boxed()
+                })
+                .await
+            }
+            .boxed()
+        })
+        .await
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Util
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+fn clap_parse_from<T: Parser>(args: Vec<String>) -> Result<T, clap::error::Error> {
+    let mut clap_args = vec!["dummy".to_string()];
+    clap_args.extend(args);
+    T::try_parse_from(clap_args)
 }

@@ -6,19 +6,27 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     let socket = socket.into();
     let mut fzf = Command::new("fzf");
     fzf.args(vec!["--bind", "ctrl-s:toggle-sort"]);
+    // preview
     fzf.args(vec![
         "--preview",
         &format!("{myself} preview --socket {socket} {{}}"),
     ]);
+    // reload
     fzf.args(vec![
         "--bind",
         &format!(
             "ctrl-f:reload[{myself} load --socket {socket} -- fd {{q}}]+change-prompt[files>]"
         ),
     ]);
+    // run: default
     fzf.args(vec![
         "--bind",
         &format!("enter:execute[{myself} run --socket {socket} -- {{}}]"),
+    ]);
+    // run: tabedit
+    fzf.args(vec![
+        "--bind",
+        &format!("ctrl-t:execute[{myself} run --socket {socket} -- {{}} --tabedit]"),
     ]);
     fzf.args(vec!["--preview-window", "right:50%:noborder"]);
     fzf.args(vec!["--header-lines=1"]);
@@ -31,7 +39,6 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
 }
 
 // exec("ctrl-o", nvimR.cmd.default, []),
-// exec("ctrl-t", nvimR.cmd.tabEdit, []),
 // exec("ctrl-v", vifmR.cmd.default, []),
 // reload("ctrl-r", `${prog} reload`, []),
 // reload("ctrl-f", fd.cmd.default, [prompt("files")]),
