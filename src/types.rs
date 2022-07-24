@@ -8,6 +8,7 @@ use std::path::PathBuf;
 use futures::future::BoxFuture;
 
 pub struct State<'a> {
+    // TODO なんでこれ持つ必要があるんだっけ。
     pub pwd: PathBuf,
     // 現在の mode
     pub mode: &'a Box<dyn Mode + Send + Sync>,

@@ -21,6 +21,9 @@ extern crate slog;
 #[macro_use]
 extern crate slog_scope;
 
+#[macro_use(json)]
+extern crate serde_json;
+
 // rand
 use rand::distributions::Alphanumeric;
 use rand::Rng;
@@ -28,16 +31,12 @@ use rand::Rng;
 // clap command line parser
 use clap::Parser;
 
-// serde
-use serde_json::json;
-
 // tokio
 use tokio::net::UnixListener;
 
 use crate::client::run_command;
 use crate::client::Command;
 use crate::config::Config;
-use crate::logger::Serde;
 use crate::method::LoadParam;
 use crate::nvim::start_nvim;
 use crate::types::Mode;
@@ -155,8 +154,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
 // Main
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn Error>> {
+pub async fn tokio_main() -> Result<(), Box<dyn Error>> {
     let _guard = logger::init()?;
     let args = Cli::parse();
     match args.command {
