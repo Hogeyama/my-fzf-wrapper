@@ -23,6 +23,10 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     fzf.args(vec!["--preview-window", "right:50%:noborder"]);
     fzf.args(vec!["--header-lines=1"]);
     fzf.args(vec!["--prompt", "files>"]);
+    fzf.env(
+        "FZF_DEFAULT_COMMAND",
+        format!("{myself} load --socket {socket} -- fd ."),
+    );
     fzf
 }
 
