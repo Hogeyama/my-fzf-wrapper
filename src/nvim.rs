@@ -28,50 +28,7 @@ pub async fn start_nvim(nvim_listen_address: &str) -> Result<Neovim, Box<dyn Err
     let (nvim, _io_handler) = nvim_tokio::new_path(nvim_listen_address, handler)
         .await
         .expect("Connect to nvim failed");
-
-    let _ = nvim
-        .call(
-            "nvim_create_augroup",
-            call_args![
-                "my-fzf-wrapper",
-                to_value(json!({ "clear": true, })).unwrap()
-            ],
-        )
-        .await?
-        .map_err(|e| e.to_string())?;
-
-    register_autocmds(
-        &nvim,
-        vec![
-            ("WinLeave", r#"let g:myfzf_last_win = winnr()"#),
-            ("WinLeave", r#"let g:myfzf_last_file = expand("%:p")"#),
-            ("TabLeave", r#"let g:myfzf_last_tab = tabpagenr()"#),
-            (
-                "BufLeave",
-                &vec![
-                    r#"let g:myfzf_last_buf = get(g:, 'myfzf_current_buf', 0)"#,
-                    r#"let g:myfzf_current_buf = bufnr('%')"#,
-                ]
-                .join("|"),
-            ),
-        ],
-    )
-    .await?;
-
-    register_command(
-        &nvim,
-        "MyFzfMoveToLastWin",
-        r#"execute "normal! ".g:myfzf_last_win."<C-w><C-w>""#,
-    )
-    .await?;
-
-    register_command(
-        &nvim,
-        "MyFzfMoveToLastTab",
-        r#"execute "tabnext ".g:myfzf_last_tab"#,
-    )
-    .await?;
-
+    setup_nvim_config(&nvim).await?;
     info!("nvim started");
     Ok(nvim)
 }
@@ -152,6 +109,65 @@ pub async fn last_opened_file(nvim: &Neovim) -> Result<String, Box<dyn Error>> {
 ////////////////////////////////////////////////////////////////////////////////
 // Impl
 ////////////////////////////////////////////////////////////////////////////////
+
+async fn setup_nvim_config(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
+    // 変数の初期化
+    nvim.exec(
+        r#"let g:myfzf_last_win    = 1
+           let g:myfzf_last_file   = "."
+           let g:myfzf_last_tab    = 1
+           let g:myfzf_current_buf = 1"#,
+        false,
+    )
+    .await?;
+
+    // autocommandの初期化
+    let _ = nvim
+        .call(
+            "nvim_create_augroup",
+            call_args![
+                "my-fzf-wrapper",
+                to_value(json!({ "clear": true, })).unwrap()
+            ],
+        )
+        .await?
+        .map_err(|e| e.to_string())?;
+
+    // autocommandの登録
+    register_autocmds(
+        &nvim,
+        vec![
+            ("WinLeave", r#"let g:myfzf_last_win = winnr()"#),
+            ("WinLeave", r#"let g:myfzf_last_file = expand("%:p")"#),
+            ("TabLeave", r#"let g:myfzf_last_tab = tabpagenr()"#),
+            (
+                "BufLeave",
+                &vec![
+                    r#"let g:myfzf_last_buf = g:myfzf_current_buf"#,
+                    r#"let g:myfzf_current_buf = bufnr('%')"#,
+                ]
+                .join("|"),
+            ),
+        ],
+    )
+    .await?;
+
+    // commandの登録
+    register_command(
+        &nvim,
+        "MyFzfMoveToLastWin",
+        r#"execute "normal! ".g:myfzf_last_win."<C-w><C-w>""#,
+    )
+    .await?;
+    register_command(
+        &nvim,
+        "MyFzfMoveToLastTab",
+        r#"execute "tabnext ".g:myfzf_last_tab"#,
+    )
+    .await?;
+
+    Ok(())
+}
 
 async fn register_autocmds(
     nvim: &Neovim,
