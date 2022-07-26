@@ -3,7 +3,7 @@ use std::error::Error;
 use crate::{
     external_command::fd,
     method::{Load, LoadResp, Method, PreviewResp, RunResp},
-    nvim::{focusing_last_win, last_opened_file, leaving_insert_mode, move_to_last_tab, Neovim},
+    nvim::{hide_floaterm, last_opened_file, move_to_last_tab, stop_insert, Neovim},
     types::{Mode, State},
 };
 
@@ -31,7 +31,9 @@ impl Mode for Fd {
         async move {
             match clap_parse_from::<LoadOpts>(opts) {
                 Ok(opts) => {
-                    let () = change_directory(&nvim, opts).await;
+                    if let Err(e) = change_directory(&nvim, opts).await {
+                        error!("fd: load: change_directory failed"; "error" => e);
+                    }
                 }
                 Err(e) => {
                     error!("fd.run.opts failed"; "error" => e.to_string());
@@ -50,10 +52,13 @@ impl Mode for Fd {
                         items: fd_output,
                     }
                 }
-                Err(fd_err) => LoadResp {
-                    header: fd_err.to_string(),
-                    items: vec![],
-                },
+                Err(fd_err) => {
+                    error!("fd.run.opts failed"; "error" => fd_err.to_string());
+                    LoadResp {
+                        header: fd_err.to_string(),
+                        items: vec![],
+                    }
+                }
             }
         }
         .boxed()
@@ -121,39 +126,45 @@ struct LoadOpts {
 }
 
 // TODO これは util に置いた方がよいかもしれない
-async fn change_directory(nvim: &Neovim, opts: LoadOpts) {
-    fn cd_to(path: &str) {
-        let path = std::fs::canonicalize(path).unwrap();
+async fn change_directory(nvim: &Neovim, opts: LoadOpts) -> Result<(), String> {
+    fn cd_to(path: &str) -> Result<(), String> {
+        let path = std::fs::canonicalize(path).map_err(|e| e.to_string())?;
         match std::fs::metadata(&path) {
             // std::fs::metadata は symlink を follow してくれる
             Ok(metadata) => {
                 if metadata.is_dir() {
-                    std::env::set_current_dir(path).unwrap();
-                } else {
+                    std::env::set_current_dir(path).map_err(|e| e.to_string())?;
+                    Ok(())
+                } else if metadata.is_file() {
                     let dir = path.parent().unwrap();
-                    std::env::set_current_dir(dir).unwrap();
+                    std::env::set_current_dir(dir).map_err(|e| e.to_string())?;
+                    Ok(())
+                } else {
+                    let path = path.clone().into_os_string().into_string().unwrap();
+                    Err(format!("path does not exists: {}", path))
                 }
             }
             Err(_) => {
-                error!("fd: load: cd: directory not found"; "path" => path.into_os_string().into_string().unwrap());
+                let path = path.clone().into_os_string().into_string().unwrap();
+                Err(format!("path does not exists: {}", path))
             }
         }
     }
     info!("fd: load: opts"; "opts" => format!("{:?}", opts));
     match opts {
         LoadOpts { cd: Some(path), .. } => {
-            cd_to(&path);
+            cd_to(&path)?;
         }
         LoadOpts { cd_up, .. } if cd_up => {
             let mut dir = std::env::current_dir().unwrap();
             dir.pop();
-            std::env::set_current_dir(dir).unwrap();
+            std::env::set_current_dir(dir).map_err(|e| e.to_string())?;
         }
         LoadOpts { cd_last_file, .. } if cd_last_file => {
             let last_file = last_opened_file(&nvim).await;
             match last_file {
                 Ok(last_file) => {
-                    cd_to(&last_file);
+                    cd_to(&last_file)?;
                 }
                 Err(e) => {
                     error!("fd: load: cd: last_file failed"; "error" => e.to_string());
@@ -162,6 +173,7 @@ async fn change_directory(nvim: &Neovim, opts: LoadOpts) {
         }
         _ => {}
     }
+    Ok(())
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -193,21 +205,11 @@ async fn nvim_open(nvim: &Neovim, path: String, opts: RunOpts) -> Result<(), Box
         move_to_last_tab(&nvim).await?;
         Ok(())
     } else {
-        leaving_insert_mode(&nvim, || {
-            async {
-                focusing_last_win(&nvim, || {
-                    async {
-                        let cmd = format!("execute 'edit {line_opt} '.fnameescape('{path}')");
-                        nvim.command(&cmd).await.map_err(|e| e.to_string())?;
-                        Ok(())
-                    }
-                    .boxed()
-                })
-                .await
-            }
-            .boxed()
-        })
-        .await
+        stop_insert(&nvim).await?;
+        hide_floaterm(&nvim).await?;
+        let cmd = format!("execute 'edit {line_opt} '.fnameescape('{path}')");
+        nvim.command(&cmd).await.map_err(|e| e.to_string())?;
+        Ok(())
     }
 }
 

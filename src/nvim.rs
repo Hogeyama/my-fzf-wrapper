@@ -106,6 +106,12 @@ pub async fn last_opened_file(nvim: &Neovim) -> Result<String, Box<dyn Error>> {
     }
 }
 
+#[allow(dead_code)]
+pub async fn hide_floaterm(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
+    let _ = nvim.command("FloatermHide! fzf").await?;
+    Ok(())
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Impl
 ////////////////////////////////////////////////////////////////////////////////
