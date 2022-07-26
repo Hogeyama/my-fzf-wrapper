@@ -19,14 +19,14 @@ pub async fn server<'a>(
     listener: UnixListener,
 ) -> Result<(), String> {
     while let Ok((unix_stream, _addr)) = listener.accept().await {
-        info!("server: new client");
+        trace!("server: new client");
         let (rx, mut tx) = tokio::io::split(unix_stream);
         let mut rx = BufReader::new(rx).lines();
 
         // request/response loop
         while let Some(line) = rx.next_line().await.map_err(|e| e.to_string())? {
             let req: Option<method::Request> = serde_json::from_str(&line).ok();
-            info!(
+            trace!(
                 "server: get request";
                 "request" => Serde(json!({ "raw": &line, "parsed": &req })),
             );
