@@ -3,13 +3,16 @@ use std::error::Error;
 use crate::{
     external_command::fd,
     method::{Load, LoadResp, Method, PreviewResp, RunResp},
-    nvim::{hide_floaterm, last_opened_file, move_to_last_tab, stop_insert, Neovim},
+    nvim::{hide_floaterm, move_to_last_tab, stop_insert, Neovim},
     types::{Mode, State},
 };
 
 use clap::Parser;
 use futures::{future::BoxFuture, FutureExt};
 use tokio::process::Command as TokioCommand;
+
+use super::utils as mode_utils;
+use crate::utils;
 
 #[derive(Clone)]
 pub struct Fd;
@@ -29,9 +32,9 @@ impl Mode for Fd {
     ) -> BoxFuture<'a, <Load as Method>::Response> {
         let nvim = state.nvim.clone();
         async move {
-            match clap_parse_from::<LoadOpts>(opts) {
+            match utils::clap_parse_from::<LoadOpts>(opts) {
                 Ok(opts) => {
-                    if let Err(e) = change_directory(&nvim, opts).await {
+                    if let Err(e) = mode_utils::change_directory(&nvim, opts.into()).await {
                         error!("fd: load: change_directory failed"; "error" => e);
                     }
                 }
@@ -125,55 +128,14 @@ struct LoadOpts {
     cd_last_file: bool,
 }
 
-// TODO これは util に置いた方がよいかもしれない
-async fn change_directory(nvim: &Neovim, opts: LoadOpts) -> Result<(), String> {
-    fn cd_to(path: &str) -> Result<(), String> {
-        let path = std::fs::canonicalize(path).map_err(|e| e.to_string())?;
-        match std::fs::metadata(&path) {
-            // std::fs::metadata は symlink を follow してくれる
-            Ok(metadata) => {
-                if metadata.is_dir() {
-                    std::env::set_current_dir(path).map_err(|e| e.to_string())?;
-                    Ok(())
-                } else if metadata.is_file() {
-                    let dir = path.parent().unwrap();
-                    std::env::set_current_dir(dir).map_err(|e| e.to_string())?;
-                    Ok(())
-                } else {
-                    let path = path.clone().into_os_string().into_string().unwrap();
-                    Err(format!("path does not exists: {}", path))
-                }
-            }
-            Err(_) => {
-                let path = path.clone().into_os_string().into_string().unwrap();
-                Err(format!("path does not exists: {}", path))
-            }
+impl From<LoadOpts> for mode_utils::CdOpts {
+    fn from(val: LoadOpts) -> mode_utils::CdOpts {
+        mode_utils::CdOpts {
+            cd: val.cd,
+            cd_up: val.cd_up,
+            cd_last_file: val.cd_last_file,
         }
     }
-    info!("fd: load: opts"; "opts" => format!("{:?}", opts));
-    match opts {
-        LoadOpts { cd: Some(path), .. } => {
-            cd_to(&path)?;
-        }
-        LoadOpts { cd_up, .. } if cd_up => {
-            let mut dir = std::env::current_dir().unwrap();
-            dir.pop();
-            std::env::set_current_dir(dir).map_err(|e| e.to_string())?;
-        }
-        LoadOpts { cd_last_file, .. } if cd_last_file => {
-            let last_file = last_opened_file(&nvim).await;
-            match last_file {
-                Ok(last_file) => {
-                    cd_to(&last_file)?;
-                }
-                Err(e) => {
-                    error!("fd: load: cd: last_file failed"; "error" => e.to_string());
-                }
-            }
-        }
-        _ => {}
-    }
-    Ok(())
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -211,14 +173,4 @@ async fn nvim_open(nvim: &Neovim, path: String, opts: RunOpts) -> Result<(), Box
         nvim.command(&cmd).await.map_err(|e| e.to_string())?;
         Ok(())
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Util
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-fn clap_parse_from<T: Parser>(args: Vec<String>) -> Result<T, clap::error::Error> {
-    let mut clap_args = vec!["dummy".to_string()];
-    clap_args.extend(args);
-    T::try_parse_from(clap_args)
 }

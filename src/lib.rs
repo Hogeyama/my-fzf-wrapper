@@ -7,6 +7,7 @@ mod mode;
 mod nvim;
 mod server;
 mod types;
+mod utils;
 
 // std
 use std::collections::HashMap;
