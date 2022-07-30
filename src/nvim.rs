@@ -12,6 +12,8 @@ use parity_tokio_ipc::Connection;
 use rmpv::ext::to_value;
 use tokio::io::WriteHalf;
 
+use crate::method::RunOpts;
+
 #[derive(Clone)]
 struct NeovimHandler {}
 
@@ -110,6 +112,77 @@ pub async fn last_opened_file(nvim: &Neovim) -> Result<String, Box<dyn Error>> {
 pub async fn hide_floaterm(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
     let _ = nvim.command("FloatermHide! fzf").await?;
     Ok(())
+}
+
+#[allow(dead_code)]
+pub async fn open(nvim: &Neovim, target: OpenTarget, opts: OpenOpts) -> Result<(), Box<dyn Error>> {
+    let line_opt = match opts.line {
+        Some(line) => format!("+{line}"),
+        None => "".to_string(),
+    };
+    match target {
+        OpenTarget::File(file) => {
+            let file = std::fs::canonicalize(file).unwrap();
+            let file = file.to_string_lossy();
+            if opts.tabedit {
+                let cmd = format!("execute 'tabedit {line_opt} '.fnameescape('{file}')",);
+                nvim.command(&cmd).await.map_err(|e| e.to_string())?;
+                move_to_last_tab(&nvim).await?;
+                Ok(())
+            } else {
+                stop_insert(&nvim).await?;
+                hide_floaterm(&nvim).await?;
+                let cmd = format!("execute 'edit {line_opt} '.fnameescape('{file}')");
+                nvim.command(&cmd).await.map_err(|e| e.to_string())?;
+                Ok(())
+            }
+        }
+        OpenTarget::Buffer(bufnr) => {
+            let cmd = format!("buffer {line_opt} {bufnr}");
+            if opts.tabedit {
+                nvim.command("tabnew").await.map_err(|e| e.to_string())?;
+                nvim.command(&cmd).await.map_err(|e| e.to_string())?;
+                move_to_last_tab(&nvim).await?;
+                Ok(())
+            } else {
+                stop_insert(&nvim).await?;
+                hide_floaterm(&nvim).await?;
+                nvim.command(&cmd).await.map_err(|e| e.to_string())?;
+                Ok(())
+            }
+        }
+    }
+}
+
+pub struct OpenOpts {
+    pub line: Option<usize>,
+    pub tabedit: bool,
+}
+
+impl From<RunOpts> for OpenOpts {
+    fn from(val: RunOpts) -> Self {
+        OpenOpts {
+            line: val.line,
+            tabedit: val.tabedit,
+        }
+    }
+}
+
+pub enum OpenTarget {
+    File(String),
+    Buffer(usize),
+}
+
+impl From<String> for OpenTarget {
+    fn from(val: String) -> Self {
+        OpenTarget::File(val)
+    }
+}
+
+impl From<usize> for OpenTarget {
+    fn from(val: usize) -> Self {
+        OpenTarget::Buffer(val)
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

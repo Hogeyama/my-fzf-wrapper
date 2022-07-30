@@ -1,9 +1,7 @@
-use std::error::Error;
-
 use crate::{
     external_command::fd,
     method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
-    nvim::{hide_floaterm, move_to_last_tab, stop_insert, Neovim},
+    nvim,
     types::{Mode, State},
 };
 
@@ -85,9 +83,9 @@ impl Mode for Fd {
         async move {
             let nvim = state.nvim.clone();
             let _ = tokio::spawn(async move {
-                let r = nvim_open(&nvim, path.clone(), opts).await;
+                let r = nvim::open(&nvim, path.clone().into(), opts.into()).await;
                 if let Err(e) = r {
-                    error!("fd: run: nvim_open failed"; "error" => e.to_string());
+                    error!("fd: run: nvim::open failed"; "error" => e.to_string());
                 }
             });
             RunResp
@@ -123,32 +121,5 @@ impl From<LoadOpts> for mode_utils::CdOpts {
             cd_up: val.cd_up,
             cd_last_file: val.cd_last_file,
         }
-    }
-}
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Run
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-async fn nvim_open(nvim: &Neovim, path: String, opts: RunOpts) -> Result<(), Box<dyn Error>> {
-    let line_opt = match opts.line {
-        Some(line) => format!("+{line}"),
-        None => "".to_string(),
-    };
-    let path = std::fs::canonicalize(path).unwrap();
-    let path = path.to_string_lossy();
-
-    if opts.tabedit {
-        let cmd = format!("execute 'tabedit {line_opt} '.fnameescape('{path}')",);
-        // open in new tab
-        nvim.command(&cmd).await.map_err(|e| e.to_string())?;
-        // return to fzf tab
-        move_to_last_tab(&nvim).await?;
-        Ok(())
-    } else {
-        stop_insert(&nvim).await?;
-        hide_floaterm(&nvim).await?;
-        let cmd = format!("execute 'edit {line_opt} '.fnameescape('{path}')");
-        nvim.command(&cmd).await.map_err(|e| e.to_string())?;
-        Ok(())
     }
 }
