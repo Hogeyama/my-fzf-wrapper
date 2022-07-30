@@ -7,5 +7,14 @@ pub fn new() -> Command {
     rg.arg("--no-heading");
     rg.arg("--color=never");
     rg.arg("--smart-case");
+
+    let extra_opts = std::env::var("FZFW_RG_EXTRA_OPTS");
+    if let Ok(extra_opts) = extra_opts {
+        // XXX オプションに,が含まれていると困る。が、多分ないはず
+        for extra_opt in extra_opts.split(',') {
+            rg.args(vec![extra_opt]);
+        }
+    }
+
     rg
 }
