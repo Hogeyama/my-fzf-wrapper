@@ -11,6 +11,11 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
         "--preview",
         &format!("{myself} preview --socket {socket} {{}}"),
     ]);
+    // reload
+    fzf.args(vec![
+        "--bind",
+        &format!("ctrl-r:reload[{myself} reload --socket {socket}]"),
+    ]);
     // fd: default
     fzf.args(vec![
         "--bind",
@@ -84,5 +89,4 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     fzf
 }
 
-// reload("ctrl-r", `${prog} reload`, []),
 // reload("ctrl-i", browser.cmd.default, [prompt("browser-history"), clQuery]),
