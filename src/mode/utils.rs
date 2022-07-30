@@ -1,7 +1,7 @@
 use crate::nvim::{self, Neovim};
 
 // return whether change_directory happened
-pub async fn change_directory(nvim: &Neovim, opts: CdOpts) -> Result<(), String> {
+pub async fn change_directory(nvim: &Neovim, opts: CdOpts) -> Result<bool, String> {
     fn cd_to(path: &str) -> Result<(), String> {
         let path = std::fs::canonicalize(path).map_err(|e| e.to_string())?;
         match std::fs::metadata(&path) {
@@ -26,20 +26,22 @@ pub async fn change_directory(nvim: &Neovim, opts: CdOpts) -> Result<(), String>
         }
     }
     match opts {
-        CdOpts { cd: Some(path), .. } => cd_to(&path),
+        CdOpts { cd: Some(path), .. } => cd_to(&path).map(|_| true),
         CdOpts { cd_up, .. } if cd_up => {
             let mut dir = std::env::current_dir().unwrap();
             dir.pop();
-            std::env::set_current_dir(dir).map_err(|e| e.to_string())
+            std::env::set_current_dir(dir)
+                .map(|_| true)
+                .map_err(|e| e.to_string())
         }
         CdOpts { cd_last_file, .. } if cd_last_file => {
             let last_file = nvim::last_opened_file(&nvim).await;
             match last_file {
-                Ok(last_file) => cd_to(&last_file),
+                Ok(last_file) => cd_to(&last_file).map(|_| true),
                 Err(e) => Err(e.to_string()),
             }
         }
-        _ => Err("".to_string()),
+        _ => Ok(false),
     }
 }
 
