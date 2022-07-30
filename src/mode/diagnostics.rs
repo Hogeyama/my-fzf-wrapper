@@ -13,10 +13,12 @@ use regex::Regex;
 use tokio::process::Command as TokioCommand;
 
 #[derive(Clone)]
-pub struct Diagnostics;
+pub struct Diagnostics {
+    file: Option<String>,
+}
 
 pub fn new() -> Diagnostics {
-    Diagnostics
+    Diagnostics { file: None }
 }
 
 // example:
@@ -29,23 +31,34 @@ impl Mode for Diagnostics {
         "diagnostics"
     }
     fn load<'a>(
-        &mut self,
+        &'a mut self,
         state: &'a mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'a, <Load as Method>::Response> {
         let nvim = state.nvim.clone();
         async move {
+            let file = nvim::last_opened_file(&nvim)
+                .await
+                .map_err(|e| e.to_string());
             let diagnostics_result = get_nvim_diagnostics(&nvim).await;
-            match diagnostics_result {
-                Ok(diagnostics_items) => {
+            match (file, diagnostics_result) {
+                (Ok(file), Ok(diagnostics_items)) => {
+                    self.file = Some(file.clone());
                     let pwd = std::env::current_dir().unwrap().into_os_string();
                     LoadResp {
                         header: format!("[{}]", pwd.to_string_lossy()),
                         items: diagnostics_items,
                     }
                 }
-                Err(diagnostics_err) => {
-                    error!("diagnostics.run.opts failed"; "error" => diagnostics_err.to_string());
+                (Err(file_err), _) => {
+                    error!("nvim::last_opened_file failed");
+                    LoadResp {
+                        header: file_err.to_string(),
+                        items: vec![],
+                    }
+                }
+                (_, Err(diagnostics_err)) => {
+                    error!("get_nvim_diagnostics failed"; "error" => diagnostics_err.to_string());
                     LoadResp {
                         header: diagnostics_err.to_string(),
                         items: vec![],
@@ -55,13 +68,9 @@ impl Mode for Diagnostics {
         }
         .boxed()
     }
-    fn preview(&mut self, state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
-        let nvim = state.nvim.clone();
+    fn preview<'a>(&'a mut self, _state: &mut State, item: String) -> BoxFuture<'a, PreviewResp> {
         async move {
-            // TODO 表示してから neovim を操作すると変わってしまう。保存しておく必要がある。
-            let file = nvim::last_opened_file(&nvim)
-                .await
-                .unwrap_or("".to_string());
+            let file = self.file.clone().unwrap();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
             let line = line.parse::<i64>().unwrap() + 1;
             let start_line = std::cmp::max(0, line - 15);
@@ -81,16 +90,14 @@ impl Mode for Diagnostics {
         .boxed()
     }
     fn run<'a>(
-        &mut self,
+        &'a mut self,
         state: &'a mut State,
         item: String,
         opts: RunOpts,
     ) -> BoxFuture<'a, RunResp> {
         let nvim = state.nvim.clone();
         async move {
-            let file = nvim::last_opened_file(&nvim)
-                .await
-                .unwrap_or("".to_string());
+            let file = self.file.clone().unwrap();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
             let line = line.parse::<i64>().unwrap() + 1;
             let opts = nvim::OpenOpts {
