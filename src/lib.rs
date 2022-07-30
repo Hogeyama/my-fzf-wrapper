@@ -100,8 +100,13 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
 
     let config = {
         let fd: Box<dyn Mode + Send + Sync> = Box::new(mode::fd::new());
+        let rg: Box<dyn Mode + Send + Sync> = Box::new(mode::rg::new());
         Config {
-            modes: HashMap::from([("fd".to_string(), fd)]),
+            modes: HashMap::from([
+                //
+                ("fd".to_string(), fd),
+                ("rg".to_string(), rg),
+            ]),
         }
     };
 

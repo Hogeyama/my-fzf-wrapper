@@ -37,6 +37,11 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
             "ctrl-n:reload[{myself} load --socket {socket} -- fd --cd-last-file]+change-prompt[files>]"
         ),
     ]);
+    // rg: default
+    fzf.args(vec![
+        "--bind",
+        &format!("ctrl-g:reload[{myself} load --socket {socket} -- rg {{q}}]+change-prompt[grep>]+clear-query"),
+    ]);
     // run: default
     fzf.args(vec![
         "--bind",
@@ -61,6 +66,5 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
 // reload("ctrl-b", buffer.cmd.default, [prompt("buffer")]),
 // reload("ctrl-h", mru.cmd.default, [prompt("file-history")]),
 // reload("ctrl-d", zoxide.cmd.default, [prompt("dir-history")]),
-// reload("ctrl-g", rg.cmd.default, [prompt("grep"), clQuery]),
 // reload("ctrl-i", browser.cmd.default, [prompt("browser-history"), clQuery]),
 // reload("alt-w", diagnostics.cmd.default, [prompt("diagnostics"), clQuery]),
