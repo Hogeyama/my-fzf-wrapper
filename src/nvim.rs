@@ -237,10 +237,7 @@ async fn setup_nvim_config(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
     let _ = nvim
         .call(
             "nvim_create_augroup",
-            call_args![
-                "my-fzf-wrapper",
-                to_value(json!({ "clear": true, })).unwrap()
-            ],
+            call_args!["fzfw", to_value(json!({ "clear": true, })).unwrap()],
         )
         .await?
         .map_err(|e| e.to_string())?;
@@ -341,4 +338,4 @@ async fn eval_lua(nvim: &Neovim, expr: impl AsRef<str>) -> Result<rmpv::Value, B
     Ok(v)
 }
 
-const MYFZF_AUTOCMD_GROUP: &str = "my-fzf-wrapper";
+const MYFZF_AUTOCMD_GROUP: &str = "fzfw";

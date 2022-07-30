@@ -1,5 +1,5 @@
 [package]
-name = "myfzf-wrapper-rs"
+name = "fzfw"
 version = "0.1.0"
 edition = "2021"
 
