@@ -3,3 +3,4 @@ pub mod fd;
 pub mod mru;
 pub mod rg;
 mod utils;
+pub mod zoxide;
