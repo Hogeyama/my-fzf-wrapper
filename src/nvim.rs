@@ -9,9 +9,11 @@ use nvim_rs::{call_args, Handler};
 
 // Tokio
 use parity_tokio_ipc::Connection;
-use rmpv::ext::to_value;
+use rmpv::ext::{from_value, to_value};
+use serde::{Deserialize, Serialize};
 use tokio::io::WriteHalf;
 
+use crate::logger::Serde;
 use crate::method::RunOpts;
 
 #[derive(Clone)]
@@ -185,6 +187,37 @@ impl From<usize> for OpenTarget {
     }
 }
 
+#[allow(dead_code)]
+pub async fn get_buf_diagnostics(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
+    let diagnostics = eval_lua(&nvim, "return vim.diagnostic.get(vim.g.myfzf_last_buf)").await?;
+    info!("get_buf_diagnostics"; "diagnostics" => Serde(diagnostics.clone()));
+    let diagnostics: Vec<DiagnosticsItem> = from_value(diagnostics)?;
+    Ok(diagnostics)
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct DiagnosticsItem {
+    pub lnum: u64,
+    pub col: u64,
+    pub message: String,
+    pub severity: Severity,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Severity(pub u64);
+
+impl Severity {
+    pub fn mark(&self) -> String {
+        match self.0 {
+            1 => "E".to_string(),
+            2 => "W".to_string(),
+            3 => "I".to_string(),
+            4 => "H".to_string(),
+            _ => panic!("unknown severity {}", self.0),
+        }
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Impl
 ////////////////////////////////////////////////////////////////////////////////
@@ -297,6 +330,15 @@ async fn register_command(nvim: &Neovim, name: &str, command: &str) -> Result<()
         .await?
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+async fn eval_lua(nvim: &Neovim, expr: impl AsRef<str>) -> Result<rmpv::Value, Box<dyn Error>> {
+    let args: Vec<rmpv::Value> = vec![];
+    let v = nvim
+        .call("nvim_exec_lua", call_args![expr.as_ref(), args])
+        .await?
+        .map_err(|e| e.to_string())?;
+    Ok(v)
 }
 
 const MYFZF_AUTOCMD_GROUP: &str = "my-fzf-wrapper";

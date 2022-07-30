@@ -59,6 +59,11 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
         "--bind",
         &format!("ctrl-d:reload[{myself} load --socket {socket} -- zoxide]+change-prompt[zoxide>]+clear-query"),
     ]);
+    // diagnostics: default
+    fzf.args(vec![
+        "--bind",
+        &format!("alt-w:reload[{myself} load --socket {socket} -- diagnostics]+change-prompt[diagnostics>]+clear-query"),
+    ]);
     // run: default
     fzf.args(vec![
         "--bind",
@@ -81,4 +86,3 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
 
 // reload("ctrl-r", `${prog} reload`, []),
 // reload("ctrl-i", browser.cmd.default, [prompt("browser-history"), clQuery]),
-// reload("alt-w", diagnostics.cmd.default, [prompt("diagnostics"), clQuery]),

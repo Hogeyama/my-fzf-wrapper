@@ -104,6 +104,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
         let buffer: Box<dyn Mode + Send + Sync> = Box::new(mode::buffer::new());
         let zoxide: Box<dyn Mode + Send + Sync> = Box::new(mode::zoxide::new());
         let mru: Box<dyn Mode + Send + Sync> = Box::new(mode::mru::new());
+        let diagnostics: Box<dyn Mode + Send + Sync> = Box::new(mode::diagnostics::new());
         Config {
             modes: HashMap::from([
                 //
@@ -112,6 +113,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
                 ("buffer".to_string(), buffer),
                 ("zoxide".to_string(), zoxide),
                 ("mru".to_string(), mru),
+                ("diagnostics".to_string(), diagnostics),
             ]),
         }
     };

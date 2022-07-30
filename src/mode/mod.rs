@@ -1,4 +1,5 @@
 pub mod buffer;
+pub mod diagnostics;
 pub mod fd;
 pub mod mru;
 pub mod rg;
