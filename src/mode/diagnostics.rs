@@ -29,7 +29,7 @@ impl Mode for Diagnostics {
         "diagnostics"
     }
     fn load<'a>(
-        &self,
+        &mut self,
         state: &'a mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'a, <Load as Method>::Response> {
@@ -55,7 +55,7 @@ impl Mode for Diagnostics {
         }
         .boxed()
     }
-    fn preview(&self, state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(&mut self, state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
         let nvim = state.nvim.clone();
         async move {
             // TODO 表示してから neovim を操作すると変わってしまう。保存しておく必要がある。
@@ -80,7 +80,12 @@ impl Mode for Diagnostics {
         }
         .boxed()
     }
-    fn run<'a>(&self, state: &'a mut State, item: String, opts: RunOpts) -> BoxFuture<'a, RunResp> {
+    fn run<'a>(
+        &mut self,
+        state: &'a mut State,
+        item: String,
+        opts: RunOpts,
+    ) -> BoxFuture<'a, RunResp> {
         let nvim = state.nvim.clone();
         async move {
             let file = nvim::last_opened_file(&nvim)

@@ -30,7 +30,7 @@ impl Mode for Rg {
         "rg"
     }
     fn load<'a>(
-        &self,
+        &mut self,
         state: &'a mut State,
         opts: Vec<String>,
     ) -> BoxFuture<'a, <Load as Method>::Response> {
@@ -58,7 +58,7 @@ impl Mode for Rg {
         }
         .boxed()
     }
-    fn preview(&self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
         async move {
             let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
@@ -80,7 +80,12 @@ impl Mode for Rg {
         }
         .boxed()
     }
-    fn run<'a>(&self, state: &'a mut State, item: String, opts: RunOpts) -> BoxFuture<'a, RunResp> {
+    fn run<'a>(
+        &mut self,
+        state: &'a mut State,
+        item: String,
+        opts: RunOpts,
+    ) -> BoxFuture<'a, RunResp> {
         async move {
             let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();

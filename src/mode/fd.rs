@@ -24,7 +24,7 @@ impl Mode for Fd {
         "fd"
     }
     fn load<'a>(
-        &self,
+        &mut self,
         state: &'a mut State,
         opts: Vec<String>,
     ) -> BoxFuture<'a, <Load as Method>::Response> {
@@ -64,7 +64,7 @@ impl Mode for Fd {
         }
         .boxed()
     }
-    fn preview(&self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
         async move {
             let output = TokioCommand::new("bat")
                 .arg(&item)
@@ -79,7 +79,12 @@ impl Mode for Fd {
         }
         .boxed()
     }
-    fn run<'a>(&self, state: &'a mut State, path: String, opts: RunOpts) -> BoxFuture<'a, RunResp> {
+    fn run<'a>(
+        &mut self,
+        state: &'a mut State,
+        path: String,
+        opts: RunOpts,
+    ) -> BoxFuture<'a, RunResp> {
         async move {
             let nvim = state.nvim.clone();
             let _ = tokio::spawn(async move {

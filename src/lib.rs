@@ -40,7 +40,6 @@ use crate::client::Command;
 use crate::config::Config;
 use crate::method::LoadParam;
 use crate::nvim::start_nvim;
-use crate::types::Mode;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Cli
@@ -99,15 +98,14 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     }
 
     let config = {
-        let fd: Box<dyn Mode + Send + Sync> = Box::new(mode::fd::new());
-        let rg: Box<dyn Mode + Send + Sync> = Box::new(mode::rg::new());
-        let buffer: Box<dyn Mode + Send + Sync> = Box::new(mode::buffer::new());
-        let zoxide: Box<dyn Mode + Send + Sync> = Box::new(mode::zoxide::new());
-        let mru: Box<dyn Mode + Send + Sync> = Box::new(mode::mru::new());
-        let diagnostics: Box<dyn Mode + Send + Sync> = Box::new(mode::diagnostics::new());
+        let fd: config::MkMode = Box::pin(|| Box::new(mode::fd::new()));
+        let rg: config::MkMode = Box::pin(|| Box::new(mode::rg::new()));
+        let buffer: config::MkMode = Box::pin(|| Box::new(mode::buffer::new()));
+        let zoxide: config::MkMode = Box::pin(|| Box::new(mode::zoxide::new()));
+        let mru: config::MkMode = Box::pin(|| Box::new(mode::mru::new()));
+        let diagnostics: config::MkMode = Box::pin(|| Box::new(mode::diagnostics::new()));
         Config {
             modes: HashMap::from([
-                //
                 ("fd".to_string(), fd),
                 ("rg".to_string(), rg),
                 ("buffer".to_string(), buffer),
@@ -129,14 +127,14 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     let server_handler = tokio::spawn(async move {
         let initial_state = types::State {
             pwd: env::current_dir().unwrap(),
-            mode: config.get_mode("fd"),
             last_load: LoadParam {
                 mode: "fd".to_string(),
                 args: vec![],
             },
             nvim,
         };
-        let r = server::server(&config, initial_state, socket).await;
+        let initial_mode = "fd";
+        let r = server::server(&config, initial_mode, initial_state, socket).await;
         if let Err(e) = r {
             error!("server: error"; "error" => e);
         }

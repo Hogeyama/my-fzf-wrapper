@@ -30,7 +30,7 @@ impl Mode for Mru {
         "mru"
     }
     fn load<'a>(
-        &self,
+        &mut self,
         state: &'a mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'a, <Load as Method>::Response> {
@@ -56,7 +56,7 @@ impl Mode for Mru {
         }
         .boxed()
     }
-    fn preview(&self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
         async move {
             let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
             let path = ITEM_PATTERN.replace(&item, "$path").into_owned();
@@ -85,7 +85,12 @@ impl Mode for Mru {
         }
         .boxed()
     }
-    fn run<'a>(&self, state: &'a mut State, item: String, opts: RunOpts) -> BoxFuture<'a, RunResp> {
+    fn run<'a>(
+        &mut self,
+        state: &'a mut State,
+        item: String,
+        opts: RunOpts,
+    ) -> BoxFuture<'a, RunResp> {
         async move {
             let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
             let nvim = state.nvim.clone();

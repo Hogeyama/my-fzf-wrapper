@@ -17,9 +17,12 @@ use crate::Config;
 
 pub async fn server<'a>(
     config: &'a Config,
-    mut state: State<'a>,
+    initial_mode: &'a str,
+    initial_state: State,
     listener: UnixListener,
 ) -> Result<(), String> {
+    let mut mode = config.get_mode(initial_mode);
+    let mut state = initial_state;
     while let Ok((unix_stream, _addr)) = listener.accept().await {
         trace!("server: new client");
         let (rx, mut tx) = tokio::io::split(unix_stream);
@@ -35,21 +38,24 @@ pub async fn server<'a>(
             match req {
                 Some(method::Request::Load { method, params }) => {
                     state.last_load = params.clone(); // save for reload
-                    let method::LoadParam { mode, args } = params;
-                    state.mode = config.get_mode(mode);
-                    let resp = state.mode.load(&mut state, args).await;
+                    let method::LoadParam {
+                        mode: mode_name,
+                        args,
+                    } = params;
+                    mode = config.get_mode(mode_name);
+                    let resp = mode.load(&mut state, args).await;
                     send_response(&mut tx, method, resp).await?;
                 }
                 Some(method::Request::Preview { method, params }) => {
                     let method::PreviewParam { item } = params;
-                    let resp = state.mode.preview(&mut state, item).await;
+                    let resp = mode.preview(&mut state, item).await;
                     send_response(&mut tx, method, resp).await?;
                 }
                 Some(method::Request::Run { method, params }) => {
                     let method::RunParam { item, args } = params;
                     match clap_parse_from(args) {
                         Ok(opts) => {
-                            let resp = state.mode.run(&mut state, item, opts).await;
+                            let resp = mode.run(&mut state, item, opts).await;
                             send_response(&mut tx, method, resp).await?;
                         }
                         Err(e) => {
@@ -60,10 +66,10 @@ pub async fn server<'a>(
                 }
                 Some(method::Request::Reload { method, params: () }) => {
                     let args = state.last_load.args.clone();
-                    let resp = state.mode.load(&mut state, args).await;
+                    let resp = mode.load(&mut state, args).await;
                     send_response(&mut tx, method, resp).await?;
                 }
-                None => {
+                _ => {
                     tx.write_all("\"Unknown request\"".as_bytes())
                         .await
                         .map_err(|e| e.to_string())?;

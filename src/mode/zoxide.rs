@@ -19,7 +19,7 @@ impl Mode for Zoxide {
         "zoxide"
     }
     fn load<'a>(
-        &self,
+        &mut self,
         _state: &'a mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'a, <Load as Method>::Response> {
@@ -48,7 +48,7 @@ impl Mode for Zoxide {
         }
         .boxed()
     }
-    fn preview(&self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
         async move {
             let output = TokioCommand::new("exa")
                 .args(vec!["--color", "always"])
@@ -71,7 +71,7 @@ impl Mode for Zoxide {
         .boxed()
     }
     fn run<'a>(
-        &self,
+        &mut self,
         _state: &'a mut State,
         _path: String,
         _opts: RunOpts,
