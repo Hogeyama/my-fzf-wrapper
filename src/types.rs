@@ -1,5 +1,5 @@
 use crate::{
-    method::{LoadParam, LoadResp, PreviewResp, RunResp},
+    method::{LoadParam, LoadResp, PreviewResp, RunOpts, RunResp},
     nvim::Neovim,
 };
 
@@ -30,10 +30,5 @@ pub trait Mode {
     fn preview<'a>(&self, state: &'a mut State, item: String) -> BoxFuture<'a, PreviewResp>;
 
     /// Run command with the selected item
-    fn run<'a>(
-        &self,
-        state: &'a mut State,
-        item: String,
-        args: Vec<String>,
-    ) -> BoxFuture<'a, RunResp>;
+    fn run<'a>(&self, state: &'a mut State, item: String, opts: RunOpts) -> BoxFuture<'a, RunResp>;
 }

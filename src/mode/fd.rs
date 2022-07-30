@@ -2,7 +2,7 @@ use std::error::Error;
 
 use crate::{
     external_command::fd,
-    method::{Load, LoadResp, Method, PreviewResp, RunResp},
+    method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
     nvim::{hide_floaterm, move_to_last_tab, stop_insert, Neovim},
     types::{Mode, State},
 };
@@ -81,27 +81,15 @@ impl Mode for Fd {
         }
         .boxed()
     }
-    fn run<'a>(
-        &self,
-        state: &'a mut State,
-        path: String,
-        opts: Vec<String>,
-    ) -> BoxFuture<'a, RunResp> {
+    fn run<'a>(&self, state: &'a mut State, path: String, opts: RunOpts) -> BoxFuture<'a, RunResp> {
         async move {
             let nvim = state.nvim.clone();
-            match clap_parse_from::<RunOpts>(opts) {
-                Ok(opts) => {
-                    let _ = tokio::spawn(async move {
-                        let r = nvim_open(&nvim, path.clone(), opts).await;
-                        if let Err(e) = r {
-                            error!("fd: run: nvim_open failed"; "error" => e.to_string());
-                        }
-                    });
+            let _ = tokio::spawn(async move {
+                let r = nvim_open(&nvim, path.clone(), opts).await;
+                if let Err(e) = r {
+                    error!("fd: run: nvim_open failed"; "error" => e.to_string());
                 }
-                Err(e) => {
-                    error!("fd.run.opts failed"; "error" => e.to_string());
-                }
-            }
+            });
             RunResp
         }
         .boxed()
@@ -137,19 +125,9 @@ impl From<LoadOpts> for mode_utils::CdOpts {
         }
     }
 }
-
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Run
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Parser, Debug, Clone)]
-struct RunOpts {
-    #[clap(long)]
-    line: Option<u32>,
-
-    #[clap(long)]
-    tabedit: bool,
-}
 
 async fn nvim_open(nvim: &Neovim, path: String, opts: RunOpts) -> Result<(), Box<dyn Error>> {
     let line_opt = match opts.line {

@@ -1,3 +1,4 @@
+use clap::Parser;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -179,6 +180,17 @@ pub struct RunParam {
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct RunResp;
+
+// fzf の key binding で渡すオプション。
+// Load と異なり、Run のオプションは共通になる。
+#[derive(Parser, Debug, Clone, Serialize, Deserialize, Default)]
+pub struct RunOpts {
+    #[clap(long)]
+    pub line: Option<usize>,
+
+    #[clap(long)]
+    pub tabedit: bool,
+}
 
 impl Method for Run {
     type Param = RunParam;

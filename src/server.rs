@@ -10,7 +10,9 @@ use tokio::net::UnixListener;
 use crate::logger::Serde;
 use crate::method;
 use crate::method::Method;
+use crate::method::RunResp;
 use crate::types::State;
+use crate::utils::clap_parse_from;
 use crate::Config;
 
 pub async fn server<'a>(
@@ -45,8 +47,16 @@ pub async fn server<'a>(
                 }
                 Some(method::Request::Run { method, params }) => {
                     let method::RunParam { item, args } = params;
-                    let resp = state.mode.run(&mut state, item, args).await;
-                    send_response(&mut tx, method, resp).await?;
+                    match clap_parse_from(args) {
+                        Ok(opts) => {
+                            let resp = state.mode.run(&mut state, item, opts).await;
+                            send_response(&mut tx, method, resp).await?;
+                        }
+                        Err(e) => {
+                            error!("server: clap parse error"; "error" => e.to_string());
+                            send_response(&mut tx, method, RunResp).await?
+                        }
+                    }
                 }
                 Some(method::Request::Reload { method, params: () }) => {
                     let args = state.last_load.args.clone();
