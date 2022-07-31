@@ -1,4 +1,3 @@
-use std::borrow::Cow;
 use std::collections::HashMap;
 use std::pin::Pin;
 
@@ -13,11 +12,8 @@ pub struct Config {
 pub type MkMode = Pin<Box<dyn (Fn() -> Box<dyn Mode + Send + Sync>) + Send + Sync>>;
 
 impl Config {
-    pub fn get_mode<'a, 'b>(
-        &'a self,
-        mode: impl Into<Cow<'b, str>>,
-    ) -> Box<dyn Mode + Send + Sync> {
-        let mode = mode.into().into_owned();
+    pub fn get_mode(&self, mode: impl Into<String>) -> Box<dyn Mode + Send + Sync> {
+        let mode = mode.into();
         self.modes.get(&mode).unwrap()()
     }
 }

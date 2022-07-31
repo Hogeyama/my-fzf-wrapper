@@ -20,7 +20,6 @@ pub trait Mode {
     /// The name of the mode
     fn name(&self) -> &'static str;
 
-    // &mut self にしたくなるときが来るかもしれない
     /// Load items into fzf
     fn load<'a>(&'a mut self, state: &'a mut State, arg: Vec<String>) -> BoxFuture<'a, LoadResp>;
 
@@ -34,25 +33,4 @@ pub trait Mode {
         item: String,
         opts: RunOpts,
     ) -> BoxFuture<'a, RunResp>;
-}
-
-struct Dummy {}
-impl Mode for Dummy {
-    fn name(&self) -> &'static str {
-        panic!()
-    }
-    fn load<'a>(&mut self, _state: &'a mut State, _arg: Vec<String>) -> BoxFuture<'a, LoadResp> {
-        panic!()
-    }
-    fn preview<'a>(&mut self, _state: &'a mut State, _item: String) -> BoxFuture<'a, PreviewResp> {
-        panic!()
-    }
-    fn run<'a>(
-        &mut self,
-        _state: &'a mut State,
-        _item: String,
-        _opts: RunOpts,
-    ) -> BoxFuture<'a, RunResp> {
-        panic!()
-    }
 }

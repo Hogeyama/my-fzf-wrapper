@@ -23,11 +23,11 @@ impl Mode for Fd {
     fn name(&self) -> &'static str {
         "fd"
     }
-    fn load<'a>(
+    fn load(
         &mut self,
-        state: &'a mut State,
+        state: &mut State,
         opts: Vec<String>,
-    ) -> BoxFuture<'a, <Load as Method>::Response> {
+    ) -> BoxFuture<'static, <Load as Method>::Response> {
         let nvim = state.nvim.clone();
         async move {
             match utils::clap_parse_from::<LoadOpts>(opts) {
@@ -79,14 +79,14 @@ impl Mode for Fd {
         }
         .boxed()
     }
-    fn run<'a>(
+    fn run(
         &mut self,
-        state: &'a mut State,
+        state: &mut State,
         path: String,
         opts: RunOpts,
-    ) -> BoxFuture<'a, RunResp> {
+    ) -> BoxFuture<'static, RunResp> {
+        let nvim = state.nvim.clone();
         async move {
-            let nvim = state.nvim.clone();
             let _ = tokio::spawn(async move {
                 let r = nvim::open(&nvim, path.clone().into(), opts.into()).await;
                 if let Err(e) = r {

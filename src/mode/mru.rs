@@ -29,11 +29,11 @@ impl Mode for Mru {
     fn name(&self) -> &'static str {
         "mru"
     }
-    fn load<'a>(
+    fn load(
         &mut self,
-        state: &'a mut State,
+        state: &mut State,
         _opts: Vec<String>,
-    ) -> BoxFuture<'a, <Load as Method>::Response> {
+    ) -> BoxFuture<'static, <Load as Method>::Response> {
         let nvim = state.nvim.clone();
         async move {
             let mru_result = get_nvim_oldefiles(&nvim).await;
@@ -85,15 +85,15 @@ impl Mode for Mru {
         }
         .boxed()
     }
-    fn run<'a>(
+    fn run(
         &mut self,
-        state: &'a mut State,
+        state: &mut State,
         item: String,
         opts: RunOpts,
-    ) -> BoxFuture<'a, RunResp> {
+    ) -> BoxFuture<'static, RunResp> {
+        let nvim = state.nvim.clone();
         async move {
             let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
-            let nvim = state.nvim.clone();
             let _ = tokio::spawn(async move {
                 let r = nvim::open(&nvim, bufnr.into(), opts.into()).await;
                 if let Err(e) = r {

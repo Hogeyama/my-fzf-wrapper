@@ -29,12 +29,11 @@ impl Mode for Rg {
     fn name(&self) -> &'static str {
         "rg"
     }
-    fn load<'a>(
+    fn load(
         &mut self,
-        state: &'a mut State,
+        _state: &mut State,
         opts: Vec<String>,
-    ) -> BoxFuture<'a, <Load as Method>::Response> {
-        let _nvim = state.nvim.clone();
+    ) -> BoxFuture<'static, <Load as Method>::Response> {
         async move {
             let opts = utils::clap_parse_from::<LoadOpts>(opts).unwrap();
             let rg_output = rg::new().arg(opts.query).output().await;
@@ -80,16 +79,16 @@ impl Mode for Rg {
         }
         .boxed()
     }
-    fn run<'a>(
+    fn run(
         &mut self,
-        state: &'a mut State,
+        state: &mut State,
         item: String,
         opts: RunOpts,
-    ) -> BoxFuture<'a, RunResp> {
+    ) -> BoxFuture<'static, RunResp> {
+        let nvim = state.nvim.clone();
         async move {
             let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-            let nvim = state.nvim.clone();
             let opts = nvim::OpenOpts {
                 line: line.parse::<usize>().ok(),
                 ..opts.into()

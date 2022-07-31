@@ -18,11 +18,11 @@ impl Mode for Zoxide {
     fn name(&self) -> &'static str {
         "zoxide"
     }
-    fn load<'a>(
+    fn load(
         &mut self,
-        _state: &'a mut State,
+        _state: &mut State,
         _opts: Vec<String>,
-    ) -> BoxFuture<'a, <Load as Method>::Response> {
+    ) -> BoxFuture<'static, <Load as Method>::Response> {
         async move {
             let zoxide_result = zoxide::new().output().await;
             match zoxide_result {
@@ -70,12 +70,12 @@ impl Mode for Zoxide {
         }
         .boxed()
     }
-    fn run<'a>(
+    fn run(
         &mut self,
-        _state: &'a mut State,
+        _state: &mut State,
         _path: String,
         _opts: RunOpts,
-    ) -> BoxFuture<'a, RunResp> {
+    ) -> BoxFuture<'static, RunResp> {
         async move { RunResp }.boxed()
     }
 }

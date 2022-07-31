@@ -68,9 +68,9 @@ impl Mode for Diagnostics {
         }
         .boxed()
     }
-    fn preview<'a>(&'a mut self, _state: &mut State, item: String) -> BoxFuture<'a, PreviewResp> {
+    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+        let file = self.file.clone().unwrap();
         async move {
-            let file = self.file.clone().unwrap();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
             let line = line.parse::<i64>().unwrap() + 1;
             let start_line = std::cmp::max(0, line - 15);
@@ -89,15 +89,15 @@ impl Mode for Diagnostics {
         }
         .boxed()
     }
-    fn run<'a>(
-        &'a mut self,
-        state: &'a mut State,
+    fn run(
+        &mut self,
+        state: &mut State,
         item: String,
         opts: RunOpts,
-    ) -> BoxFuture<'a, RunResp> {
+    ) -> BoxFuture<'static, RunResp> {
         let nvim = state.nvim.clone();
+        let file = self.file.clone().unwrap();
         async move {
-            let file = self.file.clone().unwrap();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
             let line = line.parse::<i64>().unwrap() + 1;
             let opts = nvim::OpenOpts {

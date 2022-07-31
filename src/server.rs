@@ -15,9 +15,9 @@ use crate::types::State;
 use crate::utils::clap_parse_from;
 use crate::Config;
 
-pub async fn server<'a>(
-    config: &'a Config,
-    initial_mode: &'a str,
+pub async fn server(
+    config: &Config,
+    initial_mode: &str,
     initial_state: State,
     listener: UnixListener,
 ) -> Result<(), String> {

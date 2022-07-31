@@ -69,9 +69,9 @@ pub async fn stop_insert(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
 }
 
 #[allow(dead_code)]
-pub async fn leaving_insert_mode<'a, T>(
+pub async fn leaving_insert_mode<T>(
     nvim: &Neovim,
-    callback: impl Fn() -> BoxFuture<'a, Result<T, Box<dyn Error>>>,
+    callback: impl Fn() -> BoxFuture<'static, Result<T, Box<dyn Error>>>,
 ) -> Result<T, Box<dyn Error>> {
     stop_insert(&nvim).await?;
     let r = callback().await?;
@@ -80,9 +80,9 @@ pub async fn leaving_insert_mode<'a, T>(
 }
 
 #[allow(dead_code)]
-pub async fn focusing_last_win<'a, T>(
+pub async fn focusing_last_win<T>(
     nvim: &Neovim,
-    callback: impl Fn() -> BoxFuture<'a, Result<T, Box<dyn Error>>>,
+    callback: impl Fn() -> BoxFuture<'static, Result<T, Box<dyn Error>>>,
 ) -> Result<T, Box<dyn Error>> {
     move_to_last_win(nvim).await?;
     let r = callback().await?;
@@ -91,9 +91,9 @@ pub async fn focusing_last_win<'a, T>(
 }
 
 #[allow(dead_code)]
-pub async fn focusing_last_tab<'a, T>(
+pub async fn focusing_last_tab<T>(
     nvim: &Neovim,
-    callback: impl Fn() -> BoxFuture<'a, Result<T, Box<dyn Error>>>,
+    callback: impl Fn() -> BoxFuture<'static, Result<T, Box<dyn Error>>>,
 ) -> Result<T, Box<dyn Error>> {
     move_to_last_tab(nvim).await?;
     let r = callback().await?;
