@@ -69,6 +69,11 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
         "--bind",
         &format!("alt-w:reload[{myself} load --socket {socket} -- diagnostics]+change-prompt[diagnostics>]+clear-query"),
     ]);
+    // browser-history: default
+    fzf.args(vec![
+        "--bind",
+        &format!("ctrl-i:reload[{myself} load --socket {socket} -- browser-history]+change-prompt[browser>]+clear-query"),
+    ]);
     // run: default
     fzf.args(vec![
         "--bind",

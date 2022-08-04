@@ -33,7 +33,7 @@ pub async fn start_nvim(nvim_listen_address: &str) -> Result<Neovim, Box<dyn Err
         .await
         .expect("Connect to nvim failed");
     setup_nvim_config(&nvim).await?;
-    info!("nvim started");
+    trace!("nvim started");
     Ok(nvim)
 }
 

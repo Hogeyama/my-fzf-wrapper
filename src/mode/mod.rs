@@ -1,3 +1,4 @@
+pub mod browser_history;
 pub mod buffer;
 pub mod diagnostics;
 pub mod fd;

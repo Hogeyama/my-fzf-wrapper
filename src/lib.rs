@@ -104,6 +104,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
         let zoxide: config::MkMode = Box::pin(|| Box::new(mode::zoxide::new()));
         let mru: config::MkMode = Box::pin(|| Box::new(mode::mru::new()));
         let diagnostics: config::MkMode = Box::pin(|| Box::new(mode::diagnostics::new()));
+        let browser_history: config::MkMode = Box::pin(|| Box::new(mode::browser_history::new()));
         Config {
             modes: HashMap::from([
                 ("fd".to_string(), fd),
@@ -112,6 +113,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
                 ("zoxide".to_string(), zoxide),
                 ("mru".to_string(), mru),
                 ("diagnostics".to_string(), diagnostics),
+                ("browser-history".to_string(), browser_history),
             ]),
         }
     };
