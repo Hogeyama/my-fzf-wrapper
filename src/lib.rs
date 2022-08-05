@@ -74,19 +74,14 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     }
 
     fn gen_socket_name() -> String {
-        if true {
-            // テスト用
-            "/tmp/test.sock".to_string()
-        } else {
-            format!(
-                "/tmp/{}.sock",
-                rand::thread_rng()
-                    .sample_iter(&Alphanumeric)
-                    .take(10)
-                    .map(char::from)
-                    .collect::<String>()
-            )
-        }
+        format!(
+            "/tmp/{}.sock",
+            rand::thread_rng()
+                .sample_iter(&Alphanumeric)
+                .take(10)
+                .map(char::from)
+                .collect::<String>()
+        )
     }
     fn create_listener(socket_name: &str) -> UnixListener {
         let sockfile = Path::new(socket_name);
