@@ -57,8 +57,12 @@ struct Cli {
     myfzf_self: Option<String>,
 
     /// Address or filepath to a socket used to communicate with neovim.
+    #[clap(long, env, required_unless("nvim-listen-address"))]
+    nvim: Option<String>,
+
+    /// Address or filepath to a socket used to communicate with neovim (legacy).
     #[clap(long, env)]
-    nvim_listen_address: String,
+    nvim_listen_address: Option<String>,
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +117,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
         }
     };
 
-    let nvim = start_nvim(&args.nvim_listen_address)
+    let nvim = start_nvim(&args.nvim.or(args.nvim_listen_address).unwrap())
         .await
         .map_err(|e| e.to_string())?;
 
