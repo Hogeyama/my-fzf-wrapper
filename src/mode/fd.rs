@@ -5,6 +5,8 @@ use crate::{
     types::{Mode, State},
 };
 
+use std::process::ExitStatus;
+
 use clap::Parser;
 use futures::{future::BoxFuture, FutureExt};
 use tokio::process::Command as TokioCommand;
@@ -87,12 +89,23 @@ impl Mode for Fd {
     ) -> BoxFuture<'static, RunResp> {
         let nvim = state.nvim.clone();
         async move {
-            let _ = tokio::spawn(async move {
-                let r = nvim::open(&nvim, path.clone().into(), opts.into()).await;
-                if let Err(e) = r {
-                    error!("fd: run: nvim::open failed"; "error" => e.to_string());
-                }
-            });
+            if opts.vifm {
+                let pwd = std::env::current_dir().unwrap().into_os_string();
+                let _: ExitStatus = TokioCommand::new("vifm")
+                    .arg(&pwd)
+                    .spawn()
+                    .unwrap()
+                    .wait()
+                    .await
+                    .unwrap();
+            } else {
+                let _ = tokio::spawn(async move {
+                    let r = nvim::open(&nvim, path.clone().into(), opts.into()).await;
+                    if let Err(e) = r {
+                        error!("fd: run: nvim::open failed"; "error" => e.to_string());
+                    }
+                });
+            }
             RunResp
         }
         .boxed()

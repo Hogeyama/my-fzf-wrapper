@@ -190,6 +190,9 @@ pub struct RunOpts {
 
     #[clap(long)]
     pub tabedit: bool,
+
+    #[clap(long)]
+    pub vifm: bool,
 }
 
 impl Method for Run {
