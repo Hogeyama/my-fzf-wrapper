@@ -54,7 +54,7 @@ struct Cli {
     command: Option<Command>,
 
     #[clap(long, env)]
-    myfzf_self: Option<String>,
+    fzfw_self: Option<String>,
 
     /// Address or filepath to a socket used to communicate with neovim.
     #[clap(long, env, required_unless("nvim-listen-address"))]
@@ -142,7 +142,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     });
 
     // spawn fzf
-    let myself = args.myfzf_self.unwrap_or(get_program_path());
+    let myself = args.fzfw_self.unwrap_or(get_program_path());
     external_command::fzf::new(myself, &socket_name)
         .spawn()
         .expect("Failed to spawn fzf")

@@ -5,7 +5,7 @@ use slog::{Drain, FnValue, PushFnValue, Record};
 use slog_scope::GlobalLoggerGuard;
 
 pub fn init() -> Result<GlobalLoggerGuard, Box<dyn Error>> {
-    let log_path = "/tmp/myfzf-rs.log";
+    let log_path = "/tmp/fzfw-rs.log";
     let file = OpenOptions::new()
         .create(true)
         .append(true)

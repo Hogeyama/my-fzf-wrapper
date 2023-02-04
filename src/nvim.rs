@@ -46,13 +46,13 @@ pub type Neovim = nvim_rs::Neovim<TokioCompat<WriteHalf<Connection>>>;
 #[allow(dead_code)]
 pub async fn move_to_last_win(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
     // 何故かコマンドを経由しないと動かなかった
-    let _ = nvim.command("MyFzfMoveToLastWin").await?;
+    let _ = nvim.command("FzfwMoveToLastWin").await?;
     Ok(())
 }
 
 #[allow(dead_code)]
 pub async fn move_to_last_tab(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    let _ = nvim.command("MyFzfMoveToLastTab").await?;
+    let _ = nvim.command("FzfwMoveToLastTab").await?;
     Ok(())
 }
 
@@ -103,10 +103,10 @@ pub async fn focusing_last_tab<T>(
 
 #[allow(dead_code)]
 pub async fn last_opened_file(nvim: &Neovim) -> Result<String, Box<dyn Error>> {
-    let r = nvim.eval("g:myfzf_last_file").await?;
+    let r = nvim.eval("g:fzfw_last_file").await?;
     match r {
         nvim_rs::Value::String(s) => Ok(s.into_str().unwrap()),
-        _ => Err("g:myfzf_last_file is not string".into()),
+        _ => Err("g:fzfw_last_file is not string".into()),
     }
 }
 
@@ -189,7 +189,7 @@ impl From<usize> for OpenTarget {
 
 #[allow(dead_code)]
 pub async fn get_buf_diagnostics(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
-    let diagnostics = eval_lua(&nvim, "return vim.diagnostic.get(vim.g.myfzf_last_buf)").await?;
+    let diagnostics = eval_lua(&nvim, "return vim.diagnostic.get(vim.g.fzfw_last_buf)").await?;
     info!("get_buf_diagnostics"; "diagnostics" => Serde(diagnostics.clone()));
     let diagnostics: Vec<DiagnosticsItem> = from_value(diagnostics)?;
     Ok(diagnostics)
@@ -225,10 +225,10 @@ impl Severity {
 async fn setup_nvim_config(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
     // 変数の初期化
     nvim.exec(
-        r#"let g:myfzf_last_win    = 1
-           let g:myfzf_last_file   = "."
-           let g:myfzf_last_tab    = 1
-           let g:myfzf_current_buf = 1"#,
+        r#"let g:fzfw_last_win    = 1
+           let g:fzfw_last_file   = "."
+           let g:fzfw_last_tab    = 1
+           let g:fzfw_current_buf = 1"#,
         false,
     )
     .await?;
@@ -246,14 +246,14 @@ async fn setup_nvim_config(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
     register_autocmds(
         &nvim,
         vec![
-            ("WinLeave", r#"let g:myfzf_last_win = winnr()"#),
-            ("WinLeave", r#"let g:myfzf_last_file = expand("%:p")"#),
-            ("TabLeave", r#"let g:myfzf_last_tab = tabpagenr()"#),
+            ("WinLeave", r#"let g:fzfw_last_win = winnr()"#),
+            ("WinLeave", r#"let g:fzfw_last_file = expand("%:p")"#),
+            ("TabLeave", r#"let g:fzfw_last_tab = tabpagenr()"#),
             (
                 "BufLeave",
                 &vec![
-                    r#"let g:myfzf_last_buf = g:myfzf_current_buf"#,
-                    r#"let g:myfzf_current_buf = bufnr('%')"#,
+                    r#"let g:fzfw_last_buf = g:fzfw_current_buf"#,
+                    r#"let g:fzfw_current_buf = bufnr('%')"#,
                 ]
                 .join("|"),
             ),
@@ -264,14 +264,14 @@ async fn setup_nvim_config(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
     // commandの登録
     register_command(
         &nvim,
-        "MyFzfMoveToLastWin",
-        r#"execute "normal! ".g:myfzf_last_win."<C-w><C-w>""#,
+        "FzfwMoveToLastWin",
+        r#"execute "normal! ".g:fzfw_last_win."<C-w><C-w>""#,
     )
     .await?;
     register_command(
         &nvim,
-        "MyFzfMoveToLastTab",
-        r#"execute "tabnext ".g:myfzf_last_tab"#,
+        "FzfwMoveToLastTab",
+        r#"execute "tabnext ".g:fzfw_last_tab"#,
     )
     .await?;
 
@@ -286,7 +286,7 @@ async fn register_autocmds(
         .call(
             "nvim_create_augroup",
             call_args![
-                MYFZF_AUTOCMD_GROUP,
+                FZFW_AUTOCMD_GROUP,
                 to_value(json!({ "clear": true, })).unwrap()
             ],
         )
@@ -299,7 +299,7 @@ async fn register_autocmds(
                 call_args![
                     event,
                     to_value(json!({
-                        "group": MYFZF_AUTOCMD_GROUP,
+                        "group": FZFW_AUTOCMD_GROUP,
                         "command": command
                     }))
                     .unwrap()
@@ -338,4 +338,4 @@ async fn eval_lua(nvim: &Neovim, expr: impl AsRef<str>) -> Result<rmpv::Value, B
     Ok(v)
 }
 
-const MYFZF_AUTOCMD_GROUP: &str = "fzfw";
+const FZFW_AUTOCMD_GROUP: &str = "fzfw";
