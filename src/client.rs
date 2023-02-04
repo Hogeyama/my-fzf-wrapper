@@ -35,12 +35,12 @@ pub enum Command {
         socket: String,
     },
     /// internal
-    /// internal
     Preview {
         #[clap(long)]
         socket: String,
         item: String,
     },
+    /// internal
     Run {
         #[clap(long)]
         socket: String,
