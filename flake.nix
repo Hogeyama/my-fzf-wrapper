@@ -7,23 +7,20 @@
   };
 
   outputs = { self, nixpkgs, flake-utils, ... }:
-    let
-      supportedSystems = [ "x86_64-linux" ];
-
-      outputs-overlay = pkgs: prev: {
-        my-shell = import ./nix/my-shell.nix { inherit pkgs; };
-        my-package = import ./nix/my-package.nix { inherit pkgs; };
-      };
-    in
-    flake-utils.lib.eachSystem supportedSystems (system:
+    flake-utils.lib.eachDefaultSystem (system:
       let
-        pkgs = import nixpkgs {
-          inherit system;
-          overlays = [ outputs-overlay ];
+        pkgs = import nixpkgs { inherit system; };
+
+        shell = pkgs.mkShell {
+          packages = with pkgs; [
+            glibc
+            gcc
+            rustup
+            rust-analyzer
+          ];
         };
-      in
-      {
-        packages.default = pkgs.rustPlatform.buildRustPackage {
+
+        fzfw = pkgs.rustPlatform.buildRustPackage {
           pname = "myfzf-wrapper-rs";
           version = "0.1.0";
           src = pkgs.lib.sourceByRegex ./. [
@@ -34,15 +31,18 @@
           cargoLock = {
             lockFile = ./Cargo.lock;
           };
+          buildInputs = [ pkgs.makeWrapper ];
+          postFixup = ''
+            wrapProgram $out/bin/fzfw \
+              --prefix PATH : \
+                ${pkgs.ripgrep}/bin:${pkgs.fzf}/bin
+          '';
         };
-        devShells.default = pkgs.mkShell {
-          packages = with pkgs; [
-            glibc
-            gcc
-            rustup
-            rust-analyzer
-          ];
-        };
+
+      in
+      {
+        packages.default = fzfw;
+        devShells.default = shell;
       }
     );
 }
