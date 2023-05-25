@@ -2,13 +2,8 @@
   description = "TODO";
 
   inputs = {
-    #nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     nixpkgs.url = "github:nixos/nixpkgs/master";
     flake-utils.url = "github:numtide/flake-utils/master";
-    flake-compat = {
-      url = github:edolstra/flake-compat;
-      flake = false;
-    };
   };
 
   outputs = { self, nixpkgs, flake-utils, ... }:
@@ -28,8 +23,26 @@
         };
       in
       {
-        defaultPackage = pkgs.my-package;
-        devShell = pkgs.my-shell;
+        packages.default = pkgs.rustPlatform.buildRustPackage {
+          pname = "myfzf-wrapper-rs";
+          version = "0.1.0";
+          src = pkgs.lib.sourceByRegex ./. [
+            "Cargo.toml"
+            "Cargo.lock"
+            "src.*"
+          ];
+          cargoLock = {
+            lockFile = ./Cargo.lock;
+          };
+        };
+        devShells.default = pkgs.mkShell {
+          packages = with pkgs; [
+            glibc
+            gcc
+            rustup
+            rust-analyzer
+          ];
+        };
       }
     );
 }
