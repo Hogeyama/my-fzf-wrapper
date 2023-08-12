@@ -2,14 +2,16 @@
   description = "TODO";
 
   inputs = {
-    nixpkgs.url = "github:nixos/nixpkgs/master";
-    flake-utils.url = "github:numtide/flake-utils/master";
+    nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
+    nixpkgs-old.url = "github:nixos/nixpkgs/6141b8932a5cf376fe18fcd368cecd9ad946cb68";
+    flake-utils.url = "github:numtide/flake-utils/main";
   };
 
-  outputs = { self, nixpkgs, flake-utils, ... }:
+  outputs = { nixpkgs, nixpkgs-old, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
+        pkgs-old = import nixpkgs-old { inherit system; };
 
         shell = pkgs.mkShell {
           packages = with pkgs; [
@@ -35,7 +37,7 @@
           postFixup = ''
             wrapProgram $out/bin/fzfw \
               --prefix PATH : \
-                ${pkgs.ripgrep}/bin:${pkgs.fzf}/bin
+                ${pkgs-old.ripgrep}/bin:${pkgs-old.fzf}/bin
           '';
         };
 
