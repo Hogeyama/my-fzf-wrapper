@@ -5,6 +5,7 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     let myself = myself.into();
     let socket = socket.into();
     let mut fzf = Command::new("fzf");
+    fzf.args(vec!["--ansi"]);
     fzf.args(vec!["--bind", "ctrl-s:toggle-sort"]);
     // preview
     fzf.args(vec![
