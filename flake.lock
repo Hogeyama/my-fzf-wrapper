@@ -1,5 +1,26 @@
 {
   "nodes": {
+    "fenix": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ],
+        "rust-analyzer-src": "rust-analyzer-src"
+      },
+      "locked": {
+        "lastModified": 1692425915,
+        "narHash": "sha256-nU0eB3EZdQwFzWr/QHTYIx1m7+cVnvGvi2lv1nML4BM=",
+        "owner": "nix-community",
+        "repo": "fenix",
+        "rev": "ce22ab2b2c8aec8593713d077bbce8f0e3fe8d3e",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "fenix",
+        "type": "github"
+      }
+    },
     "flake-utils": {
       "inputs": {
         "systems": "systems"
@@ -16,6 +37,26 @@
         "owner": "numtide",
         "ref": "main",
         "repo": "flake-utils",
+        "type": "github"
+      }
+    },
+    "naersk": {
+      "inputs": {
+        "nixpkgs": [
+          "nixpkgs"
+        ]
+      },
+      "locked": {
+        "lastModified": 1692351612,
+        "narHash": "sha256-KTGonidcdaLadRnv9KFgwSMh1ZbXoR/OBmPjeNMhFwU=",
+        "owner": "nix-community",
+        "repo": "naersk",
+        "rev": "78789c30d64dea2396c9da516bbcc8db3a475207",
+        "type": "github"
+      },
+      "original": {
+        "owner": "nix-community",
+        "repo": "naersk",
         "type": "github"
       }
     },
@@ -53,9 +94,28 @@
     },
     "root": {
       "inputs": {
+        "fenix": "fenix",
         "flake-utils": "flake-utils",
+        "naersk": "naersk",
         "nixpkgs": "nixpkgs",
         "nixpkgs-old": "nixpkgs-old"
+      }
+    },
+    "rust-analyzer-src": {
+      "flake": false,
+      "locked": {
+        "lastModified": 1692375387,
+        "narHash": "sha256-p3szK3Amt3l+Fyh6E8fAfNXC1vlQ/iclikGyaMb7Gec=",
+        "owner": "rust-lang",
+        "repo": "rust-analyzer",
+        "rev": "c0f6ece3c47b6486731367153a66be0790d13dec",
+        "type": "github"
+      },
+      "original": {
+        "owner": "rust-lang",
+        "ref": "nightly",
+        "repo": "rust-analyzer",
+        "type": "github"
       }
     },
     "systems": {
