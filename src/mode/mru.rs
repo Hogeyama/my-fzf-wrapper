@@ -23,7 +23,7 @@ pub fn new() -> Mru {
 }
 
 static ITEM_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"\s*(?P<bufnr>\d+):(?P<path>.*)"#).unwrap());
+    Lazy::new(|| Regex::new(r"\s*(?P<bufnr>\d+):(?P<path>.*)").unwrap());
 
 impl Mode for Mru {
     fn name(&self) -> &'static str {

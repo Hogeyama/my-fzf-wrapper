@@ -35,7 +35,7 @@ pub async fn change_directory(nvim: &Neovim, opts: CdOpts) -> Result<bool, Strin
                 .map_err(|e| e.to_string())
         }
         CdOpts { cd_last_file, .. } if cd_last_file => {
-            let last_file = nvim::last_opened_file(&nvim).await;
+            let last_file = nvim::last_opened_file(nvim).await;
             match last_file {
                 Ok(last_file) => cd_to(&last_file).map(|_| true),
                 Err(e) => Err(e.to_string()),

@@ -23,7 +23,7 @@ pub fn new() -> Rg {
 
 // ファイル名に colon が含まれないことを前提にしている
 static ITEM_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?P<file>[^:]*):(?P<line>\d+):(?P<col>\d+):.*"#).unwrap());
+    Lazy::new(|| Regex::new(r"(?P<file>[^:]*):(?P<line>\d+):(?P<col>\d+):.*").unwrap());
 
 impl Mode for Rg {
     fn name(&self) -> &'static str {

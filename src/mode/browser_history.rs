@@ -25,7 +25,7 @@ struct Item {
 }
 
 static ITEM_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"(?P<date>[^|]*)\|(?P<url>[^|]*)\|(?P<title>.*)"#).unwrap());
+    Lazy::new(|| Regex::new(r"(?P<date>[^|]*)\|(?P<url>[^|]*)\|(?P<title>.*)").unwrap());
 
 impl Mode for BrowserHistory {
     fn name(&self) -> &'static str {

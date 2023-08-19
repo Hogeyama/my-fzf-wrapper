@@ -90,10 +90,10 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     fn create_listener(socket_name: &str) -> UnixListener {
         let sockfile = Path::new(socket_name);
         if sockfile.exists() {
-            fs::remove_file(&sockfile).expect("Failed to remove old socket");
+            fs::remove_file(sockfile).expect("Failed to remove old socket");
         }
-        let listener = UnixListener::bind(sockfile).expect("Failed to bind socket");
-        listener
+
+        UnixListener::bind(sockfile).expect("Failed to bind socket")
     }
 
     let config = {

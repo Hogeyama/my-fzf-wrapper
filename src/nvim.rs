@@ -46,25 +46,25 @@ pub type Neovim = nvim_rs::Neovim<TokioCompat<WriteHalf<Connection>>>;
 #[allow(dead_code)]
 pub async fn move_to_last_win(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
     // 何故かコマンドを経由しないと動かなかった
-    let _ = nvim.command("FzfwMoveToLastWin").await?;
+    nvim.command("FzfwMoveToLastWin").await?;
     Ok(())
 }
 
 #[allow(dead_code)]
 pub async fn move_to_last_tab(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    let _ = nvim.command("FzfwMoveToLastTab").await?;
+    nvim.command("FzfwMoveToLastTab").await?;
     Ok(())
 }
 
 #[allow(dead_code)]
 pub async fn start_insert(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    let _ = nvim.command("startinsert").await?;
+    nvim.command("startinsert").await?;
     Ok(())
 }
 
 #[allow(dead_code)]
 pub async fn stop_insert(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    let _ = nvim.command("stopinsert").await?;
+    nvim.command("stopinsert").await?;
     Ok(())
 }
 
@@ -73,9 +73,9 @@ pub async fn leaving_insert_mode<T>(
     nvim: &Neovim,
     callback: impl Fn() -> BoxFuture<'static, Result<T, Box<dyn Error>>>,
 ) -> Result<T, Box<dyn Error>> {
-    stop_insert(&nvim).await?;
+    stop_insert(nvim).await?;
     let r = callback().await?;
-    start_insert(&nvim).await?;
+    start_insert(nvim).await?;
     Ok(r)
 }
 
@@ -112,7 +112,7 @@ pub async fn last_opened_file(nvim: &Neovim) -> Result<String, Box<dyn Error>> {
 
 #[allow(dead_code)]
 pub async fn hide_floaterm(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    let _ = nvim.command("FloatermHide! fzf").await?;
+    nvim.command("FloatermHide! fzf").await?;
     Ok(())
 }
 
@@ -129,11 +129,11 @@ pub async fn open(nvim: &Neovim, target: OpenTarget, opts: OpenOpts) -> Result<(
             if opts.tabedit {
                 let cmd = format!("execute 'tabedit {line_opt} '.fnameescape('{file}')",);
                 nvim.command(&cmd).await.map_err(|e| e.to_string())?;
-                move_to_last_tab(&nvim).await?;
+                move_to_last_tab(nvim).await?;
                 Ok(())
             } else {
-                stop_insert(&nvim).await?;
-                hide_floaterm(&nvim).await?;
+                stop_insert(nvim).await?;
+                hide_floaterm(nvim).await?;
                 let cmd = format!("execute 'edit {line_opt} '.fnameescape('{file}')");
                 nvim.command(&cmd).await.map_err(|e| e.to_string())?;
                 Ok(())
@@ -144,11 +144,11 @@ pub async fn open(nvim: &Neovim, target: OpenTarget, opts: OpenOpts) -> Result<(
             if opts.tabedit {
                 nvim.command("tabnew").await.map_err(|e| e.to_string())?;
                 nvim.command(&cmd).await.map_err(|e| e.to_string())?;
-                move_to_last_tab(&nvim).await?;
+                move_to_last_tab(nvim).await?;
                 Ok(())
             } else {
-                stop_insert(&nvim).await?;
-                hide_floaterm(&nvim).await?;
+                stop_insert(nvim).await?;
+                hide_floaterm(nvim).await?;
                 nvim.command(&cmd).await.map_err(|e| e.to_string())?;
                 Ok(())
             }
@@ -189,7 +189,7 @@ impl From<usize> for OpenTarget {
 
 #[allow(dead_code)]
 pub async fn get_buf_diagnostics(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
-    let diagnostics = eval_lua(&nvim, "return vim.diagnostic.get(vim.g.fzfw_last_buf)").await?;
+    let diagnostics = eval_lua(nvim, "return vim.diagnostic.get(vim.g.fzfw_last_buf)").await?;
     info!("get_buf_diagnostics"; "diagnostics" => Serde(diagnostics.clone()));
     let diagnostics: Vec<DiagnosticsItem> = from_value(diagnostics)?;
     Ok(diagnostics)
@@ -244,14 +244,14 @@ async fn setup_nvim_config(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
 
     // autocommandの登録
     register_autocmds(
-        &nvim,
+        nvim,
         vec![
             ("WinLeave", r#"let g:fzfw_last_win = winnr()"#),
             ("WinLeave", r#"let g:fzfw_last_file = expand("%:p")"#),
             ("TabLeave", r#"let g:fzfw_last_tab = tabpagenr()"#),
             (
                 "BufLeave",
-                &vec![
+                &[
                     r#"let g:fzfw_last_buf = g:fzfw_current_buf"#,
                     r#"let g:fzfw_current_buf = bufnr('%')"#,
                 ]
@@ -263,13 +263,13 @@ async fn setup_nvim_config(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
 
     // commandの登録
     register_command(
-        &nvim,
+        nvim,
         "FzfwMoveToLastWin",
         r#"execute "normal! ".g:fzfw_last_win."<C-w><C-w>""#,
     )
     .await?;
     register_command(
-        &nvim,
+        nvim,
         "FzfwMoveToLastTab",
         r#"execute "tabnext ".g:fzfw_last_tab"#,
     )

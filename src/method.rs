@@ -80,8 +80,8 @@ impl TryFrom<String> for Load {
         mk_try_from()(s)
     }
 }
-impl Into<String> for Load {
-    fn into(self) -> String {
+impl From<Load> for String {
+    fn from(_: Load) -> Self {
         <Load as Method>::method_name().to_string()
     }
 }
@@ -114,8 +114,8 @@ impl TryFrom<String> for Reload {
         mk_try_from()(s)
     }
 }
-impl Into<String> for Reload {
-    fn into(self) -> String {
+impl From<Reload> for String {
+    fn from(_: Reload) -> Self {
         <Reload as Method>::method_name().to_string()
     }
 }
@@ -158,8 +158,8 @@ impl TryFrom<String> for Preview {
         mk_try_from()(s)
     }
 }
-impl Into<String> for Preview {
-    fn into(self) -> String {
+impl From<Preview> for String {
+    fn from(_: Preview) -> Self {
         <Preview as Method>::method_name().to_string()
     }
 }
@@ -215,8 +215,8 @@ impl TryFrom<String> for Run {
         mk_try_from()(s)
     }
 }
-impl Into<String> for Run {
-    fn into(self) -> String {
+impl From<Run> for String {
+    fn from(_: Run) -> Self {
         <Run as Method>::method_name().to_string()
     }
 }

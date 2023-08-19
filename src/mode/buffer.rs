@@ -22,7 +22,7 @@ pub fn new() -> Buffer {
 }
 
 static ITEM_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#"\s*(?P<bufnr>\d+):(?P<path>.*)"#).unwrap());
+    Lazy::new(|| Regex::new(r"\s*(?P<bufnr>\d+):(?P<path>.*)").unwrap());
 
 impl Mode for Buffer {
     fn name(&self) -> &'static str {
@@ -118,7 +118,7 @@ async fn get_nvim_buffers(nvim: &Neovim) -> Result<Vec<String>, Box<dyn Error>> 
     let mut buffers: Vec<BufferItem> = buffers
         .into_iter()
         // .filter(|b| b.name.len() > 0 && b.hidden == 0 && b.loaded == 1)
-        .filter(|b| b.name.len() > 0 && b.listed > 0)
+        .filter(|b| !b.name.is_empty() && b.listed > 0)
         .collect();
     buffers.sort_by(|a, b| b.lastused.cmp(&a.lastused));
     trace!("buffer: get_nvim_buffers: buffers"; "buffers" => Serde(buffers.clone()));

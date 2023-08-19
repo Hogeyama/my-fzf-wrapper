@@ -24,7 +24,7 @@ pub fn new() -> Diagnostics {
 // example:
 // W:  5:51| unused imports: foo
 static ITEM_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r#".:\s*(?P<line>\d+):\s*(?P<col>\d+)\| (?P<message>.*)"#).unwrap());
+    Lazy::new(|| Regex::new(r".:\s*(?P<line>\d+):\s*(?P<col>\d+)\| (?P<message>.*)").unwrap());
 
 impl Mode for Diagnostics {
     fn name(&self) -> &'static str {
@@ -105,7 +105,7 @@ impl Mode for Diagnostics {
                 ..opts.into()
             };
             let _ = tokio::spawn(async move {
-                let r = nvim::open(&nvim, file.into(), opts.into()).await;
+                let r = nvim::open(&nvim, file.into(), opts).await;
                 if let Err(e) = r {
                     error!("diagnostics: run: nvim_open failed"; "error" => e.to_string());
                 }
@@ -142,7 +142,7 @@ async fn get_nvim_diagnostics(nvim: &Neovim) -> Result<Vec<String>, Box<dyn Erro
                 d.severity.mark(),
                 d.lnum,
                 d.col,
-                d.message.replace("\n", ". "),
+                d.message.replace('\n', ". "),
                 line_width = line_max_digits,
                 col_width = col_max_digits,
             )
