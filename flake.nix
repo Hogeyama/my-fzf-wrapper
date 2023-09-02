@@ -38,7 +38,10 @@
           CARGO_FPATH = "${toolchain}/share/zsh/site-functions/";
         };
 
-        fzfw-unwrapped = naerskLib.buildPackage { src = ./.; };
+        fzfw-unwrapped = naerskLib.buildPackage {
+          name = "fzfw-unwrapped";
+          src = ./.;
+        };
         fzfw = pkgs.runCommandCC "fzfw"
           { buildInputs = [ pkgs.makeWrapper fzfw-unwrapped ]; }
           ''
