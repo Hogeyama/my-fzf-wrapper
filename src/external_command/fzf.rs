@@ -7,6 +7,8 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     let mut fzf = Command::new("fzf");
     fzf.args(vec!["--ansi"]);
     fzf.args(vec!["--bind", "ctrl-s:toggle-sort"]);
+    fzf.args(vec!["--bind", "ctrl-o:clear-query+clear-screen"]);
+    fzf.args(vec!["--bind", "change:first"]);
     // preview
     fzf.args(vec![
         "--preview",
@@ -15,65 +17,65 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     // reload
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-r:reload[{myself} reload --socket {socket}]"),
+        &format!("ctrl-r:reload[{myself} reload --socket {socket}]+clear-screen"),
     ]);
     // fd: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-f:reload[{myself} load --socket {socket} -- fd]+change-prompt[files>]"),
+        &format!("ctrl-f:reload[{myself} load --socket {socket} -- fd]+change-prompt[files>]+clear-screen"),
     ]);
     // fd: cd-up
     fzf.args(vec![
         "--bind",
         &format!(
-            "ctrl-u:reload[{myself} load --socket {socket} -- fd --cd-up]+change-prompt[files>]"
+            "ctrl-u:reload[{myself} load --socket {socket} -- fd --cd-up]+change-prompt[files>]+clear-screen"
         ),
     ]);
     // fd: cd-arg
     fzf.args(vec![
         "--bind",
         &format!(
-            "ctrl-l:reload[{myself} load --socket {socket} -- fd --cd {{}}]+change-prompt[files>]+clear-query"
+            "ctrl-l:reload[{myself} load --socket {socket} -- fd --cd {{}}]+change-prompt[files>]+clear-query+clear-screen"
         ),
     ]);
     // fd: cd-last-file
     fzf.args(vec![
         "--bind",
         &format!(
-            "ctrl-n:reload[{myself} load --socket {socket} -- fd --cd-last-file]+change-prompt[files>]"
+            "ctrl-n:reload[{myself} load --socket {socket} -- fd --cd-last-file]+change-prompt[files>]+clear-screen"
         ),
     ]);
     // rg: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-g:reload[{myself} load --socket {socket} -- rg {{q}}]+change-prompt[grep>]+clear-query"),
+        &format!("ctrl-g:reload[{myself} load --socket {socket} -- rg {{q}}]+change-prompt[grep>]+clear-query+clear-screen"),
     ]);
     // buffer: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-b:reload[{myself} load --socket {socket} -- buffer]+change-prompt[buffer>]+clear-query"),
+        &format!("ctrl-b:reload[{myself} load --socket {socket} -- buffer]+change-prompt[buffer>]+clear-query+clear-screen"),
     ]);
     // mru: default
     fzf.args(vec![
         "--bind",
         &format!(
-            "ctrl-h:reload[{myself} load --socket {socket} -- mru]+change-prompt[mru>]+clear-query"
+            "ctrl-h:reload[{myself} load --socket {socket} -- mru]+change-prompt[mru>]+clear-query+clear-screen"
         ),
     ]);
     // zoxide: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-d:reload[{myself} load --socket {socket} -- zoxide]+change-prompt[zoxide>]+clear-query"),
+        &format!("ctrl-d:reload[{myself} load --socket {socket} -- zoxide]+change-prompt[zoxide>]+clear-query+clear-screen"),
     ]);
     // diagnostics: default
     fzf.args(vec![
         "--bind",
-        &format!("alt-w:reload[{myself} load --socket {socket} -- diagnostics]+change-prompt[diagnostics>]+clear-query"),
+        &format!("alt-w:reload[{myself} load --socket {socket} -- diagnostics]+change-prompt[diagnostics>]+clear-query+clear-screen"),
     ]);
     // browser-history: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-i:reload[{myself} load --socket {socket} -- browser-history]+change-prompt[browser>]+clear-query"),
+        &format!("ctrl-i:reload[{myself} load --socket {socket} -- browser-history]+change-prompt[browser>]+clear-query+clear-screen"),
     ]);
     // run: default
     fzf.args(vec![
