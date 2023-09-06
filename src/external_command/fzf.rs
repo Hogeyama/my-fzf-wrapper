@@ -6,6 +6,7 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     let socket = socket.into();
     let mut fzf = Command::new("fzf");
     fzf.args(vec!["--ansi"]);
+    fzf.args(vec!["--layout", "reverse"]);
     fzf.args(vec!["--bind", "ctrl-s:toggle-sort"]);
     fzf.args(vec!["--bind", "ctrl-o:clear-query+clear-screen"]);
     fzf.args(vec!["--bind", "change:first"]);
@@ -101,5 +102,3 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     );
     fzf
 }
-
-// reload("ctrl-i", browser.cmd.default, [prompt("browser-history"), clQuery]),
