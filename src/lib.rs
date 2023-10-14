@@ -135,7 +135,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
             nvim,
         };
         let initial_mode = "fd";
-        let r = server::server(&config, initial_mode, initial_state, socket).await;
+        let r = server::server(config, initial_mode, initial_state, socket).await;
         if let Err(e) = r {
             error!("server: error"; "error" => e);
         }
