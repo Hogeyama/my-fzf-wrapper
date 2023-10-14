@@ -139,6 +139,24 @@ pub async fn server(
                     ));
                     *(current_load_task.lock().await) = Some((handle, abort_handle));
                 }
+                Some(method::Request::GetLastLoad { method, params: () }) => {
+                    if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
+                        abort_handle.abort();
+                    }
+                    let state = state.lock().await;
+                    let mut tx = tx.lock().await;
+                    let resp = match &state.last_load_resp {
+                        Some(resp) => resp.clone(),
+                        None => method::LoadResp {
+                            header: "".to_string(),
+                            items: vec![],
+                        },
+                    };
+                    match send_response(&mut *tx, method, resp).await {
+                        Ok(()) => trace!("server: reload done"),
+                        Err(e) => error!("server: reload error"; "error" => e),
+                    }
+                }
                 _ => {
                     let mut tx = tx.lock().await;
                     (&mut *tx)

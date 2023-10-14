@@ -1,3 +1,4 @@
+use std::env;
 // std
 use std::error::Error;
 
@@ -11,6 +12,8 @@ use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::net::UnixStream;
 
+use crate::external_command;
+use crate::logger::Serde;
 use crate::method;
 use crate::method::LoadResp;
 use crate::method::Method;
@@ -18,6 +21,8 @@ use crate::method::PreviewParam;
 use crate::method::PreviewResp;
 use crate::method::RunParam;
 use crate::method::RunResp;
+use crate::mode;
+use crate::types::Mode;
 
 /// Subcommand called by the parent process (=fzf)
 #[derive(Subcommand)]
@@ -47,6 +52,23 @@ pub enum Command {
         item: String,
         args: Vec<String>,
     },
+    /// internal
+    LiveGrep {
+        #[clap(long)]
+        socket: String,
+        #[clap(subcommand)]
+        subcommand: LiveGrepSubCommand,
+    },
+}
+
+#[derive(Subcommand)]
+pub enum LiveGrepSubCommand {
+    /// internal
+    Start,
+    /// internal
+    Update { query: String },
+    /// internal
+    GetResult,
 }
 
 pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
@@ -97,6 +119,55 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
             match resp {
                 Ok(RunResp) => {}
                 Err(e) => println!("Error: {}", e),
+            }
+            Ok(())
+        }
+        Command::LiveGrep { socket, subcommand } => {
+            match subcommand {
+                LiveGrepSubCommand::Start => {
+                    info!("Starting livegrep");
+                    let myself = env::current_exe()
+                        .expect("$0")
+                        .to_string_lossy()
+                        .into_owned();
+                    external_command::fzf::new_livegrep(myself, &socket)
+                        .spawn()
+                        .expect("Failed to spawn fzf")
+                        .wait()
+                        .await?;
+                }
+                LiveGrepSubCommand::Update { query } => {
+                    info!("Updating livegrep"; "query" => Serde(query.clone()));
+                    let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&socket).await?);
+
+                    let mode = mode::rg::new().name().to_owned();
+                    let args = vec!["--".to_owned(), query];
+                    let param = method::LoadParam { mode, args };
+                    let resp = send_request(&mut tx, &mut rx, method::Load, param).await?;
+                    match resp {
+                        Ok(LoadResp { header, items }) => {
+                            println!("{}", header);
+                            for line in items {
+                                println!("{}", line);
+                            }
+                        }
+                        Err(e) => println!("Error: {}", e),
+                    }
+                }
+                LiveGrepSubCommand::GetResult => {
+                    info!("Getting livegrep result");
+                    let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&socket).await?);
+                    let resp = send_request(&mut tx, &mut rx, method::GetLastLoad, ()).await?;
+                    match resp {
+                        Ok(LoadResp { header, items }) => {
+                            println!("{}", header);
+                            for line in items {
+                                println!("{}", line);
+                            }
+                        }
+                        Err(e) => println!("Error: {}", e),
+                    }
+                }
             }
             Ok(())
         }

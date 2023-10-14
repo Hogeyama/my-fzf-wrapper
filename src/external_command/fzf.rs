@@ -93,6 +93,13 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
         "--bind",
         &format!("ctrl-v:execute[{myself} run --socket {socket} -- {{}} --vifm]"),
     ]);
+    // livegrep
+    fzf.args(vec![
+        "--bind",
+        &format!(
+            "ctrl-space:execute[{myself} live-grep --socket {socket} start]+reload[{myself} live-grep --socket {socket} get-result]+change-prompt[livegrep(fuzzy)>]+clear-query+clear-screen"
+        ),
+    ]);
     fzf.args(vec!["--preview-window", "right:50%:noborder"]);
     fzf.args(vec!["--header-lines=1"]);
     fzf.args(vec!["--prompt", "files>"]);
@@ -100,5 +107,37 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
         "FZF_DEFAULT_COMMAND",
         format!("{myself} load --socket {socket} -- fd"),
     );
+    fzf
+}
+
+pub fn new_livegrep(myself: impl Into<String>, socket: impl Into<String>) -> Command {
+    let myself = myself.into();
+    let socket = socket.into();
+    let mut fzf = Command::new("fzf");
+    fzf.args(vec!["--ansi"]);
+    fzf.args(vec!["--layout", "reverse"]);
+    fzf.args(vec!["--bind", "ctrl-s:toggle-sort"]);
+    fzf.args(vec!["--bind", "ctrl-o:clear-query+clear-screen"]);
+    // Disable fuzzy search
+    fzf.args(vec!["--disabled"]);
+    // livegrep
+    fzf.args(vec![
+        "--bind",
+        &format!("change:reload[{myself} live-grep --socket {socket} update -- {{q}}]"),
+    ]);
+    // preview
+    fzf.args(vec![
+        "--preview",
+        &format!("{myself} preview --socket {socket} {{}}"),
+    ]);
+    // run: default
+    fzf.args(vec![
+        "--bind",
+        &format!("enter:execute[{myself} run --socket {socket} -- {{}}]"),
+    ]);
+    fzf.args(vec!["--preview-window", "right:50%:noborder"]);
+    fzf.args(vec!["--header-lines=1"]);
+    fzf.args(vec!["--prompt", "livegrep>"]);
+    fzf.env("FZF_DEFAULT_COMMAND", format!("echo -n"));
     fzf
 }
