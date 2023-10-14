@@ -66,8 +66,9 @@ pub async fn server(
                             let mut state = state_clone.lock().await;
                             let mut tx = tx_clone.lock().await;
                             *mode = new_mode;
-                            state.last_load = params.clone(); // save for reload
-                            let resp = mode.load(&mut state, params.args).await;
+                            let resp = mode.load(&mut state, params.clone().args).await;
+                            state.last_load_param = params.clone();
+                            state.last_load_resp = Some(resp.clone());
                             match send_response(&mut *tx, method, resp).await {
                                 Ok(()) => trace!("server: load done"),
                                 Err(e) => error!("server: load error"; "error" => e),
@@ -126,8 +127,9 @@ pub async fn server(
                             let mut mode = mode_clone.lock().await;
                             let mut state = state_clone.lock().await;
                             let mut tx = tx_clone.lock().await;
-                            let args = state.last_load.args.clone();
+                            let args = state.last_load_param.args.clone();
                             let resp = mode.load(&mut state, args).await;
+                            state.last_load_resp = Some(resp.clone());
                             match send_response(&mut *tx, method, resp).await {
                                 Ok(()) => trace!("server: reload done"),
                                 Err(e) => error!("server: reload error"; "error" => e),

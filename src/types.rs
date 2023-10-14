@@ -11,7 +11,9 @@ pub struct State {
     // TODO なんでこれ持つ必要があるんだっけ。
     pub pwd: PathBuf,
     // 直近の load の引数を reload 用に保持しておく
-    pub last_load: LoadParam,
+    pub last_load_param: LoadParam,
+    // なんだばほ
+    pub last_load_resp: Option<LoadResp>,
     // neovim instance
     pub nvim: Neovim,
 }

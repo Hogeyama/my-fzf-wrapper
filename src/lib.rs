@@ -128,10 +128,11 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     let server_handler = tokio::spawn(async move {
         let initial_state = types::State {
             pwd: env::current_dir().unwrap(),
-            last_load: LoadParam {
+            last_load_param: LoadParam {
                 mode: "fd".to_string(),
                 args: vec![],
             },
+            last_load_resp: None,
             nvim,
         };
         let initial_mode = "fd";
