@@ -153,7 +153,7 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
                         tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
 
                     let mode = mode::rg::new().name().to_owned();
-                    let args = vec!["--".to_owned(), query];
+                    let args = vec!["--color=ansi".to_owned(), "--".to_owned(), query];
                     let param = method::LoadParam { mode, args };
                     let resp = send_request(&mut tx, &mut rx, method::Load, param).await?;
                     match resp {

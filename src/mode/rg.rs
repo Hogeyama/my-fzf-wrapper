@@ -35,8 +35,17 @@ impl Mode for Rg {
         opts: Vec<String>,
     ) -> BoxFuture<'static, <Load as Method>::Response> {
         async move {
-            let opts = utils::clap_parse_from::<LoadOpts>(opts).unwrap();
-            let rg_output = rg::new().arg(opts.query).output().await;
+            info!("rg.load"; "opts" => Serde(opts.clone()));
+            let LoadOpts { query, color } = utils::clap_parse_from::<LoadOpts>(opts).unwrap();
+            info!("rg.load"; "opts" => ?rg::new().arg(query.clone()));
+
+            let mut rg_cmd = rg::new();
+            rg_cmd.arg(&format!("--color={color}"));
+            rg_cmd.arg("--");
+            rg_cmd.arg(query);
+            info!("rg.load"; "cmd" => ?rg_cmd);
+            let rg_output = rg_cmd.output().await;
+
             match rg_output {
                 Ok(rg_output) => {
                     let pwd = std::env::current_dir().unwrap().into_os_string();
@@ -121,6 +130,8 @@ impl Mode for Rg {
 
 #[derive(Parser, Debug, Clone)]
 struct LoadOpts {
+    #[clap(long, default_value = "never")]
+    color: String,
     #[clap()]
     query: String,
 }
