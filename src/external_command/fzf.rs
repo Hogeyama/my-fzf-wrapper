@@ -139,5 +139,6 @@ pub fn new_livegrep(myself: impl Into<String>, socket: impl Into<String>) -> Com
     fzf.args(vec!["--header-lines=1"]);
     fzf.args(vec!["--prompt", "livegrep>"]);
     fzf.env("FZF_DEFAULT_COMMAND", format!("echo -n"));
+    fzf.env("FZFW_LOG_FILE", format!("/tmp/fzfw-livegrep.log"));
     fzf
 }
