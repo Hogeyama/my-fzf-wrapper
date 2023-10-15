@@ -49,7 +49,7 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     // rg: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-g:reload[{myself} load --socket {socket} -- rg {{q}}]+change-prompt[grep>]+clear-query+clear-screen"),
+        &format!("ctrl-space:reload[{myself} load --socket {socket} -- rg {{q}}]+change-prompt[grep>]+clear-query+clear-screen"),
     ]);
     // buffer: default
     fzf.args(vec![
@@ -97,7 +97,7 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     fzf.args(vec![
         "--bind",
         &format!(
-            "ctrl-space:execute[{myself} live-grep --socket {socket} start]+reload[{myself} live-grep --socket {socket} get-result]+change-prompt[livegrep(fuzzy)>]+clear-query+clear-screen"
+            "ctrl-g:execute[{myself} live-grep --socket {socket} start]+reload[{myself} live-grep --socket {socket} get-result]+change-prompt[livegrep(fuzzy)>]+clear-query+clear-screen"
         ),
     ]);
     fzf.args(vec!["--preview-window", "right:50%:noborder"]);
