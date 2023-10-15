@@ -1,11 +1,10 @@
-use std::error::Error;
 use std::fs::OpenOptions;
+use std::{error::Error, path::Path};
 
 use slog::{Drain, FnValue, PushFnValue, Record};
 use slog_scope::GlobalLoggerGuard;
 
-pub fn init() -> Result<GlobalLoggerGuard, Box<dyn Error>> {
-    let log_path = "/tmp/fzfw-rs.log";
+pub fn init(log_path: impl AsRef<Path>) -> Result<GlobalLoggerGuard, Box<dyn Error>> {
     let file = OpenOptions::new()
         .create(true)
         .append(true)

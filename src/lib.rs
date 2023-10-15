@@ -56,6 +56,9 @@ struct Cli {
     #[clap(long, env)]
     fzfw_self: Option<String>,
 
+    #[clap(long, env, default_value = "/tmp/fzfw.log")]
+    fzfw_log_file: String,
+
     /// Address or filepath to a socket used to communicate with neovim.
     #[clap(long, env, required_unless("nvim-listen-address"))]
     nvim: Option<String>,
@@ -169,8 +172,8 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
 pub async fn tokio_main() -> Result<(), Box<dyn Error>> {
-    let _guard = logger::init()?;
     let args = Cli::parse();
+    let _guard = logger::init(&args.fzfw_log_file)?;
     match args.command {
         None => init(args).await,
         Some(command) => run_command(command).await,
