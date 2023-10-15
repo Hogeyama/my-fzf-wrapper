@@ -1,5 +1,6 @@
 /target/
 .direnv/
+.envrc.local
 Session.vim
 note.md
 /result
