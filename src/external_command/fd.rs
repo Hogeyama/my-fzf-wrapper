@@ -22,6 +22,6 @@ pub fn new() -> Command {
             fd.args(vec![extra_opt]);
         }
     }
-
+    fd.kill_on_drop(true);
     fd
 }

@@ -100,6 +100,7 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     fzf.args(vec!["--prompt", "files>"]);
     fzf.env("FZF_DEFAULT_COMMAND", format!("{myself} load -- fd"));
     fzf.env("FZFW_SOCKET", socket);
+    fzf.kill_on_drop(true);
     fzf
 }
 
@@ -131,5 +132,6 @@ pub fn new_livegrep(myself: impl Into<String>, socket: impl Into<String>) -> Com
     fzf.env("FZF_DEFAULT_COMMAND", format!("echo -n"));
     fzf.env("FZFW_LOG_FILE", format!("/tmp/fzfw-livegrep.log"));
     fzf.env("FZFW_SOCKET", socket);
+    fzf.kill_on_drop(true);
     fzf
 }

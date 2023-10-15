@@ -15,6 +15,6 @@ pub fn new() -> Command {
             rg.args(vec![extra_opt]);
         }
     }
-
+    rg.kill_on_drop(true);
     rg
 }
