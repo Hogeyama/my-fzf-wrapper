@@ -29,33 +29,33 @@ use crate::types::Mode;
 pub enum Command {
     /// internal
     Load {
-        #[clap(long)]
-        socket: String,
+        #[clap(long, env)]
+        fzfw_socket: String,
         mode: String,
         args: Vec<String>,
     },
     /// internal
     Reload {
-        #[clap(long)]
-        socket: String,
+        #[clap(long, env)]
+        fzfw_socket: String,
     },
     /// internal
     Preview {
-        #[clap(long)]
-        socket: String,
+        #[clap(long, env)]
+        fzfw_socket: String,
         item: String,
     },
     /// internal
     Run {
-        #[clap(long)]
-        socket: String,
+        #[clap(long, env)]
+        fzfw_socket: String,
         item: String,
         args: Vec<String>,
     },
     /// internal
     LiveGrep {
-        #[clap(long)]
-        socket: String,
+        #[clap(long, env)]
+        fzfw_socket: String,
         #[clap(subcommand)]
         subcommand: LiveGrepSubCommand,
     },
@@ -73,8 +73,12 @@ pub enum LiveGrepSubCommand {
 
 pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
     match command {
-        Command::Load { socket, mode, args } => {
-            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&socket).await?);
+        Command::Load {
+            fzfw_socket,
+            mode,
+            args,
+        } => {
+            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
             let args = method::LoadParam { mode, args };
             let resp = send_request(&mut tx, &mut rx, method::Load, args).await?;
             match resp {
@@ -88,8 +92,8 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
             }
             Ok(())
         }
-        Command::Reload { socket } => {
-            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&socket).await?);
+        Command::Reload { fzfw_socket } => {
+            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
             let resp = send_request(&mut tx, &mut rx, method::Reload, ()).await?;
             match resp {
                 Ok(LoadResp { header, items }) => {
@@ -102,9 +106,9 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
             }
             Ok(())
         }
-        Command::Preview { socket, item } => {
+        Command::Preview { fzfw_socket, item } => {
             let param = PreviewParam { item };
-            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&socket).await?);
+            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
             let resp = send_request(&mut tx, &mut rx, method::Preview, param).await?;
             match resp {
                 Ok(PreviewResp { message }) => println!("{}", message),
@@ -112,9 +116,13 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
             }
             Ok(())
         }
-        Command::Run { socket, item, args } => {
+        Command::Run {
+            fzfw_socket,
+            item,
+            args,
+        } => {
             let param = RunParam { item, args };
-            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&socket).await?);
+            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
             let resp = send_request(&mut tx, &mut rx, method::Run, param).await?;
             match resp {
                 Ok(RunResp) => {}
@@ -122,7 +130,10 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
             }
             Ok(())
         }
-        Command::LiveGrep { socket, subcommand } => {
+        Command::LiveGrep {
+            fzfw_socket,
+            subcommand,
+        } => {
             match subcommand {
                 LiveGrepSubCommand::Start => {
                     info!("Starting livegrep");
@@ -130,7 +141,7 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
                         .expect("$0")
                         .to_string_lossy()
                         .into_owned();
-                    external_command::fzf::new_livegrep(myself, &socket)
+                    external_command::fzf::new_livegrep(myself, &fzfw_socket)
                         .spawn()
                         .expect("Failed to spawn fzf")
                         .wait()
@@ -138,7 +149,8 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
                 }
                 LiveGrepSubCommand::Update { query } => {
                     info!("Updating livegrep"; "query" => Serde(query.clone()));
-                    let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&socket).await?);
+                    let (mut rx, mut tx) =
+                        tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
 
                     let mode = mode::rg::new().name().to_owned();
                     let args = vec!["--".to_owned(), query];
@@ -156,7 +168,8 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
                 }
                 LiveGrepSubCommand::GetResult => {
                     info!("Getting livegrep result");
-                    let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&socket).await?);
+                    let (mut rx, mut tx) =
+                        tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
                     let resp = send_request(&mut tx, &mut rx, method::GetLastLoad, ()).await?;
                     match resp {
                         Ok(LoadResp { header, items }) => {

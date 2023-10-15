@@ -11,102 +11,95 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     fzf.args(vec!["--bind", "ctrl-o:clear-query+clear-screen"]);
     fzf.args(vec!["--bind", "change:first"]);
     // preview
-    fzf.args(vec![
-        "--preview",
-        &format!("{myself} preview --socket {socket} {{}}"),
-    ]);
+    fzf.args(vec!["--preview", &format!("{myself} preview {{}}")]);
     // reload
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-r:reload[{myself} reload --socket {socket}]+clear-screen"),
+        &format!("ctrl-r:reload[{myself} reload]+clear-screen"),
     ]);
     // fd: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-f:reload[{myself} load --socket {socket} -- fd]+change-prompt[files>]+clear-screen"),
+        &format!("ctrl-f:reload[{myself} load -- fd]+change-prompt[files>]+clear-screen"),
     ]);
     // fd: cd-up
     fzf.args(vec![
         "--bind",
-        &format!(
-            "ctrl-u:reload[{myself} load --socket {socket} -- fd --cd-up]+change-prompt[files>]+clear-screen"
-        ),
+        &format!("ctrl-u:reload[{myself} load -- fd --cd-up]+change-prompt[files>]+clear-screen"),
     ]);
     // fd: cd-arg
     fzf.args(vec![
         "--bind",
         &format!(
-            "ctrl-l:reload[{myself} load --socket {socket} -- fd --cd {{}}]+change-prompt[files>]+clear-query+clear-screen"
+            "ctrl-l:reload[{myself} load -- fd --cd {{}}]+change-prompt[files>]+clear-query+clear-screen"
         ),
     ]);
     // fd: cd-last-file
     fzf.args(vec![
         "--bind",
         &format!(
-            "ctrl-n:reload[{myself} load --socket {socket} -- fd --cd-last-file]+change-prompt[files>]+clear-screen"
+            "ctrl-n:reload[{myself} load -- fd --cd-last-file]+change-prompt[files>]+clear-screen"
         ),
     ]);
     // rg: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-space:reload[{myself} load --socket {socket} -- rg {{q}}]+change-prompt[grep>]+clear-query+clear-screen"),
+        &format!("ctrl-space:reload[{myself} load -- rg {{q}}]+change-prompt[grep>]+clear-query+clear-screen"),
     ]);
     // buffer: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-b:reload[{myself} load --socket {socket} -- buffer]+change-prompt[buffer>]+clear-query+clear-screen"),
+        &format!("ctrl-b:reload[{myself} load -- buffer]+change-prompt[buffer>]+clear-query+clear-screen"),
     ]);
     // mru: default
     fzf.args(vec![
         "--bind",
         &format!(
-            "ctrl-h:reload[{myself} load --socket {socket} -- mru]+change-prompt[mru>]+clear-query+clear-screen"
+            "ctrl-h:reload[{myself} load -- mru]+change-prompt[mru>]+clear-query+clear-screen"
         ),
     ]);
     // zoxide: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-d:reload[{myself} load --socket {socket} -- zoxide]+change-prompt[zoxide>]+clear-query+clear-screen"),
+        &format!("ctrl-d:reload[{myself} load -- zoxide]+change-prompt[zoxide>]+clear-query+clear-screen"),
     ]);
     // diagnostics: default
     fzf.args(vec![
         "--bind",
-        &format!("alt-w:reload[{myself} load --socket {socket} -- diagnostics]+change-prompt[diagnostics>]+clear-query+clear-screen"),
+        &format!("alt-w:reload[{myself} load -- diagnostics]+change-prompt[diagnostics>]+clear-query+clear-screen"),
     ]);
     // browser-history: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-i:reload[{myself} load --socket {socket} -- browser-history]+change-prompt[browser>]+clear-query+clear-screen"),
+        &format!("ctrl-i:reload[{myself} load -- browser-history]+change-prompt[browser>]+clear-query+clear-screen"),
     ]);
     // run: default
     fzf.args(vec![
         "--bind",
-        &format!("enter:execute[{myself} run --socket {socket} -- {{}}]"),
+        &format!("enter:execute[{myself} run -- {{}}]"),
     ]);
     // run: tabedit
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-t:execute[{myself} run --socket {socket} -- {{}} --tabedit]"),
+        &format!("ctrl-t:execute[{myself} run -- {{}} --tabedit]"),
     ]);
     // run: vifm
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-v:execute[{myself} run --socket {socket} -- {{}} --vifm]"),
+        &format!("ctrl-v:execute[{myself} run -- {{}} --vifm]"),
     ]);
     // livegrep
     fzf.args(vec![
         "--bind",
         &format!(
-            "ctrl-g:execute[{myself} live-grep --socket {socket} start]+reload[{myself} live-grep --socket {socket} get-result]+change-prompt[livegrep(fuzzy)>]+clear-query+clear-screen"
+            "ctrl-g:execute[{myself} live-grep start]+reload[{myself} live-grep get-result]+change-prompt[livegrep(fuzzy)>]+clear-query+clear-screen"
         ),
     ]);
     fzf.args(vec!["--preview-window", "right:50%:noborder"]);
     fzf.args(vec!["--header-lines=1"]);
     fzf.args(vec!["--prompt", "files>"]);
-    fzf.env(
-        "FZF_DEFAULT_COMMAND",
-        format!("{myself} load --socket {socket} -- fd"),
-    );
+    fzf.env("FZF_DEFAULT_COMMAND", format!("{myself} load -- fd"));
+    fzf.env("FZFW_SOCKET", socket);
     fzf
 }
 
@@ -123,22 +116,20 @@ pub fn new_livegrep(myself: impl Into<String>, socket: impl Into<String>) -> Com
     // livegrep
     fzf.args(vec![
         "--bind",
-        &format!("change:reload[{myself} live-grep --socket {socket} update -- {{q}}]"),
+        &format!("change:reload[{myself} live-grep update -- {{q}}]"),
     ]);
     // preview
-    fzf.args(vec![
-        "--preview",
-        &format!("{myself} preview --socket {socket} {{}}"),
-    ]);
+    fzf.args(vec!["--preview", &format!("{myself} preview {{}}")]);
     // run: default
     fzf.args(vec![
         "--bind",
-        &format!("enter:execute[{myself} run --socket {socket} -- {{}}]"),
+        &format!("enter:execute[{myself} run -- {{}}]"),
     ]);
     fzf.args(vec!["--preview-window", "right:50%:noborder"]);
     fzf.args(vec!["--header-lines=1"]);
     fzf.args(vec!["--prompt", "livegrep>"]);
     fzf.env("FZF_DEFAULT_COMMAND", format!("echo -n"));
     fzf.env("FZFW_LOG_FILE", format!("/tmp/fzfw-livegrep.log"));
+    fzf.env("FZFW_SOCKET", socket);
     fzf
 }
