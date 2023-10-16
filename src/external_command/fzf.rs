@@ -90,6 +90,11 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
         "--bind",
         &format!("ctrl-v:execute[{myself} run -- {{}} --vifm]"),
     ]);
+    // run: delete
+    fzf.args(vec![
+        "--bind",
+        &format!("ctrl-d:execute[{myself} run -- {{}} --delete]+reload[{myself} reload]"),
+    ]);
     // livegrep
     fzf.args(vec![
         "--bind",

@@ -197,6 +197,12 @@ pub struct RunOpts {
 
     #[clap(long)]
     pub vifm: bool,
+
+    #[clap(long)]
+    pub delete: bool,
+
+    #[clap(long)]
+    pub force: bool,
 }
 
 impl Method for Run {

@@ -156,6 +156,14 @@ pub async fn open(nvim: &Neovim, target: OpenTarget, opts: OpenOpts) -> Result<(
     }
 }
 
+#[allow(dead_code)]
+pub async fn delete_buffer(nvim: &Neovim, bufnr: usize, force: bool) -> Result<(), Box<dyn Error>> {
+    let cmd = format!("bdelete{} {}", if force { "!" } else { "" }, bufnr);
+    info!("delete_buffer: {}", cmd);
+    nvim.exec(&cmd, false).await?;
+    Ok(())
+}
+
 pub struct OpenOpts {
     pub line: Option<usize>,
     pub tabedit: bool,

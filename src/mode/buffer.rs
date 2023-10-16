@@ -98,9 +98,16 @@ impl Mode for Buffer {
                 .parse::<usize>()
                 .unwrap();
             let _ = tokio::spawn(async move {
-                let r = nvim::open(&nvim, bufnr.into(), opts.into()).await;
-                if let Err(e) = r {
-                    error!("buffer: run: nvim_open failed"; "error" => e.to_string());
+                if opts.delete {
+                    let r = nvim::delete_buffer(&nvim, bufnr, opts.force).await;
+                    if let Err(e) = r {
+                        error!("buffer: run: nvim_delete_buffer failed"; "error" => e.to_string());
+                    }
+                } else {
+                    let r = nvim::open(&nvim, bufnr.into(), opts.into()).await;
+                    if let Err(e) = r {
+                        error!("buffer: run: nvim_open failed"; "error" => e.to_string());
+                    }
                 }
             });
             RunResp
