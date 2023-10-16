@@ -61,7 +61,9 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     // zoxide: default
     fzf.args(vec![
         "--bind",
-        &format!("ctrl-d:reload[{myself} load -- zoxide]+change-prompt[zoxide>]+clear-query+clear-screen"),
+        &format!(
+            "alt-d:reload[{myself} load -- zoxide]+change-prompt[zoxide>]+clear-query+clear-screen"
+        ),
     ]);
     // diagnostics: default
     fzf.args(vec![
