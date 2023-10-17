@@ -203,6 +203,9 @@ pub struct RunOpts {
 
     #[clap(long)]
     pub force: bool,
+
+    #[clap(long)]
+    pub browse_github: bool,
 }
 
 impl Method for Run {

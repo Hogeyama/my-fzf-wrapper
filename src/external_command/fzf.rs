@@ -95,6 +95,17 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
         "--bind",
         &format!("ctrl-d:execute[{myself} run -- {{}} --delete]+reload[{myself} reload]"),
     ]);
+    // run: delete
+    fzf.args(vec![
+        "--bind",
+        &format!("ctrl-d:execute[{myself} run -- {{}} --delete]+reload[{myself} reload]"),
+    ]);
+    // run: browse-github
+    // TODO run はメニューを表示して選べるようにするのがいいかなあ
+    fzf.args(vec![
+        "--bind",
+        &format!("alt-g:execute[{myself} run -- {{}} --browse-github]+reload[{myself} reload]"),
+    ]);
     // livegrep
     fzf.args(vec![
         "--bind",
@@ -132,6 +143,11 @@ pub fn new_livegrep(myself: impl Into<String>, socket: impl Into<String>) -> Com
     fzf.args(vec![
         "--bind",
         &format!("enter:execute[{myself} run -- {{}}]"),
+    ]);
+    // run: browse-github
+    fzf.args(vec![
+        "--bind",
+        &format!("alt-g:execute[{myself} run -- {{}} --browse-github]"),
     ]);
     fzf.args(vec!["--preview-window", "right:50%:noborder"]);
     fzf.args(vec!["--header-lines=1"]);

@@ -1,3 +1,5 @@
+use std::process::ExitStatus;
+
 use crate::{
     external_command::rg,
     logger::Serde,
@@ -105,19 +107,41 @@ impl Mode for Rg {
         opts: RunOpts,
     ) -> BoxFuture<'static, RunResp> {
         let nvim = state.nvim.clone();
+        info!("rg.run");
         async move {
             let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-            let opts = nvim::OpenOpts {
-                line: line.parse::<usize>().ok(),
-                ..opts.into()
-            };
-            let _ = tokio::spawn(async move {
-                let r = nvim::open(&nvim, file.clone().into(), opts).await;
-                if let Err(e) = r {
-                    error!("rg: run: nvim_open failed"; "error" => e.to_string());
-                }
-            });
+            if opts.browse_github {
+                let revision = TokioCommand::new("git")
+                    .arg("rev-parse")
+                    .arg("HEAD")
+                    .output()
+                    .await
+                    .map_err(|e| e.to_string())
+                    .expect("rg: run: git rev-parse HEAD")
+                    .stdout;
+                let revision = String::from_utf8_lossy(&revision).trim().to_string();
+                let _: ExitStatus = TokioCommand::new("gh")
+                    .arg("browse")
+                    .arg(&format!("{file}:{line}"))
+                    .arg(&format!("--commit={revision}"))
+                    .spawn()
+                    .unwrap()
+                    .wait()
+                    .await
+                    .unwrap();
+            } else {
+                let opts = nvim::OpenOpts {
+                    line: line.parse::<usize>().ok(),
+                    ..opts.into()
+                };
+                let _ = tokio::spawn(async move {
+                    let r = nvim::open(&nvim, file.clone().into(), opts).await;
+                    if let Err(e) = r {
+                        error!("rg: run: nvim_open failed"; "error" => e.to_string());
+                    }
+                });
+            }
             RunResp
         }
         .boxed()

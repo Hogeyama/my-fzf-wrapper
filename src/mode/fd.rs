@@ -98,6 +98,15 @@ impl Mode for Fd {
                     .wait()
                     .await
                     .unwrap();
+            } else if opts.browse_github {
+                let _: ExitStatus = TokioCommand::new("gh")
+                    .arg("browse")
+                    .arg(&path)
+                    .spawn()
+                    .unwrap()
+                    .wait()
+                    .await
+                    .unwrap();
             } else {
                 let _ = tokio::spawn(async move {
                     let r = nvim::open(&nvim, path.clone().into(), opts.into()).await;
