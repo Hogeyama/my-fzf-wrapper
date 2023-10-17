@@ -3,13 +3,9 @@ use crate::{
     nvim::Neovim,
 };
 
-use std::path::PathBuf;
-
 use futures::future::BoxFuture;
 
 pub struct State {
-    // TODO なんでこれ持つ必要があるんだっけ。
-    pub pwd: PathBuf,
     // 直近の load の引数を reload 用に保持しておく
     pub last_load_param: LoadParam,
     // なんだばほ
