@@ -36,6 +36,8 @@
             toolchain
           ];
           CARGO_FPATH = "${toolchain}/share/zsh/site-functions/";
+          # `MANPATH=$FZF_MANPATH man fzf` でこのバージョンのfzfのマニュアルを見る
+          FZF_MANPATH = "${pkgs-old.fzf.man}/share/man";
         };
 
         fzfw-unwrapped = naerskLib.buildPackage {
