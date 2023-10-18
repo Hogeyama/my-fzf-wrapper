@@ -1,4 +1,4 @@
-use tokio::process::Command;
+use tokio::{io::AsyncWriteExt, process::Command};
 
 // binding は toml から読ませると良いのでは
 pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
@@ -104,7 +104,11 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
     // TODO run はメニューを表示して選べるようにするのがいいかなあ
     fzf.args(vec![
         "--bind",
-        &format!("alt-g:execute[{myself} run -- {{}} --browse-github]+reload[{myself} reload]"),
+        &format!("alt-g:execute[{myself} run -- {{}} --browse-github]"),
+    ]);
+    fzf.args(vec![
+        "--bind",
+        &format!("f1:execute[{myself} run -- {{}} --menu]"),
     ]);
     // livegrep
     fzf.args(vec![
@@ -157,4 +161,21 @@ pub fn new_livegrep(myself: impl Into<String>, socket: impl Into<String>) -> Com
     fzf.env("FZFW_SOCKET", socket);
     fzf.kill_on_drop(true);
     fzf
+}
+
+pub async fn select(items: Vec<&str>) -> String {
+    let mut fzf = Command::new("fzf")
+        .args(vec!["--layout", "reverse"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .unwrap();
+
+    let mut stdin = fzf.stdin.take().unwrap();
+    stdin.write_all(items.join("\n").as_bytes()).await.unwrap();
+    drop(stdin);
+
+    String::from_utf8_lossy(&fzf.wait_with_output().await.unwrap().stdout)
+        .trim()
+        .to_string()
 }

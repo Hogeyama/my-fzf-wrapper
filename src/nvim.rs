@@ -172,7 +172,7 @@ pub struct OpenOpts {
 impl From<RunOpts> for OpenOpts {
     fn from(val: RunOpts) -> Self {
         OpenOpts {
-            line: val.line,
+            line: None,
             tabedit: val.tabedit,
         }
     }

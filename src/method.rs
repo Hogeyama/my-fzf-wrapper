@@ -190,9 +190,6 @@ pub struct RunResp;
 #[derive(Parser, Debug, Clone, Serialize, Deserialize, Default)]
 pub struct RunOpts {
     #[clap(long)]
-    pub line: Option<usize>,
-
-    #[clap(long)]
     pub tabedit: bool,
 
     #[clap(long)]
@@ -206,6 +203,9 @@ pub struct RunOpts {
 
     #[clap(long)]
     pub browse_github: bool,
+
+    #[clap(long)]
+    pub menu: bool,
 }
 
 impl Method for Run {

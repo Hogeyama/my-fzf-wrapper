@@ -1,11 +1,9 @@
 use crate::{
-    external_command::fd,
+    external_command::{fd, fzf},
     method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
     nvim,
     types::{Mode, State},
 };
-
-use std::process::ExitStatus;
 
 use clap::Parser;
 use futures::{future::BoxFuture, FutureExt};
@@ -89,17 +87,18 @@ impl Mode for Fd {
     ) -> BoxFuture<'static, RunResp> {
         let nvim = state.nvim.clone();
         async move {
-            if opts.vifm {
+            let vifm = || async {
                 let pwd = std::env::current_dir().unwrap().into_os_string();
-                let _: ExitStatus = TokioCommand::new("vifm")
+                TokioCommand::new("vifm")
                     .arg(&pwd)
                     .spawn()
                     .unwrap()
                     .wait()
                     .await
                     .unwrap();
-            } else if opts.browse_github {
-                let _: ExitStatus = TokioCommand::new("gh")
+            };
+            let browse_github = || async {
+                TokioCommand::new("gh")
                     .arg("browse")
                     .arg(&path)
                     .spawn()
@@ -107,13 +106,29 @@ impl Mode for Fd {
                     .wait()
                     .await
                     .unwrap();
-            } else {
+            };
+            let path_ = path.clone();
+            let nvim_opt = opts.clone().into();
+            let nvim = || async {
                 let _ = tokio::spawn(async move {
-                    let r = nvim::open(&nvim, path.clone().into(), opts.into()).await;
+                    let r = nvim::open(&nvim, path_.into(), nvim_opt).await;
                     if let Err(e) = r {
                         error!("fd: run: nvim::open failed"; "error" => e.to_string());
                     }
                 });
+            };
+            match () {
+                _ if opts.menu => {
+                    let items = vec!["browse-github", "vifm"];
+                    match &*fzf::select(items).await {
+                        "vifm" => vifm().await,
+                        "browse-github" => browse_github().await,
+                        _ => {}
+                    }
+                }
+                _ if opts.vifm => vifm().await,
+                _ if opts.browse_github => browse_github().await,
+                _ => nvim().await,
             }
             RunResp
         }
