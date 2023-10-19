@@ -135,8 +135,15 @@ fn temp_sqlite_path() -> &'static str {
 }
 
 fn get_chrome_db_path() -> Result<String, String> {
-    let home = std::env::var("HOME").unwrap();
-    let path = format!("{}/.config/google-chrome/Profile 1/History", home);
+    // FIXME ad-hoc
+    let path = match std::env::var("FZFW_CHROME_HISTORY_PATH") {
+        Ok(path) => path,
+        Err(_) => {
+            let home = std::env::var("HOME").unwrap();
+            let path = format!("{}/.config/google-chrome/Profile 1/History", home);
+            path
+        }
+    };
     match std::fs::metadata(&path) {
         Ok(m) if m.is_file() => Ok(path),
         _ => Err("Oh no! No chrome history found".to_string()),
