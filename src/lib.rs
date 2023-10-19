@@ -10,7 +10,6 @@ mod types;
 mod utils;
 
 // std
-use std::collections::HashMap;
 use std::env;
 use std::error::Error;
 use std::fs;
@@ -99,27 +98,6 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
         UnixListener::bind(sockfile).expect("Failed to bind socket")
     }
 
-    let config = {
-        let fd: config::MkMode = Box::pin(|| Box::new(mode::fd::new()));
-        let rg: config::MkMode = Box::pin(|| Box::new(mode::rg::new()));
-        let buffer: config::MkMode = Box::pin(|| Box::new(mode::buffer::new()));
-        let zoxide: config::MkMode = Box::pin(|| Box::new(mode::zoxide::new()));
-        let mru: config::MkMode = Box::pin(|| Box::new(mode::mru::new()));
-        let diagnostics: config::MkMode = Box::pin(|| Box::new(mode::diagnostics::new()));
-        let browser_history: config::MkMode = Box::pin(|| Box::new(mode::browser_history::new()));
-        Config {
-            modes: HashMap::from([
-                ("fd".to_string(), fd),
-                ("rg".to_string(), rg),
-                ("buffer".to_string(), buffer),
-                ("zoxide".to_string(), zoxide),
-                ("mru".to_string(), mru),
-                ("diagnostics".to_string(), diagnostics),
-                ("browser-history".to_string(), browser_history),
-            ]),
-        }
-    };
-
     let nvim = start_nvim(&args.nvim.or(args.nvim_listen_address).unwrap())
         .await
         .map_err(|e| e.to_string())?;
@@ -138,7 +116,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
             nvim,
         };
         let initial_mode = "fd";
-        let r = server::server(config, initial_mode, initial_state, socket).await;
+        let r = server::server(config::new(), initial_mode, initial_state, socket).await;
         if let Err(e) = r {
             error!("server: error"; "error" => e);
         }
