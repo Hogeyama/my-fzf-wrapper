@@ -1,3 +1,5 @@
+use std::collections::HashMap;
+
 use crate::{
     method::{LoadParam, LoadResp, PreviewResp, RunOpts, RunResp},
     nvim::Neovim,
@@ -14,6 +16,8 @@ pub struct State {
     pub nvim: Neovim,
 
     pub mode: Option<Box<dyn Mode + Sync + Send>>,
+
+    pub keymap: HashMap<String, serde_json::Value>,
 }
 
 pub trait Mode {

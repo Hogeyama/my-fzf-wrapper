@@ -62,7 +62,18 @@ pub struct LoadResp {
     pub items: Vec<String>,
 }
 
-// pub struct LoadParam {}
+impl LoadResp {
+    pub fn new(header: String, items: Vec<String>) -> Self {
+        Self { header, items }
+    }
+    pub fn new_with_default_header(items: Vec<String>) -> Self {
+        let pwd = std::env::current_dir().unwrap().into_os_string();
+        Self {
+            header: format!("[{}]", pwd.to_string_lossy()),
+            items,
+        }
+    }
+}
 
 impl Method for Load {
     type Param = LoadParam;

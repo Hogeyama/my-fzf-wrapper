@@ -1,9 +1,7 @@
-use std::error::Error;
-
 use crate::{
     logger::Serde,
     method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
-    nvim::{self, Neovim},
+    nvim::{self, DiagnosticsItem},
     types::{Mode, State},
 };
 
@@ -13,18 +11,39 @@ use regex::Regex;
 use tokio::process::Command as TokioCommand;
 
 #[derive(Clone)]
-pub struct Diagnostics {
-    file: Option<String>,
-}
+pub struct Diagnostics;
 
 pub fn new() -> Diagnostics {
-    Diagnostics { file: None }
+    Diagnostics
 }
 
 // example:
-// W:  5:51| unused imports: foo
-static ITEM_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r".:\s*(?P<line>\d+):\s*(?P<col>\d+)\| (?P<message>.*)").unwrap());
+//   12|W:  5:51| unused imports: foo
+static ITEM_PATTERN: Lazy<Regex> = Lazy::new(|| {
+    Regex::new(r"\s*(?P<num>\d+)\|.:\s*(?P<line>\d+):\s*(?P<col>\d+)\| (?P<message>.*)").unwrap()
+});
+
+fn to_item(
+    num_max_digits: usize,
+    line_max_digits: usize,
+    col_max_digits: usize,
+    num: usize,
+    d: DiagnosticsItem,
+) -> String {
+    format!(
+        "{:>num_width$}|{}:{:>line_width$}:{:>col_width$}| {}",
+        num,
+        d.severity.mark(),
+        d.lnum,
+        d.col,
+        d.message.replace('\n', ". "),
+        num_width = num_max_digits,
+        line_width = line_max_digits,
+        col_width = col_max_digits,
+    )
+}
+
+static KEY_DIAGNOSTICS: &str = "diagnostics_diagnostics";
 
 impl Mode for Diagnostics {
     fn name(&self) -> &'static str {
@@ -37,30 +56,20 @@ impl Mode for Diagnostics {
     ) -> BoxFuture<'a, <Load as Method>::Response> {
         let nvim = state.nvim.clone();
         async move {
-            let file = nvim::last_opened_file(&nvim)
-                .await
-                .map_err(|e| e.to_string());
-            let diagnostics_result = get_nvim_diagnostics(&nvim).await;
-            match (file, diagnostics_result) {
-                (Ok(file), Ok(diagnostics_items)) => {
-                    self.file = Some(file.clone());
-                    let pwd = std::env::current_dir().unwrap().into_os_string();
-                    LoadResp {
-                        header: format!("[{}]", pwd.to_string_lossy()),
-                        items: diagnostics_items,
-                    }
+            match nvim::get_all_diagnostics(&nvim).await {
+                Ok(mut diagnostics) => {
+                    diagnostics.sort_by(|a, b| a.severity.0.cmp(&b.severity.0));
+                    state.keymap.insert(
+                        KEY_DIAGNOSTICS.to_string(), //
+                        json!(diagnostics),
+                    );
+                    let items = to_items(diagnostics);
+                    LoadResp::new_with_default_header(items)
                 }
-                (Err(file_err), _) => {
-                    error!("nvim::last_opened_file failed");
+                Err(e) => {
+                    error!("diagnostics: load: nvim::get_all_diagnostics failed"; "error" => e.to_string());
                     LoadResp {
-                        header: file_err.to_string(),
-                        items: vec![],
-                    }
-                }
-                (_, Err(diagnostics_err)) => {
-                    error!("get_nvim_diagnostics failed"; "error" => diagnostics_err.to_string());
-                    LoadResp {
-                        header: diagnostics_err.to_string(),
+                        header: e.to_string(),
                         items: vec![],
                     }
                 }
@@ -68,24 +77,57 @@ impl Mode for Diagnostics {
         }
         .boxed()
     }
-    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
-        let file = self.file.clone().unwrap();
+    fn preview(&mut self, state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+        let nvim = state.nvim.clone();
+        let x = 21;
+        let diagnostics = state.keymap.get(KEY_DIAGNOSTICS).unwrap().clone();
+        let diagnostics: Vec<DiagnosticsItem> = serde_json::from_value(diagnostics).unwrap();
+        let item_num = ITEM_PATTERN
+            .replace(&item, "$num")
+            .into_owned()
+            .parse::<usize>()
+            .unwrap();
+        let diagnostics_item = diagnostics.get(item_num).unwrap().clone();
+        info!("diagnostics: preview: diagnostics";
+            "item_num" => item_num,
+            "all" => Serde(diagnostics.clone()),
+            "item" => Serde(diagnostics_item.clone())
+        );
         async move {
-            let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-            let line = line.parse::<i64>().unwrap() + 1;
-            let start_line = std::cmp::max(0, line - 15);
-            let output = TokioCommand::new("bat")
-                .args(vec!["--color", "always"])
-                .args(vec!["--line-range", &format!("{start_line}:")])
-                .args(vec!["--highlight-line", &line.to_string()])
-                .arg(&file)
-                .output()
+            let file = nvim::get_buf_name(&nvim, diagnostics_item.bufnr as usize)
                 .await
-                .map_err(|e| e.to_string())
-                .expect("rg: preview:")
-                .stdout;
-            let output = String::from_utf8_lossy(output.as_slice()).into_owned();
-            PreviewResp { message: output }
+                .map_err(|e| e.to_string());
+            match file {
+                Ok(file) => {
+                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                    let line = line.parse::<i64>().unwrap() + 1;
+                    let start_line = std::cmp::max(0, line - 15);
+                    let output = TokioCommand::new("bat")
+                        .args(vec!["--color", "always"])
+                        .args(vec!["--line-range", &format!("{start_line}:")])
+                        .args(vec!["--highlight-line", &line.to_string()])
+                        .arg(&file)
+                        .output()
+                        .await
+                        .map_err(|e| e.to_string())
+                        .expect("rg: preview:")
+                        .stdout;
+                    let bat_output = String::from_utf8_lossy(output.as_slice()).into_owned();
+                    // TODO https://github.com/charmbracelet/glow to render markdown message
+                    let output = format!(
+                        "\n\n{}\n\n{}",
+                        diagnostics_item
+                            .message
+                            .lines()
+                            .map(|s| format!("   {s}"))
+                            .collect::<Vec<_>>()
+                            .join("\n"),
+                        bat_output
+                    );
+                    PreviewResp { message: output }
+                }
+                Err(e) => PreviewResp { message: e },
+            }
         }
         .boxed()
     }
@@ -96,8 +138,18 @@ impl Mode for Diagnostics {
         opts: RunOpts,
     ) -> BoxFuture<'static, RunResp> {
         let nvim = state.nvim.clone();
-        let file = self.file.clone().unwrap();
+        let diagnostics: Vec<DiagnosticsItem> =
+            serde_json::from_value(state.keymap.get(KEY_DIAGNOSTICS).unwrap().clone()).unwrap();
+        let item_num = ITEM_PATTERN
+            .replace(&item, "$num")
+            .into_owned()
+            .parse::<usize>()
+            .unwrap();
+        let diagnostics_item = diagnostics.get(item_num).unwrap().clone();
         async move {
+            let file = nvim::get_buf_name(&nvim, diagnostics_item.bufnr as usize)
+                .await
+                .unwrap();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
             let line = line.parse::<i64>().unwrap() + 1;
             let opts = nvim::OpenOpts {
@@ -120,33 +172,22 @@ impl Mode for Diagnostics {
 // Util
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async fn get_nvim_diagnostics(nvim: &Neovim) -> Result<Vec<String>, Box<dyn Error>> {
-    let mut diagnosticss: Vec<nvim::DiagnosticsItem> = nvim::get_buf_diagnostics(nvim).await?;
-    diagnosticss.sort_by(|a, b| b.severity.0.cmp(&a.severity.0));
-    info!("diagnostics: get_nvim_diagnostics"; "diagnosticss" => Serde(diagnosticss.clone()));
-    let line_max_digits = diagnosticss
+fn to_items(diagnostics: Vec<DiagnosticsItem>) -> Vec<String> {
+    let num_digit = diagnostics.len().to_string().len();
+    let line_max_digits = diagnostics
         .iter()
         .map(|d| d.lnum.to_string().len())
         .max()
         .unwrap_or(0);
-    let col_max_digits = diagnosticss
+    let col_max_digits = diagnostics
         .iter()
         .map(|d| d.col.to_string().len())
         .max()
         .unwrap_or(0);
-    let items = diagnosticss
+    let items = diagnostics
         .into_iter()
-        .map(|d| {
-            format!(
-                "{}:{:>line_width$}:{:>col_width$}| {}",
-                d.severity.mark(),
-                d.lnum,
-                d.col,
-                d.message.replace('\n', ". "),
-                line_width = line_max_digits,
-                col_width = col_max_digits,
-            )
-        })
+        .enumerate()
+        .map(|(i, d)| to_item(num_digit, line_max_digits, col_max_digits, i, d))
         .collect();
-    Ok(items)
+    items
 }

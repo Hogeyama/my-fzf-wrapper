@@ -9,6 +9,7 @@ mod server;
 mod types;
 mod utils;
 
+use std::collections::HashMap;
 // std
 use std::env;
 use std::error::Error;
@@ -108,13 +109,14 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     // start server
     let server_handler = tokio::spawn(async move {
         let initial_state = types::State {
+            nvim,
+            mode: None,
             last_load_param: LoadParam {
                 mode: "fd".to_string(),
                 args: vec![],
             },
             last_load_resp: None,
-            mode: None,
-            nvim,
+            keymap: HashMap::new(),
         };
         let initial_mode = "fd";
         let r = server::server(config::new(), initial_mode, initial_state, socket).await;

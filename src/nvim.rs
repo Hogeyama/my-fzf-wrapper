@@ -13,7 +13,6 @@ use rmpv::ext::{from_value, to_value};
 use serde::{Deserialize, Serialize};
 use tokio::io::WriteHalf;
 
-use crate::logger::Serde;
 use crate::method::RunOpts;
 
 #[derive(Clone)]
@@ -196,15 +195,29 @@ impl From<usize> for OpenTarget {
 }
 
 #[allow(dead_code)]
+pub async fn get_all_diagnostics(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
+    Ok(from_value(
+        eval_lua(nvim, "return vim.diagnostic.get()").await?,
+    )?)
+}
+
+#[allow(dead_code)]
 pub async fn get_buf_diagnostics(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
-    let diagnostics = eval_lua(nvim, "return vim.diagnostic.get(vim.g.fzfw_last_buf)").await?;
-    info!("get_buf_diagnostics"; "diagnostics" => Serde(diagnostics.clone()));
-    let diagnostics: Vec<DiagnosticsItem> = from_value(diagnostics)?;
-    Ok(diagnostics)
+    Ok(from_value(
+        eval_lua(nvim, "return vim.diagnostic.get(vim.g.fzfw_last_buf)").await?,
+    )?)
+}
+
+#[allow(dead_code)]
+pub async fn get_buf_name(nvim: &Neovim, bufnr: usize) -> Result<String, Box<dyn Error>> {
+    Ok(from_value(
+        eval_lua(nvim, &format!("return vim.api.nvim_buf_get_name({bufnr})")).await?,
+    )?)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagnosticsItem {
+    pub bufnr: u64,
     pub lnum: u64,
     pub col: u64,
     pub message: String,

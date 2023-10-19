@@ -43,22 +43,15 @@ impl Mode for Fd {
             let fd_result = fd::new().output().await;
             match fd_result {
                 Ok(fd_output) => {
-                    let pwd = std::env::current_dir().unwrap().into_os_string();
                     let fd_output = String::from_utf8_lossy(&fd_output.stdout)
                         .lines()
                         .map(|line| line.to_string())
                         .collect::<Vec<_>>();
-                    LoadResp {
-                        header: format!("[{}]", pwd.to_string_lossy()),
-                        items: fd_output,
-                    }
+                    LoadResp::new_with_default_header(fd_output)
                 }
                 Err(fd_err) => {
                     error!("fd.run.opts failed"; "error" => fd_err.to_string());
-                    LoadResp {
-                        header: fd_err.to_string(),
-                        items: vec![],
-                    }
+                    LoadResp::new(fd_err.to_string(), vec![])
                 }
             }
         }
