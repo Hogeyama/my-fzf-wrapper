@@ -173,7 +173,7 @@ fn chrome_query() -> String {
         ORDER BY
             date DESC
         LIMIT
-            1000
+            10000
     "#,
         "url LIKE 'https://%'"
     )
@@ -195,7 +195,7 @@ fn firefox_query() -> String {
         ORDER BY
             date DESC
         LIMIT
-            1000
+            10000
     "#,
         "url LIKE 'https://%'"
     )
