@@ -67,6 +67,10 @@ pub fn new() -> Config {
                 "browser-history".to_string(),
                 Box::pin(|| Box::new(mode::browser_history::new())),
             ),
+            (
+                "menu".to_string(), //
+                Box::pin(|| Box::new(mode::menu::new())),
+            ),
         ],
     }
 }

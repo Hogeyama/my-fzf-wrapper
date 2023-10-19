@@ -113,6 +113,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
                 args: vec![],
             },
             last_load_resp: None,
+            mode: None,
             nvim,
         };
         let initial_mode = "fd";

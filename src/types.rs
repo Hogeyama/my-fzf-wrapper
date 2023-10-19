@@ -12,6 +12,8 @@ pub struct State {
     pub last_load_resp: Option<LoadResp>,
     // neovim instance
     pub nvim: Neovim,
+
+    pub mode: Option<Box<dyn Mode + Sync + Send>>,
 }
 
 pub trait Mode {

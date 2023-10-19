@@ -29,8 +29,8 @@ pub async fn server(
     listener: UnixListener,
 ) -> Result<(), String> {
     let config = Arc::new(config);
-    let mode = Arc::new(Mutex::new(config.get_mode(initial_mode)));
     let state = Arc::new(Mutex::new(initial_state));
+    (*state.lock().await).mode = Some(config.get_mode(initial_mode));
 
     let current_load_task: Arc<Mutex<Option<(JoinHandle<Result<(), Aborted>>, AbortHandle)>>> =
         Arc::new(Mutex::new(None));
@@ -54,21 +54,25 @@ pub async fn server(
                         abort_handle.abort();
                     }
 
-                    let mode_clone = mode.clone();
                     let state_clone = state.clone();
                     let tx_clone = tx.clone();
-                    let new_mode = config.get_mode(params.mode.clone());
+                    let mut new_mode = config.get_mode(params.mode.clone());
 
                     let (abort_handle, abort_registration) = AbortHandle::new_pair();
                     let handle = tokio::spawn(Abortable::new(
                         async move {
-                            let mut mode = mode_clone.lock().await;
                             let mut state = state_clone.lock().await;
                             let mut tx = tx_clone.lock().await;
-                            *mode = new_mode;
-                            let resp = mode.load(&mut state, params.clone().args).await;
-                            state.last_load_param = params.clone();
-                            state.last_load_resp = Some(resp.clone());
+                            state.mode = None;
+                            let resp = new_mode.load(&mut state, params.clone().args).await;
+                            if state.mode.is_none() {
+                                // load が state.mode をセットする可能性があるため、
+                                // そうでない場合のみここでセットする。
+                                // 他のメソッドでも同様。
+                                state.mode = Some(new_mode);
+                                state.last_load_param = params.clone();
+                                state.last_load_resp = Some(resp.clone());
+                            }
                             match send_response(&mut *tx, method, resp).await {
                                 Ok(()) => trace!("server: load done"),
                                 Err(e) => error!("server: load error"; "error" => e),
@@ -79,10 +83,13 @@ pub async fn server(
                     *(current_load_task.lock().await) = Some((handle, abort_handle));
                 }
                 Some(method::Request::Preview { method, params }) => {
-                    let mut mode = mode.lock().await;
-                    let mut state = state.lock().await;
                     let method::PreviewParam { item } = params;
+                    let mut state = state.lock().await;
+                    let mut mode = std::mem::take(&mut state.mode).unwrap();
                     let resp = mode.preview(&mut state, item).await;
+                    if state.mode.is_none() {
+                        state.mode = Some(mode);
+                    }
                     let mut tx = tx.lock().await;
                     match send_response(&mut *tx, method, resp).await {
                         Ok(()) => trace!("server: preview done"),
@@ -90,13 +97,16 @@ pub async fn server(
                     }
                 }
                 Some(method::Request::Run { method, params }) => {
-                    let mut mode = mode.lock().await;
                     let mut state = state.lock().await;
                     let method::RunParam { item, args } = params;
                     let mut tx = tx.lock().await;
                     match clap_parse_from(args) {
                         Ok(opts) => {
-                            let resp = mode.run(&mut state, item, opts).await;
+                            let mut mode = std::mem::take(&mut state.mode).unwrap();
+                            let resp = mode.run(&mut state, item.clone(), opts).await;
+                            if state.mode.is_none() {
+                                state.mode = Some(mode);
+                            }
                             match send_response(&mut *tx, method, resp).await {
                                 Ok(()) => trace!("server: run done"),
                                 Err(e) => error!("server: run error"; "error" => e),
@@ -117,19 +127,21 @@ pub async fn server(
                         abort_handle.abort();
                     }
 
-                    let mode_clone = mode.clone();
                     let state_clone = state.clone();
                     let tx_clone = tx.clone();
 
                     let (abort_handle, abort_registration) = AbortHandle::new_pair();
                     let handle = tokio::spawn(Abortable::new(
                         async move {
-                            let mut mode = mode_clone.lock().await;
                             let mut state = state_clone.lock().await;
+                            let mut mode = std::mem::take(&mut state.mode).unwrap();
                             let mut tx = tx_clone.lock().await;
                             let args = state.last_load_param.args.clone();
                             let resp = mode.load(&mut state, args).await;
-                            state.last_load_resp = Some(resp.clone());
+                            if state.mode.is_none() {
+                                state.mode = Some(mode);
+                                state.last_load_resp = Some(resp.clone());
+                            }
                             match send_response(&mut *tx, method, resp).await {
                                 Ok(()) => trace!("server: reload done"),
                                 Err(e) => error!("server: reload error"; "error" => e),

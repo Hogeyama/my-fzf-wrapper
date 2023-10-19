@@ -12,7 +12,9 @@ use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::net::UnixStream;
 
+use crate::config;
 use crate::external_command;
+use crate::external_command::fzf;
 use crate::logger::Serde;
 use crate::method;
 use crate::method::LoadResp;
@@ -27,6 +29,11 @@ use crate::types::Mode;
 /// Subcommand called by the parent process (=fzf)
 #[derive(Subcommand)]
 pub enum Command {
+    /// internal
+    Menu {
+        #[clap(long, env)]
+        fzfw_socket: String,
+    },
     /// internal
     Load {
         #[clap(long, env)]
@@ -73,6 +80,27 @@ pub enum LiveGrepSubCommand {
 
 pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
     match command {
+        Command::Menu { fzfw_socket } => {
+            let config = config::new();
+            let mode = fzf::select(config.get_mode_names()).await;
+
+            if config.is_mode_valid(&mode) {
+                let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
+                let args = method::LoadParam { mode, args: vec![] };
+                let resp = send_request(&mut tx, &mut rx, method::Load, args).await?;
+                match resp {
+                    Ok(LoadResp { .. }) => {
+                        // 贅沢にも結果は捨てて後で reload する
+                    }
+                    Err(e) => println!("Error: {}", e),
+                }
+            } else if mode == "" {
+                // aborted. do nothing.
+            } else {
+                panic!("unknown mode: {}", mode);
+            }
+            Ok(())
+        }
         Command::Load {
             fzfw_socket,
             mode,

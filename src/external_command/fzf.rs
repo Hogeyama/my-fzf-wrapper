@@ -17,6 +17,13 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
         "--bind",
         &format!("ctrl-r:reload[{myself} reload]+clear-screen"),
     ]);
+    // menu
+    fzf.args(vec![
+        "--bind",
+        &format!(
+            "pgdn:reload[{myself} load -- menu]+change-prompt[modes>]+clear-query+clear-screen"
+        ),
+    ]);
     // fd: default
     fzf.args(vec![
         "--bind",
@@ -76,9 +83,10 @@ pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
         &format!("ctrl-i:reload[{myself} load -- browser-history]+change-prompt[browser>]+clear-query+clear-screen"),
     ]);
     // run: default
+    // reload は menu のために必要
     fzf.args(vec![
         "--bind",
-        &format!("enter:execute[{myself} run -- {{}}]"),
+        &format!("enter:execute[{myself} run -- {{}}]+reload[{myself} reload]"),
     ]);
     // run: tabedit
     fzf.args(vec![
