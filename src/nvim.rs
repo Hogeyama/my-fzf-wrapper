@@ -197,14 +197,17 @@ impl From<usize> for OpenTarget {
 #[allow(dead_code)]
 pub async fn get_all_diagnostics(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
     Ok(from_value(
-        eval_lua(nvim, "return vim.diagnostic.get()").await?,
-    )?)
-}
-
-#[allow(dead_code)]
-pub async fn get_buf_diagnostics(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
-    Ok(from_value(
-        eval_lua(nvim, "return vim.diagnostic.get(vim.g.fzfw_last_buf)").await?,
+        eval_lua(
+            nvim,
+            r#"
+            local ds = vim.diagnostic.get()
+            for _, d in ipairs(ds) do
+              d.file = vim.api.nvim_buf_get_name(d.bufnr)
+            end
+            return ds
+            "#,
+        )
+        .await?,
     )?)
 }
 
@@ -218,6 +221,7 @@ pub async fn get_buf_name(nvim: &Neovim, bufnr: usize) -> Result<String, Box<dyn
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct DiagnosticsItem {
     pub bufnr: u64,
+    pub file: String,
     pub lnum: u64,
     pub col: u64,
     pub message: String,
@@ -234,6 +238,15 @@ impl Severity {
             2 => "W".to_string(),
             3 => "I".to_string(),
             4 => "H".to_string(),
+            _ => panic!("unknown severity {}", self.0),
+        }
+    }
+    pub fn render(&self) -> String {
+        match self.0 {
+            1 => "Error".to_string(),
+            2 => "Warning".to_string(),
+            3 => "Info".to_string(),
+            4 => "Hint".to_string(),
             _ => panic!("unknown severity {}", self.0),
         }
     }
