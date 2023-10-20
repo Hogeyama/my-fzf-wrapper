@@ -173,6 +173,7 @@ pub fn new_livegrep(myself: impl Into<String>, socket: impl Into<String>) -> Com
 
 pub async fn select(items: Vec<&str>) -> String {
     let mut fzf = Command::new("fzf")
+        .arg("--ansi")
         .args(vec!["--layout", "reverse"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())

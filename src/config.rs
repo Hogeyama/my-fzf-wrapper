@@ -40,6 +40,10 @@ pub fn new() -> Config {
     Config {
         modes: vec![
             (
+                "menu".to_string(), //
+                Box::pin(|| Box::new(mode::menu::new())),
+            ),
+            (
                 "fd".to_string(), //
                 Box::pin(|| Box::new(mode::fd::new())),
             ),
@@ -68,8 +72,12 @@ pub fn new() -> Config {
                 Box::pin(|| Box::new(mode::browser_history::new())),
             ),
             (
-                "menu".to_string(), //
-                Box::pin(|| Box::new(mode::menu::new())),
+                "git-branch".to_string(),
+                Box::pin(|| Box::new(mode::git_branch::new())),
+            ),
+            (
+                "git-log".to_string(),
+                Box::pin(|| Box::new(mode::git_log::new())),
             ),
         ],
     }

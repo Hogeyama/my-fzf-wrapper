@@ -155,6 +155,29 @@ pub async fn open(nvim: &Neovim, target: OpenTarget, opts: OpenOpts) -> Result<(
     }
 }
 
+async fn notify(nvim: &Neovim, msg: impl AsRef<str>, level: i64) -> Result<(), Box<dyn Error>> {
+    eval_lua_with_args(nvim, r#"vim.notify(...)"#, call_args![msg.as_ref(), level]).await?;
+    Ok(())
+}
+
+#[allow(dead_code)]
+pub async fn notify_info(nvim: &Neovim, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>> {
+    notify(nvim, msg, 2).await?;
+    Ok(())
+}
+
+#[allow(dead_code)]
+pub async fn notify_warn(nvim: &Neovim, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>> {
+    notify(nvim, msg, 3).await?;
+    Ok(())
+}
+
+#[allow(dead_code)]
+pub async fn notify_error(nvim: &Neovim, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>> {
+    notify(nvim, msg, 4).await?;
+    Ok(())
+}
+
 #[allow(dead_code)]
 pub async fn delete_buffer(nvim: &Neovim, bufnr: usize, force: bool) -> Result<(), Box<dyn Error>> {
     let cmd = format!("bdelete{} {}", if force { "!" } else { "" }, bufnr);
@@ -364,7 +387,14 @@ async fn register_command(nvim: &Neovim, name: &str, command: &str) -> Result<()
 }
 
 async fn eval_lua(nvim: &Neovim, expr: impl AsRef<str>) -> Result<rmpv::Value, Box<dyn Error>> {
-    let args: Vec<rmpv::Value> = vec![];
+    eval_lua_with_args(nvim, expr, vec![]).await
+}
+
+async fn eval_lua_with_args(
+    nvim: &Neovim,
+    expr: impl AsRef<str>,
+    args: Vec<rmpv::Value>,
+) -> Result<rmpv::Value, Box<dyn Error>> {
     let v = nvim
         .call("nvim_exec_lua", call_args![expr.as_ref(), args])
         .await?
