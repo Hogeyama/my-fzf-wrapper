@@ -1,7 +1,7 @@
 use std::process::ExitStatus;
 
 use crate::{
-    external_command::rg,
+    external_command::{bat, rg},
     logger::Serde,
     method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
     nvim,
@@ -73,22 +73,15 @@ impl Mode for Rg {
             let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
             let col = ITEM_PATTERN.replace(&item, "$col").into_owned();
-            match line.parse::<i64>() {
-                Ok(line_) => {
-                    let start_line = std::cmp::max(0, line_ - 15);
-                    info!("rg.preview"; "parsed" => Serde(json!({"file": file, "line": line, "col": col})));
-                    let output = TokioCommand::new("bat")
-                        .args(vec!["--color", "always"])
-                        .args(vec!["--line-range", &format!("{start_line}:")])
-                        .args(vec!["--highlight-line", &line])
-                        .arg(&file)
-                        .output()
-                        .await
-                        .map_err(|e| e.to_string())
-                        .expect("rg: preview:")
-                        .stdout;
-                    let output = String::from_utf8_lossy(output.as_slice()).into_owned();
-                    PreviewResp { message: output }
+            match line.parse::<isize>() {
+                Ok(line) => {
+                    info!("rg.preview"; "parsed" => Serde(json!({
+                        "file": file,
+                        "line": line,
+                        "col": col
+                    })));
+                    let message = bat::render_file_with_highlight(&file, line).await;
+                    PreviewResp { message }
                 }
                 Err(e) => {
                     error!("rg: preview: parse line failed"; "error" => e.to_string(), "line" => line);

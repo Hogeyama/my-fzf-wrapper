@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use crate::{
+    external_command::bat,
     logger::Serde,
     method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
     nvim::{self, Neovim},
@@ -12,7 +13,6 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use rmpv::ext::from_value;
 use serde::{Deserialize, Serialize};
-use tokio::process::Command as TokioCommand;
 
 #[derive(Clone)]
 pub struct Buffer;
@@ -63,16 +63,8 @@ impl Mode for Buffer {
             let meta = std::fs::metadata(&path);
             match meta {
                 Ok(meta) if meta.is_file() => {
-                    let output = TokioCommand::new("bat")
-                        .arg(&path)
-                        .args(vec!["--color", "always"])
-                        .output()
-                        .await
-                        .map_err(|e| e.to_string())
-                        .expect("buffer: preview:")
-                        .stdout;
-                    let output = String::from_utf8_lossy(output.as_slice()).into_owned();
-                    PreviewResp { message: output }
+                    let message = bat::render_file(&path).await;
+                    PreviewResp { message }
                 }
                 _ => {
                     trace!("buffer: preview: not a file"; "meta" => ?meta);

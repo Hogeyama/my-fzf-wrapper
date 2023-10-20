@@ -1,5 +1,5 @@
 use crate::{
-    external_command::{fd, fzf},
+    external_command::{bat, fd, fzf},
     method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
     nvim,
     types::{Mode, State},
@@ -59,16 +59,8 @@ impl Mode for Fd {
     }
     fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
         async move {
-            let output = TokioCommand::new("bat")
-                .arg(&item)
-                .args(vec!["--color", "always"])
-                .output()
-                .await
-                .map_err(|e| e.to_string())
-                .expect("fd: preview:")
-                .stdout;
-            let output = String::from_utf8_lossy(output.as_slice()).into_owned();
-            PreviewResp { message: output }
+            let message = bat::render_file(&item).await;
+            PreviewResp { message }
         }
         .boxed()
     }
