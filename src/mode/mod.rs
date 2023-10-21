@@ -6,6 +6,7 @@ pub mod git_branch;
 pub mod git_log;
 pub mod menu;
 pub mod mru;
+pub mod nvim_session;
 pub mod rg;
 mod utils;
 pub mod zoxide;

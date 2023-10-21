@@ -79,6 +79,10 @@ pub fn new() -> Config {
                 "git-log".to_string(),
                 Box::pin(|| Box::new(mode::git_log::new())),
             ),
+            (
+                "nvim-session".to_string(),
+                Box::pin(|| Box::new(mode::nvim_session::new())),
+            ),
         ],
     }
 }

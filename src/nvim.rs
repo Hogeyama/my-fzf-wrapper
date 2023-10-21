@@ -386,11 +386,11 @@ async fn register_command(nvim: &Neovim, name: &str, command: &str) -> Result<()
     Ok(())
 }
 
-async fn eval_lua(nvim: &Neovim, expr: impl AsRef<str>) -> Result<rmpv::Value, Box<dyn Error>> {
+pub async fn eval_lua(nvim: &Neovim, expr: impl AsRef<str>) -> Result<rmpv::Value, Box<dyn Error>> {
     eval_lua_with_args(nvim, expr, vec![]).await
 }
 
-async fn eval_lua_with_args(
+pub async fn eval_lua_with_args(
     nvim: &Neovim,
     expr: impl AsRef<str>,
     args: Vec<rmpv::Value>,
