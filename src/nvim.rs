@@ -1,6 +1,7 @@
 use std::error::Error;
 use std::process::Output;
 
+use ansi_term::ANSIGenericString;
 use futures::future::BoxFuture;
 // Neovim
 use nvim_rs::compat::tokio::Compat as TokioCompat;
@@ -284,12 +285,12 @@ pub struct DiagnosticsItem {
 pub struct Severity(pub u64);
 
 impl Severity {
-    pub fn mark(&self) -> String {
+    pub fn mark(&self) -> ANSIGenericString<'_, str> {
         match self.0 {
-            1 => "E".to_string(),
-            2 => "W".to_string(),
-            3 => "I".to_string(),
-            4 => "H".to_string(),
+            1 => ansi_term::Colour::Red.bold().paint("E"),
+            2 => ansi_term::Colour::Yellow.bold().paint("W"),
+            3 => ansi_term::Colour::Blue.bold().paint("I"),
+            4 => ansi_term::Colour::White.normal().paint("H"),
             _ => panic!("unknown severity {}", self.0),
         }
     }

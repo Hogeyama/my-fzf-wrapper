@@ -125,7 +125,7 @@ fn to_item(_num_max_digits: usize, num: usize, d: DiagnosticsItem) -> String {
     let pwd = pwd.to_str().unwrap();
     let relpath = d.file.as_str().replace(&format!("{pwd}/"), "");
     format!(
-        "{}|{}|{}{}{}",
+        "{} {}|{}{}{}",
         d.severity.mark(),
         relpath,
         d.message.replace('\n', ". "),
