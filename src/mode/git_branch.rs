@@ -45,7 +45,7 @@ impl Mode for GitBranch {
     }
     fn preview(&mut self, _state: &mut State, branch: String) -> BoxFuture<'static, PreviewResp> {
         async move {
-            let log = git::glog(branch.clone()).await;
+            let log = git::log_graph(branch.clone()).await;
             let message = log.join("\n");
             PreviewResp { message }
         }
@@ -135,7 +135,7 @@ impl Mode for GitBranch {
 }
 
 async fn select_commit() -> String {
-    let commits = git::glog("--all").await;
+    let commits = git::log_graph("--all").await;
     let commits = commits.iter().map(|s| s.as_str()).collect();
     let commit_line = fzf::select(commits).await;
     Regex::new(r"[0-9a-f]{7}")

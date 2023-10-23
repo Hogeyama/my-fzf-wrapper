@@ -25,8 +25,8 @@ impl Mode for GitBranch {
         _opts: Vec<String>,
     ) -> BoxFuture<'static, <Load as Method>::Response> {
         async move {
-            let commits = git::glog("HEAD").await;
             LoadResp::new_with_default_header(commits)
+            let commits = git::log_graph("HEAD").await;
         }
         .boxed()
     }

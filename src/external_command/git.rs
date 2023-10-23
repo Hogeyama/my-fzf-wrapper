@@ -1,6 +1,6 @@
 use tokio::process::Command;
 
-pub async fn glog(commit: impl AsRef<str>) -> Vec<String> {
+pub async fn log_graph(commit: impl AsRef<str>) -> Vec<String> {
     let commits = Command::new("git")
         .arg("log")
         .arg(
