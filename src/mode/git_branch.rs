@@ -117,25 +117,7 @@ impl Mode for GitBranch {
                         .await
                         .map_err(|e| e.to_string())
                         .unwrap();
-                    if output.status.success() {
-                        let _ = nvim::notify_info(
-                            &nvim,
-                            format!(
-                                "git push succeeded: {}",
-                                String::from_utf8_lossy(output.stdout.as_slice())
-                            ),
-                        )
-                        .await;
-                    } else {
-                        let _ = nvim::notify_error(
-                            &nvim,
-                            format!(
-                                "git push failed: {}",
-                                String::from_utf8_lossy(output.stderr.as_slice())
-                            ),
-                        )
-                        .await;
-                    }
+                    nvim::notify_command_result(&nvim, "git push", output).await;
                 }
                 _ => {}
             }

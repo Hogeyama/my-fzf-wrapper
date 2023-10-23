@@ -1,4 +1,5 @@
 use std::error::Error;
+use std::process::Output;
 
 use futures::future::BoxFuture;
 // Neovim
@@ -176,6 +177,30 @@ pub async fn notify_warn(nvim: &Neovim, msg: impl AsRef<str>) -> Result<(), Box<
 pub async fn notify_error(nvim: &Neovim, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>> {
     notify(nvim, msg, 4).await?;
     Ok(())
+}
+
+pub async fn notify_command_result(nvim: &Neovim, command: impl AsRef<str>, output: Output) {
+    if output.status.success() {
+        let _ = notify_info(
+            nvim,
+            format!(
+                "{} succeeded\n{}",
+                command.as_ref(),
+                String::from_utf8_lossy(output.stdout.as_slice())
+            ),
+        )
+        .await;
+    } else {
+        let _ = notify_error(
+            nvim,
+            format!(
+                "{} failed\n{}",
+                command.as_ref(),
+                String::from_utf8_lossy(output.stderr.as_slice())
+            ),
+        )
+        .await;
+    }
 }
 
 #[allow(dead_code)]
