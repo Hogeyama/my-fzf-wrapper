@@ -63,14 +63,17 @@ pub struct LoadResp {
 }
 
 impl LoadResp {
-    pub fn new(header: String, items: Vec<String>) -> Self {
-        Self { header, items }
-    }
     pub fn new_with_default_header(items: Vec<String>) -> Self {
         let pwd = std::env::current_dir().unwrap().into_os_string();
         Self {
             header: format!("[{}]", pwd.to_string_lossy()),
             items,
+        }
+    }
+    pub fn error(err: impl ToString) -> Self {
+        Self {
+            header: "[error]".to_string(),
+            items: vec![err.to_string()],
         }
     }
 }
@@ -163,6 +166,14 @@ impl Method for Preview {
         Request::Preview {
             method: Preview,
             params,
+        }
+    }
+}
+
+impl PreviewResp {
+    pub fn error(err: impl ToString) -> Self {
+        Self {
+            message: err.to_string(),
         }
     }
 }

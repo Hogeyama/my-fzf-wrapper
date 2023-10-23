@@ -25,10 +25,18 @@ pub trait Mode {
     fn name(&self) -> &'static str;
 
     /// Load items into fzf
-    fn load<'a>(&'a mut self, state: &'a mut State, arg: Vec<String>) -> BoxFuture<'a, LoadResp>;
+    fn load<'a>(
+        &'a mut self,
+        state: &'a mut State,
+        arg: Vec<String>,
+    ) -> BoxFuture<'a, Result<LoadResp, String>>;
 
     /// Run command with the selected item
-    fn preview<'a>(&'a mut self, state: &'a mut State, item: String) -> BoxFuture<'a, PreviewResp>;
+    fn preview<'a>(
+        &'a mut self,
+        state: &'a mut State,
+        item: String,
+    ) -> BoxFuture<'a, Result<PreviewResp, String>>;
 
     /// Run command with the selected item
     fn run<'a>(
@@ -36,5 +44,5 @@ pub trait Mode {
         state: &'a mut State,
         item: String,
         opts: RunOpts,
-    ) -> BoxFuture<'a, RunResp>;
+    ) -> BoxFuture<'a, Result<RunResp, String>>;
 }

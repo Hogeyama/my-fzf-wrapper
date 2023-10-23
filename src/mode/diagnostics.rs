@@ -1,6 +1,6 @@
 use crate::{
     external_command::{bat, glow},
-    method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp, RunOpts, RunResp},
     nvim::{self, DiagnosticsItem},
     types::{Mode, State},
 };
@@ -25,37 +25,33 @@ impl Mode for Diagnostics {
         &'a mut self,
         state: &'a mut State,
         _opts: Vec<String>,
-    ) -> BoxFuture<'a, <Load as Method>::Response> {
+    ) -> BoxFuture<'a, Result<LoadResp, String>> {
         let nvim = state.nvim.clone();
         async move {
-            match nvim::get_all_diagnostics(&nvim).await {
-                Ok(mut diagnostics) => {
-                    diagnostics.sort_by(|a, b| a.severity.0.cmp(&b.severity.0));
-                    state.keymap.insert(
-                        KEY_DIAGNOSTICS.to_string(), //
-                        json!(diagnostics),
-                    );
-                    LoadResp::new_with_default_header(to_items(diagnostics))
-                }
-                Err(e) => {
-                    error!("diagnostics: load: nvim::get_all_diagnostics failed"; "error" => e.to_string());
-                    LoadResp {
-                        header: e.to_string(),
-                        items: vec![],
-                    }
-                }
-            }
+            let mut diagnostics = nvim::get_all_diagnostics(&nvim)
+                .await
+                .map_err(|e| e.to_string())?;
+            diagnostics.sort_by(|a, b| a.severity.0.cmp(&b.severity.0));
+            state.keymap.insert(
+                KEY_DIAGNOSTICS.to_string(), //
+                json!(diagnostics),
+            );
+            Ok(LoadResp::new_with_default_header(to_items(diagnostics)))
         }
         .boxed()
     }
-    fn preview(&mut self, state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(
+        &mut self,
+        state: &mut State,
+        item: String,
+    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         let nvim = state.nvim.clone();
         let diagnostics_item = match get_diagnostic_item(state, item.clone()) {
             Ok(diagnostics_item) => diagnostics_item,
             Err(e) => {
                 error!("diagnostics: preview: failed"; "error" => e.to_string());
                 let message = e.to_string();
-                return async move { PreviewResp { message } }.boxed();
+                return async move { Ok(PreviewResp { message }) }.boxed();
             }
         };
         async move {
@@ -69,15 +65,15 @@ impl Mode for Diagnostics {
                         diagnostics_item.severity.render(),
                         diagnostics_item.message
                     ))
-                    .await;
+                    .await?;
                     let rendered_file =
                         // zero-indexed なので +1 する
                         bat::render_file_with_highlight(&file, diagnostics_item.lnum as isize + 1)
-                            .await;
+                            .await?;
                     let message = format!("{}\n{}", rendered_message, rendered_file);
-                    PreviewResp { message }
+                    Ok(PreviewResp { message })
                 }
-                Err(e) => PreviewResp { message: e },
+                Err(e) => Ok(PreviewResp { message: e }),
             }
         }
         .boxed()
@@ -87,19 +83,19 @@ impl Mode for Diagnostics {
         state: &mut State,
         item: String,
         opts: RunOpts,
-    ) -> BoxFuture<'static, RunResp> {
+    ) -> BoxFuture<'static, Result<RunResp, String>> {
         let nvim = state.nvim.clone();
         let diagnostics_item = match get_diagnostic_item(state, item.clone()) {
             Ok(diagnostics_item) => diagnostics_item,
             Err(e) => {
                 error!("diagnostics: run: failed"; "error" => e.to_string());
-                return async move { RunResp }.boxed();
+                return async move { Ok(RunResp) }.boxed();
             }
         };
         async move {
             let file = nvim::get_buf_name(&nvim, diagnostics_item.bufnr as usize)
                 .await
-                .unwrap();
+                .map_err(|e| e.to_string())?;
             let opts = nvim::OpenOpts {
                 line: Some(diagnostics_item.lnum as usize + 1),
                 ..opts.into()
@@ -110,7 +106,7 @@ impl Mode for Diagnostics {
                     error!("diagnostics: run: nvim_open failed"; "error" => e.to_string());
                 }
             });
-            RunResp
+            Ok(RunResp)
         }
         .boxed()
     }
@@ -147,12 +143,11 @@ fn get_num_of_item(item: &str) -> Option<usize> {
 
 fn to_items(diagnostics: Vec<DiagnosticsItem>) -> Vec<String> {
     let num_digit = diagnostics.len().to_string().len();
-    let items = diagnostics
+    diagnostics
         .into_iter()
         .enumerate()
         .map(|(i, d)| to_item(num_digit, i, d))
-        .collect();
-    items
+        .collect()
 }
 
 fn get_diagnostic_item(state: &mut State, item: String) -> Result<DiagnosticsItem, Box<dyn Error>> {

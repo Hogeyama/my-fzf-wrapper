@@ -11,7 +11,7 @@ pub async fn change_directory(nvim: &Neovim, opts: CdOpts) -> Result<bool, Strin
                     std::env::set_current_dir(path).map_err(|e| e.to_string())?;
                     Ok(())
                 } else if metadata.is_file() {
-                    let dir = path.parent().unwrap();
+                    let dir = path.parent().ok_or("no parent dir")?;
                     std::env::set_current_dir(dir).map_err(|e| e.to_string())?;
                     Ok(())
                 } else {

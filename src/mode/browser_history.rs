@@ -1,7 +1,7 @@
 use std::process::ExitStatus;
 
 use crate::{
-    method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp, RunOpts, RunResp},
     types::{Mode, State},
 };
 
@@ -35,9 +35,8 @@ impl Mode for BrowserHistory {
         &'a mut self,
         _state: &'a mut State,
         _opts: Vec<String>,
-    ) -> BoxFuture<'a, <Load as Method>::Response> {
+    ) -> BoxFuture<'a, Result<LoadResp, String>> {
         async move {
-            let pwd = std::env::current_dir().unwrap().into_os_string();
             let run_query = || -> Result<Vec<Item>, String> {
                 let (db, query) = if get_browser().eq("firefox") {
                     info!("oh yes");
@@ -55,44 +54,32 @@ impl Mode for BrowserHistory {
                         let date = row.get(2).unwrap();
                         Ok(Item { url, title, date })
                     })
-                    .unwrap()
+                    .map_err(|e| e.to_string())?
                     .filter_map(|x| x.ok())
                     .collect::<Vec<_>>();
                 Ok(items)
             };
-            match tokio::task::spawn_blocking(run_query).await {
-                Ok(Ok(items)) => LoadResp {
-                    header: format!("[{}]", pwd.to_string_lossy()),
-                    items: items
-                        .into_iter()
-                        .map(|x| format!("{}|{}|{}", x.date, x.url, x.title))
-                        .collect(),
-                },
-                Ok(Err(e)) => {
-                    error!("browser_history: error"; "error" => e.clone());
-                    LoadResp {
-                        header: format!("[{}]", pwd.to_string_lossy()),
-                        items: vec![e],
-                    }
-                }
-                Err(e) => {
-                    error!("browser_history: tokio join error"; "error" => ?e);
-                    LoadResp {
-                        header: format!("[{}]", pwd.to_string_lossy()),
-                        items: vec![],
-                    }
-                }
-            }
+            let items = tokio::task::spawn_blocking(run_query)
+                .await
+                .map_err(|e| e.to_string())??
+                .into_iter()
+                .map(|x| format!("{}|{}|{}", x.date, x.url, x.title))
+                .collect();
+            Ok(LoadResp::new_with_default_header(items))
         }
         .boxed()
     }
-    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(
+        &mut self,
+        _state: &mut State,
+        item: String,
+    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
             let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
             let title = ITEM_PATTERN.replace(&item, "$title").into_owned();
             let date = ITEM_PATTERN.replace(&item, "$date").into_owned();
             let message = format!("URL:   {url}\nTITLE: {title}\nDATE:  {date}");
-            PreviewResp { message }
+            Ok(PreviewResp { message })
         }
         .boxed()
     }
@@ -101,7 +88,7 @@ impl Mode for BrowserHistory {
         _state: &mut State,
         item: String,
         _opts: RunOpts,
-    ) -> BoxFuture<'static, RunResp> {
+    ) -> BoxFuture<'static, Result<RunResp, String>> {
         async move {
             let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
             let browser = get_browser();
@@ -112,7 +99,7 @@ impl Mode for BrowserHistory {
                 .wait()
                 .await
                 .expect("browser_history: open");
-            RunResp
+            Ok(RunResp)
         }
         .boxed()
     }
@@ -157,7 +144,7 @@ fn get_firefox_db_path() -> Result<String, String> {
             let entry = entries
                 .filter_map(|x| x.ok())
                 .find(|x| x.file_name().to_string_lossy().ends_with(".default"))
-                .unwrap();
+                .ok_or("No firefox history found".to_string())?;
             let dir = entry.path().to_string_lossy().to_string();
             Ok(dir + "/places.sqlite")
         }

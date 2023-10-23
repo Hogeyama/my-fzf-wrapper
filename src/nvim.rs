@@ -124,7 +124,7 @@ pub async fn open(nvim: &Neovim, target: OpenTarget, opts: OpenOpts) -> Result<(
     };
     match target {
         OpenTarget::File(file) => {
-            let file = std::fs::canonicalize(file).unwrap();
+            let file = std::fs::canonicalize(file).map_err(|e| e.to_string())?;
             let file = file.to_string_lossy();
             if opts.tabedit {
                 let cmd = format!("execute 'tabedit {line_opt} '.fnameescape('{file}')",);
@@ -179,9 +179,13 @@ pub async fn notify_error(nvim: &Neovim, msg: impl AsRef<str>) -> Result<(), Box
     Ok(())
 }
 
-pub async fn notify_command_result(nvim: &Neovim, command: impl AsRef<str>, output: Output) {
+pub async fn notify_command_result(
+    nvim: &Neovim,
+    command: impl AsRef<str>,
+    output: Output,
+) -> Result<(), Box<dyn Error>> {
     if output.status.success() {
-        let _ = notify_info(
+        notify_info(
             nvim,
             format!(
                 "{} succeeded\n{}",
@@ -189,9 +193,9 @@ pub async fn notify_command_result(nvim: &Neovim, command: impl AsRef<str>, outp
                 String::from_utf8_lossy(output.stdout.as_slice())
             ),
         )
-        .await;
+        .await
     } else {
-        let _ = notify_error(
+        notify_error(
             nvim,
             format!(
                 "{} failed\n{}",
@@ -199,7 +203,7 @@ pub async fn notify_command_result(nvim: &Neovim, command: impl AsRef<str>, outp
                 String::from_utf8_lossy(output.stderr.as_slice())
             ),
         )
-        .await;
+        .await
     }
 }
 
@@ -319,7 +323,7 @@ async fn setup_nvim_config(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
     let _ = nvim
         .call(
             "nvim_create_augroup",
-            call_args!["fzfw", to_value(json!({ "clear": true, })).unwrap()],
+            call_args!["fzfw", to_value(json!({ "clear": true, }))?],
         )
         .await?
         .map_err(|e| e.to_string())?;
@@ -367,10 +371,7 @@ async fn register_autocmds(
     let _ = nvim
         .call(
             "nvim_create_augroup",
-            call_args![
-                FZFW_AUTOCMD_GROUP,
-                to_value(json!({ "clear": true, })).unwrap()
-            ],
+            call_args![FZFW_AUTOCMD_GROUP, to_value(json!({ "clear": true, }))?],
         )
         .await?
         .map_err(|e| e.to_string())?;
@@ -383,8 +384,7 @@ async fn register_autocmds(
                     to_value(json!({
                         "group": FZFW_AUTOCMD_GROUP,
                         "command": command
-                    }))
-                    .unwrap()
+                    }))?
                 ],
             )
             .await?
@@ -402,8 +402,7 @@ async fn register_command(nvim: &Neovim, name: &str, command: &str) -> Result<()
                 command,
                 to_value(json!({
                     "force": true,
-                }))
-                .unwrap()
+                }))?
             ],
         )
         .await?

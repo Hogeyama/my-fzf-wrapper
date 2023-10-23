@@ -1,6 +1,6 @@
 use crate::{
     external_command::{fzf, zoxide},
-    method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp, RunOpts, RunResp},
     types::{Mode, State},
 };
 
@@ -24,33 +24,22 @@ impl Mode for Zoxide {
         &mut self,
         _state: &mut State,
         _opts: Vec<String>,
-    ) -> BoxFuture<'static, <Load as Method>::Response> {
+    ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
-            let zoxide_result = zoxide::new().output().await;
-            match zoxide_result {
-                Ok(zoxide_output) => {
-                    let pwd = std::env::current_dir().unwrap().into_os_string();
-                    let zoxide_output = String::from_utf8_lossy(&zoxide_output.stdout)
-                        .lines()
-                        .map(|line| line.to_string())
-                        .collect::<Vec<_>>();
-                    LoadResp {
-                        header: format!("[{}]", pwd.to_string_lossy()),
-                        items: zoxide_output,
-                    }
-                }
-                Err(zoxide_err) => {
-                    error!("zoxide.run.opts failed"; "error" => zoxide_err.to_string());
-                    LoadResp {
-                        header: zoxide_err.to_string(),
-                        items: vec![],
-                    }
-                }
-            }
+            let zoxide_output = zoxide::new().output().await.map_err(|e| e.to_string())?;
+            let zoxide_output = String::from_utf8_lossy(&zoxide_output.stdout)
+                .lines()
+                .map(|line| line.to_string())
+                .collect::<Vec<_>>();
+            Ok(LoadResp::new_with_default_header(zoxide_output))
         }
         .boxed()
     }
-    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(
+        &mut self,
+        _state: &mut State,
+        item: String,
+    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
             let output = TokioCommand::new("exa")
                 .args(vec!["--color", "always"])
@@ -68,7 +57,7 @@ impl Mode for Zoxide {
                 .expect("zoxide: preview:")
                 .stdout;
             let output = String::from_utf8_lossy(output.as_slice()).into_owned();
-            PreviewResp { message: output }
+            Ok(PreviewResp { message: output })
         }
         .boxed()
     }
@@ -77,11 +66,11 @@ impl Mode for Zoxide {
         state: &mut State,
         path: String,
         _opts: RunOpts,
-    ) -> BoxFuture<'static, RunResp> {
+    ) -> BoxFuture<'static, Result<RunResp, String>> {
         let nvim = state.nvim.clone();
         async move {
             let items = vec!["cd"];
-            match &*fzf::select(items).await {
+            match &*fzf::select(items).await? {
                 "cd" => {
                     let _ = utils::change_directory(
                         &nvim,
@@ -95,7 +84,7 @@ impl Mode for Zoxide {
                 }
                 _ => {}
             }
-            RunResp
+            Ok(RunResp)
         }
         .boxed()
     }

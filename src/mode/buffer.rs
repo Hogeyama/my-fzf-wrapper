@@ -3,7 +3,7 @@ use std::error::Error;
 use crate::{
     external_command::bat,
     logger::Serde,
-    method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp, RunOpts, RunResp},
     nvim::{self, Neovim},
     types::{Mode, State},
 };
@@ -32,30 +32,19 @@ impl Mode for Buffer {
         &mut self,
         state: &mut State,
         _opts: Vec<String>,
-    ) -> BoxFuture<'static, <Load as Method>::Response> {
+    ) -> BoxFuture<'static, Result<LoadResp, String>> {
         let nvim = state.nvim.clone();
         async move {
-            let buffer_result = get_nvim_buffers(&nvim).await;
-            match buffer_result {
-                Ok(buffer_items) => {
-                    let pwd = std::env::current_dir().unwrap().into_os_string();
-                    LoadResp {
-                        header: format!("[{}]", pwd.to_string_lossy()),
-                        items: buffer_items,
-                    }
-                }
-                Err(buffer_err) => {
-                    error!("buffer.run.opts failed"; "error" => buffer_err.to_string());
-                    LoadResp {
-                        header: buffer_err.to_string(),
-                        items: vec![],
-                    }
-                }
-            }
+            let items = get_nvim_buffers(&nvim).await.map_err(|e| e.to_string())?;
+            Ok(LoadResp::new_with_default_header(items))
         }
         .boxed()
     }
-    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(
+        &mut self,
+        _state: &mut State,
+        item: String,
+    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
             let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
             let path = ITEM_PATTERN.replace(&item, "$path").into_owned();
@@ -63,14 +52,14 @@ impl Mode for Buffer {
             let meta = std::fs::metadata(&path);
             match meta {
                 Ok(meta) if meta.is_file() => {
-                    let message = bat::render_file(&path).await;
-                    PreviewResp { message }
+                    let message = bat::render_file(&path).await?;
+                    Ok(PreviewResp { message })
                 }
                 _ => {
                     trace!("buffer: preview: not a file"; "meta" => ?meta);
-                    PreviewResp {
+                    Ok(PreviewResp {
                         message: "No Preview".to_string(),
-                    }
+                    })
                 }
             }
         }
@@ -81,14 +70,14 @@ impl Mode for Buffer {
         state: &mut State,
         item: String,
         opts: RunOpts,
-    ) -> BoxFuture<'static, RunResp> {
+    ) -> BoxFuture<'static, Result<RunResp, String>> {
         let nvim = state.nvim.clone();
         async move {
             let bufnr = ITEM_PATTERN
                 .replace(&item, "$bufnr")
                 .into_owned()
                 .parse::<usize>()
-                .unwrap();
+                .map_err(|e| e.to_string())?;
             let _ = tokio::spawn(async move {
                 if opts.delete {
                     let r = nvim::delete_buffer(&nvim, bufnr, opts.force).await;
@@ -102,7 +91,7 @@ impl Mode for Buffer {
                     }
                 }
             });
-            RunResp
+            Ok(RunResp)
         }
         .boxed()
     }

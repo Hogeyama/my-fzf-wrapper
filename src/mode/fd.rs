@@ -1,6 +1,6 @@
 use crate::{
     external_command::{bat, fd, fzf},
-    method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp, RunOpts, RunResp},
     nvim,
     types::{Mode, State},
 };
@@ -27,7 +27,7 @@ impl Mode for Fd {
         &mut self,
         state: &mut State,
         opts: Vec<String>,
-    ) -> BoxFuture<'static, <Load as Method>::Response> {
+    ) -> BoxFuture<'static, Result<LoadResp, String>> {
         let nvim = state.nvim.clone();
         async move {
             match utils::clap_parse_from::<LoadOpts>(opts) {
@@ -40,27 +40,23 @@ impl Mode for Fd {
                     error!("fd.run.opts failed"; "error" => e.to_string());
                 }
             }
-            let fd_result = fd::new().output().await;
-            match fd_result {
-                Ok(fd_output) => {
-                    let fd_output = String::from_utf8_lossy(&fd_output.stdout)
-                        .lines()
-                        .map(|line| line.to_string())
-                        .collect::<Vec<_>>();
-                    LoadResp::new_with_default_header(fd_output)
-                }
-                Err(fd_err) => {
-                    error!("fd.run.opts failed"; "error" => fd_err.to_string());
-                    LoadResp::new(fd_err.to_string(), vec![])
-                }
-            }
+            let fd_output = fd::new().output().await.map_err(|e| e.to_string())?;
+            let fd_output = String::from_utf8_lossy(&fd_output.stdout)
+                .lines()
+                .map(|line| line.to_string())
+                .collect::<Vec<_>>();
+            Ok(LoadResp::new_with_default_header(fd_output))
         }
         .boxed()
     }
-    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(
+        &mut self,
+        _state: &mut State,
+        item: String,
+    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
-            let message = bat::render_file(&item).await;
-            PreviewResp { message }
+            let message = bat::render_file(&item).await?;
+            Ok(PreviewResp { message })
         }
         .boxed()
     }
@@ -69,7 +65,7 @@ impl Mode for Fd {
         state: &mut State,
         path: String,
         opts: RunOpts,
-    ) -> BoxFuture<'static, RunResp> {
+    ) -> BoxFuture<'static, Result<RunResp, String>> {
         let nvim = state.nvim.clone();
         async move {
             let vifm = || async {
@@ -77,20 +73,22 @@ impl Mode for Fd {
                 TokioCommand::new("vifm")
                     .arg(&pwd)
                     .spawn()
-                    .unwrap()
+                    .map_err(|e| e.to_string())?
                     .wait()
                     .await
-                    .unwrap();
+                    .map_err(|e| e.to_string())?;
+                Ok::<(), String>(())
             };
             let browse_github = || async {
                 TokioCommand::new("gh")
                     .arg("browse")
                     .arg(&path)
                     .spawn()
-                    .unwrap()
+                    .map_err(|e| e.to_string())?
                     .wait()
                     .await
-                    .unwrap();
+                    .map_err(|e| e.to_string())?;
+                Ok::<(), String>(())
             };
             let path_ = path.clone();
             let nvim_opt = opts.clone().into();
@@ -105,17 +103,17 @@ impl Mode for Fd {
             match () {
                 _ if opts.menu => {
                     let items = vec!["browse-github", "vifm"];
-                    match &*fzf::select(items).await {
-                        "vifm" => vifm().await,
-                        "browse-github" => browse_github().await,
-                        _ => {}
+                    match &*fzf::select(items).await? {
+                        "vifm" => vifm().await?,
+                        "browse-github" => browse_github().await?,
+                        _ => (),
                     }
                 }
-                _ if opts.vifm => vifm().await,
-                _ if opts.browse_github => browse_github().await,
+                _ if opts.vifm => vifm().await?,
+                _ if opts.browse_github => browse_github().await?,
                 _ => nvim().await,
             }
-            RunResp
+            Ok(RunResp)
         }
         .boxed()
     }

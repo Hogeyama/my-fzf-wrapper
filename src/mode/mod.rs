@@ -4,6 +4,7 @@ pub mod diagnostics;
 pub mod fd;
 pub mod git_branch;
 pub mod git_log;
+pub mod git_reflog;
 pub mod menu;
 pub mod mru;
 pub mod nvim_session;

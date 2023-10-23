@@ -1,6 +1,6 @@
 use tokio::process::Command;
 
-pub async fn log_graph(commit: impl AsRef<str>) -> Vec<String> {
+pub async fn log_graph(commit: impl AsRef<str>) -> Result<Vec<String>, String> {
     let commits = Command::new("git")
         .arg("log")
         .arg(
@@ -12,44 +12,41 @@ pub async fn log_graph(commit: impl AsRef<str>) -> Vec<String> {
         .arg(commit.as_ref())
         .output()
         .await
-        .map_err(|e| e.to_string())
-        .unwrap()
+        .map_err(|e| e.to_string())?
         .stdout;
-    String::from_utf8_lossy(commits.as_slice())
+    Ok(String::from_utf8_lossy(commits.as_slice())
         .into_owned()
         .split('\n')
         .map(|s| s.to_string())
         .filter(|s| !s.is_empty())
-        .collect()
+        .collect())
 }
 
-pub async fn remote_branches() -> Vec<String> {
+pub async fn remote_branches() -> Result<Vec<String>, String> {
     let refs = Command::new("git")
         .arg("for-each-ref")
         .arg("--format=%(refname:short)")
         .arg("refs/remotes")
         .output()
         .await
-        .map_err(|e| e.to_string())
-        .unwrap()
+        .map_err(|e| e.to_string())?
         .stdout;
-    String::from_utf8_lossy(refs.as_slice())
+    Ok(String::from_utf8_lossy(refs.as_slice())
         .into_owned()
         .split('\n')
         .map(|s| s.to_string())
-        .filter(|s| !s.is_empty() && s.contains("/"))
-        .collect()
+        .filter(|s| !s.is_empty())
+        .collect())
 }
 
-pub async fn show_commit(commit: impl AsRef<str>) -> String {
+pub async fn show_commit(commit: impl AsRef<str>) -> Result<String, String> {
     let commit = Command::new("git")
         .arg("show")
         .arg("--color=always")
         .arg(commit.as_ref())
         .output()
         .await
-        .map_err(|e| e.to_string())
-        .unwrap()
+        .map_err(|e| e.to_string())?
         .stdout;
-    String::from_utf8_lossy(commit.as_slice()).into_owned()
+    Ok(String::from_utf8_lossy(commit.as_slice()).into_owned())
 }

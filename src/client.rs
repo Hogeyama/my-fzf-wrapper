@@ -82,7 +82,7 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
     match command {
         Command::Menu { fzfw_socket } => {
             let config = config::new();
-            let mode = fzf::select(config.get_mode_names()).await;
+            let mode = fzf::select(config.get_mode_names()).await?;
 
             if config.is_mode_valid(&mode) {
                 let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);

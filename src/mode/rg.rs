@@ -3,7 +3,7 @@ use std::process::ExitStatus;
 use crate::{
     external_command::{bat, rg},
     logger::Serde,
-    method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp, RunOpts, RunResp},
     nvim,
     types::{Mode, State},
 };
@@ -35,40 +35,28 @@ impl Mode for Rg {
         &mut self,
         _state: &mut State,
         opts: Vec<String>,
-    ) -> BoxFuture<'static, <Load as Method>::Response> {
+    ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
-            info!("rg.load"; "opts" => Serde(opts.clone()));
-            let LoadOpts { query, color } = utils::clap_parse_from::<LoadOpts>(opts).unwrap();
-            info!("rg.load"; "opts" => ?rg::new().arg(query.clone()));
-
+            let LoadOpts { query, color } =
+                utils::clap_parse_from::<LoadOpts>(opts).map_err(|e| e.to_string())?;
             let mut rg_cmd = rg::new();
             rg_cmd.arg(&format!("--color={color}"));
             rg_cmd.arg("--");
             rg_cmd.arg(query);
-            info!("rg.load"; "cmd" => ?rg_cmd);
-            let rg_output = rg_cmd.output().await;
-
-            match rg_output {
-                Ok(rg_output) => {
-                    let pwd = std::env::current_dir().unwrap().into_os_string();
-                    let rg_output = String::from_utf8_lossy(&rg_output.stdout)
-                        .lines()
-                        .map(|line| line.to_string())
-                        .collect::<Vec<_>>();
-                    LoadResp {
-                        header: format!("[{}]", pwd.to_string_lossy()),
-                        items: rg_output,
-                    }
-                }
-                Err(rg_err) => LoadResp {
-                    header: rg_err.to_string(),
-                    items: vec![],
-                },
-            }
+            let rg_output = rg_cmd.output().await.map_err(|e| e.to_string())?;
+            let rg_output = String::from_utf8_lossy(&rg_output.stdout)
+                .lines()
+                .map(|line| line.to_string())
+                .collect::<Vec<_>>();
+            Ok(LoadResp::new_with_default_header(rg_output))
         }
         .boxed()
     }
-    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(
+        &mut self,
+        _state: &mut State,
+        item: String,
+    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
             let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
@@ -80,14 +68,14 @@ impl Mode for Rg {
                         "line": line,
                         "col": col
                     })));
-                    let message = bat::render_file_with_highlight(&file, line).await;
-                    PreviewResp { message }
+                    let message = bat::render_file_with_highlight(&file, line).await?;
+                    Ok(PreviewResp { message })
                 }
                 Err(e) => {
                     error!("rg: preview: parse line failed"; "error" => e.to_string(), "line" => line);
-                    PreviewResp {
+                    Ok(PreviewResp {
                         message: "".to_string(),
-                    }
+                    })
                 }
             }
         }
@@ -98,7 +86,7 @@ impl Mode for Rg {
         state: &mut State,
         item: String,
         opts: RunOpts,
-    ) -> BoxFuture<'static, RunResp> {
+    ) -> BoxFuture<'static, Result<RunResp, String>> {
         let nvim = state.nvim.clone();
         info!("rg.run");
         async move {
@@ -119,10 +107,10 @@ impl Mode for Rg {
                     .arg(&format!("{file}:{line}"))
                     .arg(&format!("--commit={revision}"))
                     .spawn()
-                    .unwrap()
+                    .map_err(|e| e.to_string())?
                     .wait()
                     .await
-                    .unwrap();
+                    .map_err(|e| e.to_string())?;
             } else {
                 let opts = nvim::OpenOpts {
                     line: line.parse::<usize>().ok(),
@@ -135,7 +123,7 @@ impl Mode for Rg {
                     }
                 });
             }
-            RunResp
+            Ok(RunResp)
         }
         .boxed()
     }

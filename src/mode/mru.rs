@@ -3,7 +3,7 @@ use std::error::Error;
 use crate::{
     external_command::bat,
     logger::Serde,
-    method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp, RunOpts, RunResp},
     nvim::{self, Neovim},
     types::{Mode, State},
 };
@@ -33,30 +33,19 @@ impl Mode for Mru {
         &mut self,
         state: &mut State,
         _opts: Vec<String>,
-    ) -> BoxFuture<'static, <Load as Method>::Response> {
+    ) -> BoxFuture<'static, Result<LoadResp, String>> {
         let nvim = state.nvim.clone();
         async move {
-            let mru_result = get_nvim_oldefiles(&nvim).await;
-            match mru_result {
-                Ok(mru_items) => {
-                    let pwd = std::env::current_dir().unwrap().into_os_string();
-                    LoadResp {
-                        header: format!("[{}]", pwd.to_string_lossy()),
-                        items: mru_items,
-                    }
-                }
-                Err(mru_err) => {
-                    error!("mru.run.opts failed"; "error" => mru_err.to_string());
-                    LoadResp {
-                        header: mru_err.to_string(),
-                        items: vec![],
-                    }
-                }
-            }
+            let mru_items = get_nvim_oldefiles(&nvim).await.map_err(|e| e.to_string())?;
+            Ok(LoadResp::new_with_default_header(mru_items))
         }
         .boxed()
     }
-    fn preview(&mut self, _state: &mut State, item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(
+        &mut self,
+        _state: &mut State,
+        item: String,
+    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
             let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
             let path = ITEM_PATTERN.replace(&item, "$path").into_owned();
@@ -64,14 +53,14 @@ impl Mode for Mru {
             let meta = std::fs::metadata(&path);
             match meta {
                 Ok(meta) if meta.is_file() => {
-                    let message = bat::render_file(&item).await;
-                    PreviewResp { message }
+                    let message = bat::render_file(&item).await?;
+                    Ok(PreviewResp { message })
                 }
                 _ => {
                     trace!("mru: preview: not a file"; "meta" => ?meta);
-                    PreviewResp {
+                    Ok(PreviewResp {
                         message: "No Preview".to_string(),
-                    }
+                    })
                 }
             }
         }
@@ -82,7 +71,7 @@ impl Mode for Mru {
         state: &mut State,
         item: String,
         opts: RunOpts,
-    ) -> BoxFuture<'static, RunResp> {
+    ) -> BoxFuture<'static, Result<RunResp, String>> {
         let nvim = state.nvim.clone();
         async move {
             let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
@@ -92,7 +81,7 @@ impl Mode for Mru {
                     error!("mru: run: nvim_open failed"; "error" => e.to_string());
                 }
             });
-            RunResp
+            Ok(RunResp)
         }
         .boxed()
     }

@@ -16,7 +16,9 @@ use tokio::task::JoinHandle;
 
 use crate::logger::Serde;
 use crate::method;
+use crate::method::LoadResp;
 use crate::method::Method;
+use crate::method::PreviewResp;
 use crate::method::RunResp;
 use crate::types::State;
 use crate::utils::clap_parse_from;
@@ -64,7 +66,10 @@ pub async fn server(
                             let mut state = state_clone.lock().await;
                             let mut tx = tx_clone.lock().await;
                             state.mode = None;
-                            let resp = new_mode.load(&mut state, params.clone().args).await;
+                            let resp = new_mode
+                                .load(&mut state, params.clone().args)
+                                .await
+                                .unwrap_or_else(LoadResp::error);
                             if state.mode.is_none() {
                                 // load が state.mode をセットする可能性があるため、
                                 // そうでない場合のみここでセットする。
@@ -74,8 +79,8 @@ pub async fn server(
                                 state.last_load_resp = Some(resp.clone());
                             }
                             match send_response(&mut *tx, method, resp).await {
-                                Ok(()) => trace!("server: load done"),
-                                Err(e) => error!("server: load error"; "error" => e),
+                                Ok(()) => trace!("server: reload done"),
+                                Err(e) => error!("server: reload error"; "error" => e),
                             }
                         },
                         abort_registration,
@@ -86,7 +91,10 @@ pub async fn server(
                     let method::PreviewParam { item } = params;
                     let mut state = state.lock().await;
                     let mut mode = std::mem::take(&mut state.mode).unwrap();
-                    let resp = mode.preview(&mut state, item).await;
+                    let resp = mode
+                        .preview(&mut state, item)
+                        .await
+                        .unwrap_or_else(PreviewResp::error);
                     if state.mode.is_none() {
                         state.mode = Some(mode);
                     }
@@ -103,7 +111,13 @@ pub async fn server(
                     match clap_parse_from(args) {
                         Ok(opts) => {
                             let mut mode = std::mem::take(&mut state.mode).unwrap();
-                            let resp = mode.run(&mut state, item.clone(), opts).await;
+                            let resp = mode
+                                .run(&mut state, item.clone(), opts)
+                                .await
+                                .unwrap_or_else(|e| {
+                                    error!("server: run error"; "error" => e.to_string());
+                                    RunResp
+                                });
                             if state.mode.is_none() {
                                 state.mode = Some(mode);
                             }
@@ -137,7 +151,10 @@ pub async fn server(
                             let mut mode = std::mem::take(&mut state.mode).unwrap();
                             let mut tx = tx_clone.lock().await;
                             let args = state.last_load_param.args.clone();
-                            let resp = mode.load(&mut state, args).await;
+                            let resp = mode
+                                .load(&mut state, args)
+                                .await
+                                .unwrap_or_else(LoadResp::error);
                             if state.mode.is_none() {
                                 state.mode = Some(mode);
                                 state.last_load_resp = Some(resp.clone());
@@ -171,7 +188,7 @@ pub async fn server(
                 }
                 _ => {
                     let mut tx = tx.lock().await;
-                    (&mut *tx)
+                    (*tx)
                         .write_all("\"Unknown request\"".as_bytes())
                         .await
                         .map_err(|e| e.to_string())?;

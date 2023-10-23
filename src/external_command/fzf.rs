@@ -171,20 +171,25 @@ pub fn new_livegrep(myself: impl Into<String>, socket: impl Into<String>) -> Com
     fzf
 }
 
-pub async fn select(items: Vec<&str>) -> String {
+pub async fn select(items: Vec<&str>) -> Result<String, String> {
     let mut fzf = Command::new("fzf")
         .arg("--ansi")
         .args(vec!["--layout", "reverse"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
         .spawn()
-        .unwrap();
+        .map_err(|e| e.to_string())?;
 
     let mut stdin = fzf.stdin.take().unwrap();
     stdin.write_all(items.join("\n").as_bytes()).await.unwrap();
     drop(stdin);
 
-    String::from_utf8_lossy(&fzf.wait_with_output().await.unwrap().stdout)
-        .trim()
-        .to_string()
+    Ok(String::from_utf8_lossy(
+        &fzf.wait_with_output()
+            .await
+            .map_err(|e| e.to_string())?
+            .stdout,
+    )
+    .trim()
+    .to_string())
 }

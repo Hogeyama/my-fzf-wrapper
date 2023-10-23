@@ -1,6 +1,6 @@
 use crate::{
     config,
-    method::{Load, LoadResp, Method, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp, RunOpts, RunResp},
     types::{Mode, State},
 };
 
@@ -21,27 +21,27 @@ impl Mode for Menu {
         &mut self,
         _state: &mut State,
         _opts: Vec<String>,
-    ) -> BoxFuture<'static, <Load as Method>::Response> {
+    ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
-            let pwd = std::env::current_dir().unwrap().into_os_string();
             let items = config::new()
                 .get_mode_names()
                 .into_iter()
                 .map(|s| s.to_string())
                 .filter(|s| s != "rg" && s != "menu")
                 .collect();
-            LoadResp {
-                header: format!("[{}]", pwd.to_string_lossy()),
-                items,
-            }
+            Ok(LoadResp::new_with_default_header(items))
         }
         .boxed()
     }
-    fn preview(&mut self, _state: &mut State, _item: String) -> BoxFuture<'static, PreviewResp> {
+    fn preview(
+        &mut self,
+        _state: &mut State,
+        _item: String,
+    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
-            PreviewResp {
+            Ok(PreviewResp {
                 message: "No description".to_string(),
-            }
+            })
         }
         .boxed()
     }
@@ -50,10 +50,10 @@ impl Mode for Menu {
         state: &mut State,
         mode: String,
         _opts: RunOpts,
-    ) -> BoxFuture<'static, RunResp> {
+    ) -> BoxFuture<'static, Result<RunResp, String>> {
         let config = config::new();
         let mode = config.get_mode(&mode);
         state.mode = Some(mode);
-        async move { RunResp }.boxed()
+        async move { Ok(RunResp) }.boxed()
     }
 }
