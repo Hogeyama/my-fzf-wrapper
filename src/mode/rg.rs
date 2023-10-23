@@ -1,5 +1,5 @@
 use crate::{
-    external_command::{bat, gh, git, rg},
+    external_command::{bat, fzf, gh, git, rg},
     logger::Serde,
     method::{LoadResp, PreviewResp, RunOpts, RunResp},
     nvim,
@@ -89,21 +89,38 @@ impl Mode for Rg {
         async move {
             let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-            if opts.browse_github {
+            let nvim_opts = nvim::OpenOpts {
+                line: line.parse::<usize>().ok(),
+                ..opts.clone().into()
+            };
+
+            let file_ = file.clone();
+            let browse_github = || async {
                 let revision = git::rev_parse("HEAD").await?;
-                gh::browse_github_line(&file, &revision, line.parse::<usize>().unwrap()).await?;
-            } else {
-                let opts = nvim::OpenOpts {
-                    line: line.parse::<usize>().ok(),
-                    ..opts.into()
-                };
-                let _ = tokio::spawn(async move {
-                    let r = nvim::open(&nvim, file.clone().into(), opts).await;
-                    if let Err(e) = r {
-                        error!("rg: run: nvim_open failed"; "error" => e.to_string());
+                gh::browse_github_line(file_, &revision, line.parse::<usize>().unwrap()).await?;
+                Ok::<(), String>(())
+            };
+
+            let nvim_open = || async {
+                nvim::open(&nvim, file.into(), nvim_opts)
+                    .await
+                    .map_err(|e| e.to_string())?;
+                Ok::<(), String>(())
+            };
+
+            match () {
+                _ if opts.menu => {
+                    let items = vec!["browse-github", "nvim"];
+                    match &*fzf::select(items).await? {
+                        "browse-github" => browse_github().await?,
+                        "nvim" => nvim_open().await?,
+                        _ => (),
                     }
-                });
-            }
+                }
+                _ if opts.browse_github => browse_github().await?,
+                _ => nvim_open().await?,
+            };
+
             Ok(RunResp)
         }
         .boxed()
