@@ -80,5 +80,7 @@ pub async fn rev_parse(commit: impl AsRef<str>) -> Result<String, String> {
         .await
         .map_err(|e| e.to_string())?
         .stdout;
-    Ok(String::from_utf8_lossy(commit.as_slice()).into_owned())
+    Ok(String::from_utf8_lossy(commit.as_slice())
+        .trim_end()
+        .to_string())
 }
