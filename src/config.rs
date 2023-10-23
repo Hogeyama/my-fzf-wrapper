@@ -80,6 +80,10 @@ pub fn new() -> Config {
                 Box::pin(|| Box::new(mode::git_log::new())),
             ),
             (
+                "git-reflog".to_string(),
+                Box::pin(|| Box::new(mode::git_reflog::new())),
+            ),
+            (
                 "nvim-session".to_string(),
                 Box::pin(|| Box::new(mode::nvim_session::new())),
             ),

@@ -22,6 +22,27 @@ pub async fn log_graph(commit: impl AsRef<str>) -> Result<Vec<String>, String> {
         .collect())
 }
 
+pub async fn reflog_graph(commit: impl AsRef<str>) -> Result<Vec<String>, String> {
+    let commits = Command::new("git")
+        .arg("reflog")
+        .arg(
+            "--pretty=format:%C(yellow)%h%Creset %C(green)%ad%Creset %s %Cred%d%Creset %Cblue[%an]",
+        )
+        .arg("--date=short")
+        .arg("--color=always")
+        .arg(commit.as_ref())
+        .output()
+        .await
+        .map_err(|e| e.to_string())?
+        .stdout;
+    Ok(String::from_utf8_lossy(commits.as_slice())
+        .into_owned()
+        .split('\n')
+        .map(|s| s.to_string())
+        .filter(|s| !s.is_empty())
+        .collect())
+}
+
 pub async fn remote_branches() -> Result<Vec<String>, String> {
     let refs = Command::new("git")
         .arg("for-each-ref")
