@@ -156,6 +156,11 @@ pub fn new_livegrep(myself: impl Into<String>, socket: impl Into<String>) -> Com
         "--bind",
         &format!("enter:execute[{myself} run -- {{}}]"),
     ]);
+    // run: menu
+    fzf.args(vec![
+        "--bind",
+        &format!("f1:execute[{myself} run -- {{}} --menu]"),
+    ]);
     // run: browse-github
     fzf.args(vec![
         "--bind",
