@@ -57,11 +57,7 @@ impl Mode for GitBranch {
                 .unwrap()
                 .as_str()
                 .to_string();
-            let items = vec![
-                //
-                "interactive-rebase",
-                "cherry-pick",
-            ];
+            let items = vec!["interactive-rebase"];
             match &*fzf::select(items).await {
                 "interactive-rebase" => {
                     let _ = nvim::hide_floaterm(&nvim).await;
@@ -70,15 +66,6 @@ impl Mode for GitBranch {
                         .arg("-i")
                         .arg("--update-refs")
                         .arg("--rebase-merges=rebase-cousins")
-                        .arg(commit)
-                        .output()
-                        .await
-                        .map_err(|e| e.to_string())
-                        .unwrap();
-                }
-                "cherry-pick" => {
-                    let _ = Command::new("git")
-                        .arg("cherry-pick")
                         .arg(commit)
                         .output()
                         .await

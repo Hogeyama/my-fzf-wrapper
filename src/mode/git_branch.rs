@@ -90,6 +90,17 @@ impl Mode for GitBranch {
                         .map_err(|e| e.to_string())
                         .unwrap();
                 }
+                "cherry-pick" => {
+                    let commit = select_commit().await;
+                    let output = Command::new("git")
+                        .arg("cherry-pick")
+                        .arg(commit)
+                        .output()
+                        .await
+                        .map_err(|e| e.to_string())
+                        .unwrap();
+                    nvim::notify_command_result(&nvim, "git cherry-pick", output).await;
+                }
                 push if push == "push" || push == "push -f" => {
                     let remote_ref = select_remote_branch().await;
                     let remote = remote_ref.split('/').nth(0).unwrap();
