@@ -25,7 +25,9 @@ impl Mode for GitBranch {
         _opts: Vec<String>,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
-            let commits = git::reflog_graph("HEAD").await?;
+            let mut commits = git::reflog_graph("HEAD").await?;
+            // reset color to white
+            commits.push(ansi_term::Colour::White.normal().paint("").to_string());
             Ok(LoadResp::new_with_default_header(commits))
         }
         .boxed()
