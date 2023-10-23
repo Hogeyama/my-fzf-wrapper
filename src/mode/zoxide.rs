@@ -5,7 +5,7 @@ use crate::{
 };
 
 use futures::{future::BoxFuture, FutureExt};
-use tokio::process::Command as TokioCommand;
+use tokio::process::Command;
 
 use super::utils::{self, CdOpts};
 
@@ -41,7 +41,7 @@ impl Mode for Zoxide {
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
-            let output = TokioCommand::new("exa")
+            let output = Command::new("exa")
                 .args(vec!["--color", "always"])
                 .args(vec!["--all"])
                 .args(vec!["--sort", "name"])

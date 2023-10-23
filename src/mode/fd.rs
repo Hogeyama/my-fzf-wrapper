@@ -7,7 +7,7 @@ use crate::{
 
 use clap::Parser;
 use futures::{future::BoxFuture, FutureExt};
-use tokio::process::Command as TokioCommand;
+use tokio::process::Command;
 
 use super::utils as mode_utils;
 use crate::utils;
@@ -70,7 +70,7 @@ impl Mode for Fd {
         async move {
             let vifm = || async {
                 let pwd = std::env::current_dir().unwrap().into_os_string();
-                TokioCommand::new("vifm")
+                Command::new("vifm")
                     .arg(&pwd)
                     .spawn()
                     .map_err(|e| e.to_string())?
@@ -80,7 +80,7 @@ impl Mode for Fd {
                 Ok::<(), String>(())
             };
             let browse_github = || async {
-                TokioCommand::new("gh")
+                Command::new("gh")
                     .arg("browse")
                     .arg(&path)
                     .spawn()

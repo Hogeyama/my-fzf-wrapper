@@ -12,7 +12,7 @@ use clap::Parser;
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use tokio::process::Command as TokioCommand;
+use tokio::process::Command;
 
 use crate::utils;
 
@@ -93,7 +93,7 @@ impl Mode for Rg {
             let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
             if opts.browse_github {
-                let revision = TokioCommand::new("git")
+                let revision = Command::new("git")
                     .arg("rev-parse")
                     .arg("HEAD")
                     .output()
@@ -102,7 +102,7 @@ impl Mode for Rg {
                     .expect("rg: run: git rev-parse HEAD")
                     .stdout;
                 let revision = String::from_utf8_lossy(&revision).trim().to_string();
-                let _: ExitStatus = TokioCommand::new("gh")
+                let _: ExitStatus = Command::new("gh")
                     .arg("browse")
                     .arg(&format!("{file}:{line}"))
                     .arg(&format!("--commit={revision}"))
