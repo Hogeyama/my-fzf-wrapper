@@ -1,5 +1,5 @@
 use crate::{
-    external_command::{bat, fd, fzf},
+    external_command::{bat, fd, fzf, gh},
     method::{LoadResp, PreviewResp, RunOpts, RunResp},
     nvim,
     types::{Mode, State},
@@ -80,14 +80,7 @@ impl Mode for Fd {
                 Ok::<(), String>(())
             };
             let browse_github = || async {
-                Command::new("gh")
-                    .arg("browse")
-                    .arg(&path)
-                    .spawn()
-                    .map_err(|e| e.to_string())?
-                    .wait()
-                    .await
-                    .map_err(|e| e.to_string())?;
+                gh::browse_github(&path).await?;
                 Ok::<(), String>(())
             };
             let path_ = path.clone();

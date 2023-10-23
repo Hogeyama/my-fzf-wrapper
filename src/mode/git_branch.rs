@@ -32,8 +32,8 @@ impl Mode for GitBranch {
                 .await
                 .map_err(|e| e.to_string())?
                 .stdout;
-            let branches = String::from_utf8_lossy(branches.as_slice()).into_owned();
-            let branches = branches
+            let branches = String::from_utf8_lossy(branches.as_slice())
+                .into_owned()
                 .split('\n')
                 .map(|s| s.to_string())
                 .filter(|s| !s.is_empty())

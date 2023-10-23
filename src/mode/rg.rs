@@ -1,7 +1,5 @@
-use std::process::ExitStatus;
-
 use crate::{
-    external_command::{bat, rg},
+    external_command::{bat, gh, git, rg},
     logger::Serde,
     method::{LoadResp, PreviewResp, RunOpts, RunResp},
     nvim,
@@ -12,7 +10,6 @@ use clap::Parser;
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use tokio::process::Command;
 
 use crate::utils;
 
@@ -93,24 +90,8 @@ impl Mode for Rg {
             let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
             let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
             if opts.browse_github {
-                let revision = Command::new("git")
-                    .arg("rev-parse")
-                    .arg("HEAD")
-                    .output()
-                    .await
-                    .map_err(|e| e.to_string())
-                    .expect("rg: run: git rev-parse HEAD")
-                    .stdout;
-                let revision = String::from_utf8_lossy(&revision).trim().to_string();
-                let _: ExitStatus = Command::new("gh")
-                    .arg("browse")
-                    .arg(&format!("{file}:{line}"))
-                    .arg(&format!("--commit={revision}"))
-                    .spawn()
-                    .map_err(|e| e.to_string())?
-                    .wait()
-                    .await
-                    .map_err(|e| e.to_string())?;
+                let revision = git::rev_parse("HEAD").await?;
+                gh::browse_github_line(&file, &revision, line.parse::<usize>().unwrap()).await?;
             } else {
                 let opts = nvim::OpenOpts {
                     line: line.parse::<usize>().ok(),

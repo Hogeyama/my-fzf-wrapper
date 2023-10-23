@@ -71,3 +71,14 @@ pub async fn show_commit(commit: impl AsRef<str>) -> Result<String, String> {
         .stdout;
     Ok(String::from_utf8_lossy(commit.as_slice()).into_owned())
 }
+
+pub async fn rev_parse(commit: impl AsRef<str>) -> Result<String, String> {
+    let commit = Command::new("git")
+        .arg("rev-parse")
+        .arg(commit.as_ref())
+        .output()
+        .await
+        .map_err(|e| e.to_string())?
+        .stdout;
+    Ok(String::from_utf8_lossy(commit.as_slice()).into_owned())
+}
