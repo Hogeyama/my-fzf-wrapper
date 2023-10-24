@@ -63,7 +63,7 @@ impl Mode for GitBranch {
                 .ok_or("no commit found")?
                 .as_str()
                 .to_string();
-            let items = vec!["interactive-rebase"];
+            let items = vec!["interactive-rebase", "reset"];
             match &*fzf::select(items).await? {
                 "interactive-rebase" => {
                     let _ = nvim::hide_floaterm(&nvim).await;
@@ -77,6 +77,29 @@ impl Mode for GitBranch {
                         .await
                         .map_err(|e| e.to_string())?;
                     nvim::notify_command_result(&nvim, "git rebase", output)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                }
+                "reset" => {
+                    let output = Command::new("git")
+                        .arg("reset")
+                        .arg(commit)
+                        .output()
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    nvim::notify_command_result(&nvim, "git reset", output)
+                        .await
+                        .map_err(|e| e.to_string())?;
+                }
+                "reset --hard" => {
+                    let output = Command::new("git")
+                        .arg("reset")
+                        .arg("--hard")
+                        .arg(commit)
+                        .output()
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    nvim::notify_command_result(&nvim, "git reset --hard", output)
                         .await
                         .map_err(|e| e.to_string())?;
                 }
