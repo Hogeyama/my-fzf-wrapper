@@ -12,15 +12,15 @@ use crate::{
 #[derive(Clone)]
 pub struct NeovimSession;
 
-pub fn new() -> NeovimSession {
-    NeovimSession
-}
 impl Mode for NeovimSession {
+    fn new() -> Self {
+        NeovimSession
+    }
     fn name(&self) -> &'static str {
-        "neovim_session"
+        "neovim-session"
     }
     fn load(
-        &mut self,
+        &self,
         _state: &mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
@@ -36,7 +36,7 @@ impl Mode for NeovimSession {
         .boxed()
     }
     fn preview(
-        &mut self,
+        &self,
         _state: &mut State,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -48,7 +48,7 @@ impl Mode for NeovimSession {
         .boxed()
     }
     fn run(
-        &mut self,
+        &self,
         state: &mut State,
         session: String,
         _opts: RunOpts,

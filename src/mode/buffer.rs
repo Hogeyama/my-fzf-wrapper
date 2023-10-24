@@ -17,19 +17,18 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone)]
 pub struct Buffer;
 
-pub fn new() -> Buffer {
-    Buffer
-}
-
 static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"\s*(?P<bufnr>\d+):(?P<path>.*)").unwrap());
 
 impl Mode for Buffer {
+    fn new() -> Self {
+        Buffer
+    }
     fn name(&self) -> &'static str {
         "buffer"
     }
     fn load(
-        &mut self,
+        &self,
         state: &mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
@@ -41,7 +40,7 @@ impl Mode for Buffer {
         .boxed()
     }
     fn preview(
-        &mut self,
+        &self,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -66,7 +65,7 @@ impl Mode for Buffer {
         .boxed()
     }
     fn run(
-        &mut self,
+        &self,
         state: &mut State,
         item: String,
         opts: RunOpts,

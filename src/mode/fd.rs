@@ -5,41 +5,25 @@ use crate::{
     types::{Mode, State},
 };
 
-use clap::Parser;
 use futures::{future::BoxFuture, FutureExt};
 use tokio::process::Command;
-
-use super::utils as mode_utils;
-use crate::utils;
 
 #[derive(Clone)]
 pub struct Fd;
 
-pub fn new() -> Fd {
-    Fd
-}
-
 impl Mode for Fd {
+    fn new() -> Self {
+        Fd
+    }
     fn name(&self) -> &'static str {
         "fd"
     }
     fn load(
-        &mut self,
-        state: &mut State,
-        opts: Vec<String>,
+        &self,
+        _state: &mut State,
+        _opts: Vec<String>,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
-        let nvim = state.nvim.clone();
         async move {
-            match utils::clap_parse_from::<LoadOpts>(opts) {
-                Ok(opts) => {
-                    if let Err(e) = mode_utils::change_directory(&nvim, opts.into()).await {
-                        error!("fd: load: change_directory failed"; "error" => e);
-                    }
-                }
-                Err(e) => {
-                    error!("fd.run.opts failed"; "error" => e.to_string());
-                }
-            }
             let fd_output = fd::new().output().await.map_err(|e| e.to_string())?;
             let fd_output = String::from_utf8_lossy(&fd_output.stdout)
                 .lines()
@@ -50,7 +34,7 @@ impl Mode for Fd {
         .boxed()
     }
     fn preview(
-        &mut self,
+        &self,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -61,7 +45,7 @@ impl Mode for Fd {
         .boxed()
     }
     fn run(
-        &mut self,
+        &self,
         state: &mut State,
         path: String,
         opts: RunOpts,
@@ -109,35 +93,5 @@ impl Mode for Fd {
             Ok(RunResp)
         }
         .boxed()
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Load
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Parser, Debug, Clone)]
-struct LoadOpts {
-    // Change directory to the given dir.
-    // If a file is specified, change to the directory containing the file.
-    #[clap(long)]
-    cd: Option<String>,
-
-    // Change directory to the parent directory.
-    #[clap(long)]
-    cd_up: bool,
-
-    // Change directory to the parent directory.
-    #[clap(long)]
-    cd_last_file: bool,
-}
-
-impl From<LoadOpts> for mode_utils::CdOpts {
-    fn from(val: LoadOpts) -> mode_utils::CdOpts {
-        mode_utils::CdOpts {
-            cd: val.cd,
-            cd_up: val.cd_up,
-            cd_last_file: val.cd_last_file,
-        }
     }
 }

@@ -12,15 +12,15 @@ use crate::{
 #[derive(Clone)]
 pub struct GitBranch;
 
-pub fn new() -> GitBranch {
-    GitBranch
-}
 impl Mode for GitBranch {
+    fn new() -> Self {
+        GitBranch
+    }
     fn name(&self) -> &'static str {
-        "git_branch"
+        "git-branch"
     }
     fn load(
-        &mut self,
+        &self,
         _state: &mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
@@ -43,7 +43,7 @@ impl Mode for GitBranch {
         .boxed()
     }
     fn preview(
-        &mut self,
+        &self,
         _state: &mut State,
         branch: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -55,7 +55,7 @@ impl Mode for GitBranch {
         .boxed()
     }
     fn run(
-        &mut self,
+        &self,
         state: &mut State,
         branch: String,
         _opts: RunOpts,

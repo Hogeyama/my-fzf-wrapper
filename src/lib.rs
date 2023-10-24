@@ -9,7 +9,6 @@ mod server;
 mod types;
 mod utils;
 
-use std::collections::HashMap;
 // std
 use std::env;
 use std::error::Error;
@@ -38,7 +37,6 @@ use tokio::net::UnixListener;
 use crate::client::run_command;
 use crate::client::Command;
 use crate::config::Config;
-use crate::method::LoadParam;
 use crate::nvim::start_nvim;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -90,6 +88,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
                 .collect::<String>()
         )
     }
+
     fn create_listener(socket_name: &str) -> UnixListener {
         let sockfile = Path::new(socket_name);
         if sockfile.exists() {
@@ -106,40 +105,22 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     let socket_name = gen_socket_name();
     let socket = create_listener(&socket_name);
 
-    // start server
-    let server_handler = tokio::spawn(async move {
-        let initial_state = types::State {
-            nvim,
-            mode: None,
-            last_load_param: LoadParam {
-                mode: "fd".to_string(),
-                args: vec![],
-            },
-            last_load_resp: None,
-            keymap: HashMap::new(),
-        };
-        let initial_mode = "fd";
-        let r = server::server(config::new(), initial_mode, initial_state, socket).await;
-        if let Err(e) = r {
-            error!("server: error"; "error" => e);
-        }
-    });
-
-    // spawn fzf
     let myself = args.fzfw_self.unwrap_or(get_program_path());
-    external_command::fzf::new(myself, &socket_name)
-        .spawn()
-        .expect("Failed to spawn fzf")
-        .wait()
-        .await?;
+    let config = config::new();
+    let state = types::State::new(nvim, config.get_mode("fd"));
 
-    // stop the server
-    server_handler.abort();
-    match server_handler.await {
-        Ok(()) => {}
-        Err(joinerr) if joinerr.is_cancelled() => {}
-        Err(joinerr) => eprintln!("Error joining IO loop: '{}'", joinerr),
-    }
+    server::server(
+        myself,
+        config,
+        state,
+        socket_name.clone(),
+        args.fzfw_log_file,
+        socket,
+    )
+    .await
+    .unwrap_or_else(|e| {
+        error!("server: error"; "error" => e);
+    });
 
     // 後始末
     fs::remove_file(&socket_name).expect("Failed to remove socket");

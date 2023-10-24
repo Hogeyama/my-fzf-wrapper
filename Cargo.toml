@@ -25,3 +25,5 @@ once_cell = { version = "1.13" }
 regex = { version = "1.6" }
 rusqlite = { version = "0.28", features = ["bundled"] }
 ansi_term = "0.12.1"
+libc = "0.2.149"
+shellwords = "1.1.0"

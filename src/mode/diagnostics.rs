@@ -13,16 +13,15 @@ use std::error::Error;
 #[derive(Clone)]
 pub struct Diagnostics;
 
-pub fn new() -> Diagnostics {
-    Diagnostics
-}
-
 impl Mode for Diagnostics {
+    fn new() -> Self {
+        Diagnostics
+    }
     fn name(&self) -> &'static str {
         "diagnostics"
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         state: &'a mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'a, Result<LoadResp, String>> {
@@ -41,7 +40,7 @@ impl Mode for Diagnostics {
         .boxed()
     }
     fn preview(
-        &mut self,
+        &self,
         state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -79,7 +78,7 @@ impl Mode for Diagnostics {
         .boxed()
     }
     fn run(
-        &mut self,
+        &self,
         state: &mut State,
         item: String,
         opts: RunOpts,

@@ -1,136 +1,146 @@
+#![allow(dead_code)]
+use std::collections::HashMap;
+
 use tokio::{io::AsyncWriteExt, process::Command};
 
-// binding は toml から読ませると良いのでは
-pub fn new(myself: impl Into<String>, socket: impl Into<String>) -> Command {
-    let myself = myself.into();
-    let socket = socket.into();
+pub struct Config {
+    pub myself: String,
+    pub socket: String,
+    pub log_file: String,
+    pub load: Vec<String>,
+    pub initial_prompt: String,
+    pub initial_query: Option<String>,
+    pub bindings: Bindings,
+    pub extra_opts: Vec<String>,
+}
+
+type Key = String;
+
+pub struct Bindings(pub HashMap<Key, Vec<Action>>);
+
+impl Bindings {
+    pub fn merge(mut self, other: Self) -> Self {
+        self.0.extend(other.0);
+        self
+    }
+}
+
+#[macro_export]
+macro_rules! bindings {
+    ($($k:expr => $v:expr),* $(,)?) => {{
+        Bindings(core::convert::From::from([$(($k.to_string(), $v),)*]))
+    }};
+}
+pub use bindings;
+
+pub enum Action {
+    Reload(String),
+    Execute(String),
+    ChangePrompt(String),
+    ToggleSort,
+    ClearQuery,
+    ClearScreen,
+    First,
+}
+
+pub fn reload(cmd: impl AsRef<str>) -> Action {
+    Action::Reload(cmd.as_ref().to_string())
+}
+
+pub fn execute(cmd: impl Into<String>) -> Action {
+    Action::Execute(cmd.into())
+}
+
+pub fn change_prompt(prompt: impl Into<String>) -> Action {
+    Action::ChangePrompt(prompt.into())
+}
+
+pub fn toggle_sort() -> Action {
+    Action::ToggleSort
+}
+
+pub fn clear_query() -> Action {
+    Action::ClearQuery
+}
+
+pub fn clear_screen() -> Action {
+    Action::ClearScreen
+}
+
+pub fn first() -> Action {
+    Action::First
+}
+
+impl Action {
+    fn render(&self, myself: &str) -> String {
+        match self {
+            Action::Reload(cmd) => format!("reload[{myself} {cmd}]"),
+            Action::Execute(cmd) => format!("execute[{myself} {cmd}]"),
+            Action::ChangePrompt(prompt) => format!("change-prompt[{prompt}]"),
+            Action::ToggleSort => "toggle-sort".to_string(),
+            Action::ClearQuery => "clear-query".to_string(),
+            Action::ClearScreen => "clear-screen".to_string(),
+            Action::First => "first".to_string(),
+        }
+    }
+}
+
+pub fn new(config: Config) -> Command {
+    let Config {
+        myself,
+        socket,
+        log_file,
+        load,
+        initial_prompt,
+        initial_query,
+        bindings,
+        extra_opts,
+    } = config;
     let mut fzf = Command::new("fzf");
-    fzf.args(vec!["--ansi"]);
-    fzf.args(vec!["--layout", "reverse"]);
-    fzf.args(vec!["--bind", "ctrl-s:toggle-sort"]);
-    fzf.args(vec!["--bind", "ctrl-o:clear-query+clear-screen"]);
-    fzf.args(vec!["--bind", "change:first"]);
-    // preview
-    fzf.args(vec!["--preview", &format!("{myself} preview {{}}")]);
-    // reload
-    fzf.args(vec![
-        "--bind",
-        &format!("ctrl-r:reload[{myself} reload]+clear-screen"),
-    ]);
-    // menu
-    fzf.args(vec![
-        "--bind",
-        &format!(
-            "pgdn:reload[{myself} load -- menu]+change-prompt[modes>]+clear-query+clear-screen"
-        ),
-    ]);
-    // fd: default
-    fzf.args(vec![
-        "--bind",
-        &format!("ctrl-f:reload[{myself} load -- fd]+change-prompt[files>]+clear-screen"),
-    ]);
-    // fd: cd-up
-    fzf.args(vec![
-        "--bind",
-        &format!("ctrl-u:reload[{myself} load -- fd --cd-up]+change-prompt[files>]+clear-screen"),
-    ]);
-    // fd: cd-arg
-    fzf.args(vec![
-        "--bind",
-        &format!(
-            "ctrl-l:reload[{myself} load -- fd --cd {{}}]+change-prompt[files>]+clear-query+clear-screen"
-        ),
-    ]);
-    // fd: cd-last-file
-    fzf.args(vec![
-        "--bind",
-        &format!(
-            "ctrl-n:reload[{myself} load -- fd --cd-last-file]+change-prompt[files>]+clear-screen"
-        ),
-    ]);
-    // rg: default
-    fzf.args(vec![
-        "--bind",
-        &format!("ctrl-space:reload[{myself} load -- rg {{q}}]+change-prompt[grep>]+clear-query+clear-screen"),
-    ]);
-    // buffer: default
-    fzf.args(vec![
-        "--bind",
-        &format!("ctrl-b:reload[{myself} load -- buffer]+change-prompt[buffer>]+clear-query+clear-screen"),
-    ]);
-    // mru: default
-    fzf.args(vec![
-        "--bind",
-        &format!(
-            "ctrl-h:reload[{myself} load -- mru]+change-prompt[mru>]+clear-query+clear-screen"
-        ),
-    ]);
-    // zoxide: default
-    fzf.args(vec![
-        "--bind",
-        &format!(
-            "alt-d:reload[{myself} load -- zoxide]+change-prompt[zoxide>]+clear-query+clear-screen"
-        ),
-    ]);
-    // diagnostics: default
-    fzf.args(vec![
-        "--bind",
-        &format!("alt-w:reload[{myself} load -- diagnostics]+change-prompt[diagnostics>]+clear-query+clear-screen"),
-    ]);
-    // browser-history: default
-    fzf.args(vec![
-        "--bind",
-        &format!("ctrl-i:reload[{myself} load -- browser-history]+change-prompt[browser>]+clear-query+clear-screen"),
-    ]);
-    // run: default
-    // reload は menu のために必要
-    fzf.args(vec![
-        "--bind",
-        &format!("enter:execute[{myself} run -- {{}}]+reload[{myself} reload]"),
-    ]);
-    // run: tabedit
-    fzf.args(vec![
-        "--bind",
-        &format!("ctrl-t:execute[{myself} run -- {{}} --tabedit]"),
-    ]);
-    // run: vifm
-    fzf.args(vec![
-        "--bind",
-        &format!("ctrl-v:execute[{myself} run -- {{}} --vifm]"),
-    ]);
-    // run: delete
-    fzf.args(vec![
-        "--bind",
-        &format!("ctrl-d:execute[{myself} run -- {{}} --delete]+reload[{myself} reload]"),
-    ]);
-    // run: delete
-    fzf.args(vec![
-        "--bind",
-        &format!("ctrl-d:execute[{myself} run -- {{}} --delete]+reload[{myself} reload]"),
-    ]);
-    // run: browse-github
-    // TODO run はメニューを表示して選べるようにするのがいいかなあ
-    fzf.args(vec![
-        "--bind",
-        &format!("alt-g:execute[{myself} run -- {{}} --browse-github]"),
-    ]);
-    fzf.args(vec![
-        "--bind",
-        &format!("f1:execute[{myself} run -- {{}} --menu]"),
-    ]);
-    // livegrep
-    fzf.args(vec![
-        "--bind",
-        &format!(
-            "ctrl-g:execute[{myself} live-grep start]+reload[{myself} live-grep get-result]+change-prompt[livegrep(fuzzy)>]+clear-query+clear-screen"
-        ),
-    ]);
-    fzf.args(vec!["--preview-window", "right:50%:noborder"]);
-    fzf.args(vec!["--header-lines=1"]);
-    fzf.args(vec!["--prompt", "files>"]);
-    fzf.env("FZF_DEFAULT_COMMAND", format!("{myself} load -- fd"));
-    fzf.env("FZFW_SOCKET", socket);
     fzf.kill_on_drop(true);
+
+    // Envirionment variables
+    fzf.env(
+        "FZF_DEFAULT_COMMAND",
+        shellwords::join(
+            &[
+                vec![myself.as_ref(), "load"],
+                load.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
+            ]
+            .concat(),
+        ),
+    );
+    fzf.env("FZFW_LOG_FILE", log_file);
+    fzf.env("FZFW_SOCKET", socket);
+
+    let c = |s: &str| s.to_string();
+
+    #[rustfmt::skip]
+    let mut args = vec![
+        c("--ansi"),
+        c("--header-lines"), c("1"),
+        c("--layout"), c("reverse"),
+        c("--query"), initial_query.unwrap_or_default(),
+        c("--preview"), format!("{myself} preview {{}}"),
+        c("--preview-window"), c("right:50%:noborder"),
+        c("--prompt"), initial_prompt
+    ];
+
+    bindings.0.iter().for_each(|(key, actions)| {
+        let actions = actions
+            .iter()
+            .map(|action| action.render(&myself))
+            .collect::<Vec<_>>();
+        args.push("--bind".to_string());
+        args.push(format!("{}:{}", key, actions.join("+")));
+    });
+
+    extra_opts.iter().for_each(|opt| {
+        args.push(opt.to_string());
+    });
+
+    fzf.args(args);
+
     fzf
 }
 

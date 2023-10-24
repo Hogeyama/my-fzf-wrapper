@@ -18,19 +18,18 @@ use serde::{Deserialize, Serialize};
 #[derive(Clone)]
 pub struct Mru;
 
-pub fn new() -> Mru {
-    Mru
-}
-
 static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"\s*(?P<bufnr>\d+):(?P<path>.*)").unwrap());
 
 impl Mode for Mru {
+    fn new() -> Self {
+        Mru
+    }
     fn name(&self) -> &'static str {
         "mru"
     }
     fn load(
-        &mut self,
+        &self,
         state: &mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
@@ -42,7 +41,7 @@ impl Mode for Mru {
         .boxed()
     }
     fn preview(
-        &mut self,
+        &self,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -67,7 +66,7 @@ impl Mode for Mru {
         .boxed()
     }
     fn run(
-        &mut self,
+        &self,
         state: &mut State,
         item: String,
         opts: RunOpts,

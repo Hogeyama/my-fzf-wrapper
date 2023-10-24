@@ -1,5 +1,5 @@
 use crate::{
-    external_command::{fzf, zoxide},
+    external_command::zoxide,
     method::{LoadResp, PreviewResp, RunOpts, RunResp},
     types::{Mode, State},
 };
@@ -7,21 +7,18 @@ use crate::{
 use futures::{future::BoxFuture, FutureExt};
 use tokio::process::Command;
 
-use super::utils::{self, CdOpts};
-
 #[derive(Clone)]
 pub struct Zoxide;
 
-pub fn new() -> Zoxide {
-    Zoxide
-}
-
 impl Mode for Zoxide {
+    fn new() -> Self {
+        Zoxide
+    }
     fn name(&self) -> &'static str {
         "zoxide"
     }
     fn load(
-        &mut self,
+        &self,
         _state: &mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
@@ -36,7 +33,7 @@ impl Mode for Zoxide {
         .boxed()
     }
     fn preview(
-        &mut self,
+        &self,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -62,30 +59,11 @@ impl Mode for Zoxide {
         .boxed()
     }
     fn run(
-        &mut self,
-        state: &mut State,
-        path: String,
+        &self,
+        _state: &mut State,
+        _path: String,
         _opts: RunOpts,
     ) -> BoxFuture<'static, Result<RunResp, String>> {
-        let nvim = state.nvim.clone();
-        async move {
-            let items = vec!["cd"];
-            match &*fzf::select(items).await? {
-                "cd" => {
-                    let _ = utils::change_directory(
-                        &nvim,
-                        CdOpts {
-                            cd: Some(path),
-                            cd_up: false,
-                            cd_last_file: false,
-                        },
-                    )
-                    .await;
-                }
-                _ => {}
-            }
-            Ok(RunResp)
-        }
-        .boxed()
+        async move { Ok(RunResp) }.boxed()
     }
 }

@@ -3,7 +3,6 @@ use std::pin::Pin;
 use crate::mode;
 use crate::types::Mode;
 
-// TODO key binding を含める。fzf::new がそれを受け取れるようにする。
 pub struct Config {
     modes: Vec<(String, MkMode)>,
 }
@@ -37,56 +36,24 @@ impl Config {
 }
 
 pub fn new() -> Config {
-    Config {
-        modes: vec![
-            (
-                "menu".to_string(), //
-                Box::pin(|| Box::new(mode::menu::new())),
-            ),
-            (
-                "fd".to_string(), //
-                Box::pin(|| Box::new(mode::fd::new())),
-            ),
-            (
-                "rg".to_string(), //
-                Box::pin(|| Box::new(mode::rg::new())),
-            ),
-            (
-                "buffer".to_string(),
-                Box::pin(|| Box::new(mode::buffer::new())),
-            ),
-            (
-                "zoxide".to_string(),
-                Box::pin(|| Box::new(mode::zoxide::new())),
-            ),
-            (
-                "mru".to_string(), //
-                Box::pin(|| Box::new(mode::mru::new())),
-            ),
-            (
-                "diagnostics".to_string(),
-                Box::pin(|| Box::new(mode::diagnostics::new())),
-            ),
-            (
-                "browser-history".to_string(),
-                Box::pin(|| Box::new(mode::browser_history::new())),
-            ),
-            (
-                "git-branch".to_string(),
-                Box::pin(|| Box::new(mode::git_branch::new())),
-            ),
-            (
-                "git-log".to_string(),
-                Box::pin(|| Box::new(mode::git_log::new())),
-            ),
-            (
-                "git-reflog".to_string(),
-                Box::pin(|| Box::new(mode::git_reflog::new())),
-            ),
-            (
-                "nvim-session".to_string(),
-                Box::pin(|| Box::new(mode::nvim_session::new())),
-            ),
-        ],
-    }
+    let modes: Vec<MkMode> = vec![
+        Box::pin(|| Box::new(mode::menu::Menu::new())),
+        Box::pin(|| Box::new(mode::fd::Fd::new())),
+        Box::pin(|| Box::new(mode::buffer::Buffer::new())),
+        Box::pin(|| Box::new(mode::zoxide::Zoxide::new())),
+        Box::pin(|| Box::new(mode::mru::Mru::new())),
+        Box::pin(|| Box::new(mode::diagnostics::Diagnostics::new())),
+        Box::pin(|| Box::new(mode::browser_history::BrowserHistory::new())),
+        Box::pin(|| Box::new(mode::git_branch::GitBranch::new())),
+        Box::pin(|| Box::new(mode::git_log::GitLog::new())),
+        Box::pin(|| Box::new(mode::git_reflog::GitReflog::new())),
+        Box::pin(|| Box::new(mode::nvim_session::NeovimSession::new())),
+        Box::pin(|| Box::new(mode::livegrep::LiveGrep::new())),
+        Box::pin(|| Box::new(mode::livegrep::LiveGrepF::new())),
+    ];
+    let modes = modes
+        .into_iter()
+        .map(|mk_mode| (mk_mode().name().to_string(), mk_mode))
+        .collect();
+    Config { modes }
 }

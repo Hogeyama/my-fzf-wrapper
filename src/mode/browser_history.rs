@@ -14,10 +14,6 @@ use tokio::process::Command;
 #[derive(Clone)]
 pub struct BrowserHistory;
 
-pub fn new() -> BrowserHistory {
-    BrowserHistory
-}
-
 struct Item {
     url: String,
     title: String,
@@ -28,11 +24,14 @@ static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?P<date>[^|]*)\|(?P<url>[^|]*)\|(?P<title>.*)").unwrap());
 
 impl Mode for BrowserHistory {
+    fn new() -> Self {
+        BrowserHistory
+    }
     fn name(&self) -> &'static str {
-        "browser_history"
+        "browser-history"
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         _state: &'a mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'a, Result<LoadResp, String>> {
@@ -70,7 +69,7 @@ impl Mode for BrowserHistory {
         .boxed()
     }
     fn preview(
-        &mut self,
+        &self,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -84,7 +83,7 @@ impl Mode for BrowserHistory {
         .boxed()
     }
     fn run(
-        &mut self,
+        &self,
         _state: &mut State,
         item: String,
         _opts: RunOpts,

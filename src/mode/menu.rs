@@ -1,7 +1,8 @@
 use crate::{
     config,
+    external_command::fzf,
     method::{LoadResp, PreviewResp, RunOpts, RunResp},
-    types::{Mode, State},
+    types::{default_bindings, Mode, State},
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -9,16 +10,23 @@ use futures::{future::BoxFuture, FutureExt};
 #[derive(Clone)]
 pub struct Menu;
 
-pub fn new() -> Menu {
-    Menu
-}
-
 impl Mode for Menu {
+    fn new() -> Self {
+        Menu
+    }
     fn name(&self) -> &'static str {
         "menu"
     }
+    fn fzf_bindings(&self) -> fzf::Bindings {
+        use fzf::*;
+        default_bindings().merge(bindings! {
+            "enter" => vec![
+                execute("change-mode -- {}"),
+            ]
+        })
+    }
     fn load(
-        &mut self,
+        &self,
         _state: &mut State,
         _opts: Vec<String>,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
@@ -27,14 +35,14 @@ impl Mode for Menu {
                 .get_mode_names()
                 .into_iter()
                 .map(|s| s.to_string())
-                .filter(|s| s != "rg" && s != "menu")
+                .filter(|s| s != "rg" && s != "livegrep" && s != "menu") // FIXME ad-hoc
                 .collect();
             Ok(LoadResp::new_with_default_header(items))
         }
         .boxed()
     }
     fn preview(
-        &mut self,
+        &self,
         _state: &mut State,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -46,14 +54,11 @@ impl Mode for Menu {
         .boxed()
     }
     fn run(
-        &mut self,
-        state: &mut State,
-        mode: String,
+        &self,
+        _state: &mut State,
+        _mode: String,
         _opts: RunOpts,
     ) -> BoxFuture<'static, Result<RunResp, String>> {
-        let config = config::new();
-        let mode = config.get_mode(&mode);
-        state.mode = Some(mode);
-        async move { Ok(RunResp) }.boxed()
+        panic!("unreachable")
     }
 }
