@@ -63,8 +63,14 @@ impl Mode for GitBranch {
                 .ok_or("no commit found")?
                 .as_str()
                 .to_string();
-            let items = vec!["interactive-rebase", "reset"];
+            let items = vec!["diffview", "interactive-rebase", "reset"];
             match &*fzf::select(items).await? {
+                "diffview" => {
+                    let _ = nvim::hide_floaterm(&nvim).await;
+                    nvim.command(&format!("DiffviewOpen {}^!", commit))
+                        .await
+                        .map_err(|e| e.to_string())?;
+                }
                 "interactive-rebase" => {
                     let _ = nvim::hide_floaterm(&nvim).await;
                     let output = Command::new("git")
