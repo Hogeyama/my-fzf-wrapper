@@ -3,26 +3,49 @@ use std::fs;
 use futures::{future::BoxFuture, FutureExt};
 
 use crate::{
+    bindings,
     external_command::fzf,
-    method::{LoadResp, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp},
+    mode::{config_builder, ModeDef},
     nvim::{self, Neovim},
-    types::{Mode, State},
+    state::State,
 };
+
+use super::CallbackMap;
 
 #[derive(Clone)]
 pub struct NeovimSession;
 
-impl Mode for NeovimSession {
+impl ModeDef for NeovimSession {
     fn new() -> Self {
         NeovimSession
     }
     fn name(&self) -> &'static str {
         "neovim-session"
     }
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+        use config_builder::*;
+        bindings! {
+            b <= default_bindings(),
+            "enter" => [
+                select_and_execute!{b, |_mode,state,_query,session|
+                    "switch" => {
+                        possesion(&state.nvim, "load", session).await;
+                        Ok(())
+                    },
+                    "delete" => {
+                        possesion(&state.nvim, "delete_selected", session).await;
+                        Ok(())
+                    },
+                }
+            ]
+        }
+    }
     fn load(
         &self,
         _state: &mut State,
-        _opts: Vec<String>,
+        _query: String,
+        _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
             let home = std::env::var("HOME").unwrap();
@@ -47,51 +70,30 @@ impl Mode for NeovimSession {
         }
         .boxed()
     }
-    fn run(
-        &self,
-        state: &mut State,
-        session: String,
-        _opts: RunOpts,
-    ) -> BoxFuture<'static, Result<RunResp, String>> {
-        let nvim = state.nvim.clone();
-        async move {
-            let items = vec!["switch", "delete"];
-            async fn possesion(nvim: &Neovim, action: &str, session: String) {
-                let _ = nvim::hide_floaterm(nvim).await;
-                let r = nvim::eval_lua(
-                    nvim,
-                    format!("require(\"nvim-possession\").{action}({{\"{session}\"}})"),
-                )
-                .await
-                .map_err(|e| e.to_string());
-                match r {
-                    Ok(_) => {
-                        let _ = nvim::notify_info(
-                            nvim,
-                            format!("possession.{action}(\"{session}\") succeeded"),
-                        )
-                        .await;
-                    }
-                    Err(e) => {
-                        let _ = nvim::notify_error(
-                            nvim,
-                            format!("possession.{action}(\"{session}\") failed: {e}"),
-                        )
-                        .await;
-                    }
-                }
-            }
-            match &*fzf::select(items).await? {
-                "switch" => {
-                    possesion(&nvim, "load", session).await;
-                }
-                "delete" => {
-                    possesion(&nvim, "delete_selected", session).await;
-                }
-                _ => {}
-            }
-            Ok(RunResp)
+}
+
+async fn possesion(nvim: &Neovim, action: &str, session: String) {
+    let _ = nvim::hide_floaterm(nvim).await;
+    let r = nvim::eval_lua(
+        nvim,
+        format!("require(\"nvim-possession\").{action}({{\"{session}\"}})"),
+    )
+    .await
+    .map_err(|e| e.to_string());
+    match r {
+        Ok(_) => {
+            let _ = nvim::notify_info(
+                nvim,
+                format!("possession.{action}(\"{session}\") succeeded"),
+            )
+            .await;
         }
-        .boxed()
+        Err(e) => {
+            let _ = nvim::notify_error(
+                nvim,
+                format!("possession.{action}(\"{session}\") failed: {e}"),
+            )
+            .await;
+        }
     }
 }

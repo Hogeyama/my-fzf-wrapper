@@ -1,8 +1,9 @@
 use crate::{
-    external_command::{bat, glow},
-    method::{LoadResp, PreviewResp, RunOpts, RunResp},
+    external_command::{bat, fzf, glow},
+    method::{LoadResp, PreviewResp},
+    mode::{config_builder, ModeDef},
     nvim::{self, DiagnosticsItem},
-    types::{Mode, State},
+    state::State,
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -10,10 +11,12 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use std::error::Error;
 
+use super::CallbackMap;
+
 #[derive(Clone)]
 pub struct Diagnostics;
 
-impl Mode for Diagnostics {
+impl ModeDef for Diagnostics {
     fn new() -> Self {
         Diagnostics
     }
@@ -23,7 +26,8 @@ impl Mode for Diagnostics {
     fn load<'a>(
         &'a self,
         state: &'a mut State,
-        _opts: Vec<String>,
+        _query: String,
+        _item: String,
     ) -> BoxFuture<'a, Result<LoadResp, String>> {
         let nvim = state.nvim.clone();
         async move {
@@ -77,37 +81,23 @@ impl Mode for Diagnostics {
         }
         .boxed()
     }
-    fn run(
-        &self,
-        state: &mut State,
-        item: String,
-        opts: RunOpts,
-    ) -> BoxFuture<'static, Result<RunResp, String>> {
-        let nvim = state.nvim.clone();
-        let diagnostics_item = match get_diagnostic_item(state, item.clone()) {
-            Ok(diagnostics_item) => diagnostics_item,
-            Err(e) => {
-                error!("diagnostics: run: failed"; "error" => e.to_string());
-                return async move { Ok(RunResp) }.boxed();
-            }
-        };
-        async move {
-            let file = nvim::get_buf_name(&nvim, diagnostics_item.bufnr as usize)
-                .await
-                .map_err(|e| e.to_string())?;
-            let opts = nvim::OpenOpts {
-                line: Some(diagnostics_item.lnum as usize + 1),
-                ..opts.into()
-            };
-            let _ = tokio::spawn(async move {
-                let r = nvim::open(&nvim, file.into(), opts).await;
-                if let Err(e) = r {
-                    error!("diagnostics: run: nvim_open failed"; "error" => e.to_string());
-                }
-            });
-            Ok(RunResp)
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+        use config_builder::*;
+        bindings! {
+            b <= default_bindings(),
+            "enter" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = OpenOpts { tabedit: false };
+                    open(state, item, opts).await
+                })
+            ],
+            "ctrl-t" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = OpenOpts { tabedit: true };
+                    open(state, item, opts).await
+                })
+            ],
         }
-        .boxed()
     }
 }
 
@@ -160,4 +150,27 @@ fn get_diagnostic_item(state: &mut State, item: String) -> Result<DiagnosticsIte
     let item_num = get_num_of_item(&item).ok_or("モポ")?;
     let diagnostics_item = diagnostics.get(item_num).ok_or("モポ")?.clone();
     Ok(diagnostics_item)
+}
+
+struct OpenOpts {
+    tabedit: bool,
+}
+
+async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), String> {
+    let nvim = state.nvim.clone();
+    let diagnostics_item = get_diagnostic_item(state, item.clone()).map_err(|e| e.to_string())?;
+    let file = nvim::get_buf_name(&nvim, diagnostics_item.bufnr as usize)
+        .await
+        .map_err(|e| e.to_string())?;
+    let opts = nvim::OpenOpts {
+        line: Some(diagnostics_item.lnum as usize + 1),
+        tabedit: opts.tabedit,
+    };
+    let _ = tokio::spawn(async move {
+        let r = nvim::open(&nvim, file.into(), opts).await;
+        if let Err(e) = r {
+            error!("diagnostics: run: nvim_open failed"; "error" => e.to_string());
+        }
+    });
+    Ok(())
 }

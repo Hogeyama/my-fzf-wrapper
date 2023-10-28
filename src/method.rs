@@ -1,4 +1,3 @@
-use clap::Parser;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -24,17 +23,13 @@ pub enum Request {
         method: Load,
         params: <Load as Method>::Param,
     },
-    Reload {
-        method: Reload,
-        params: <Reload as Method>::Param,
-    },
     Preview {
         method: Preview,
         params: <Preview as Method>::Param,
     },
-    Run {
-        method: Run,
-        params: <Run as Method>::Param,
+    Execute {
+        method: Execute,
+        params: <Execute as Method>::Param,
     },
     GetLastLoad {
         method: GetLastLoad,
@@ -51,102 +46,6 @@ pub enum Request {
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
-// Load method
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-#[serde(try_from = "String", into = "String")]
-pub struct Load;
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct LoadParam {
-    pub mode: String,
-    pub args: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct LoadResp {
-    pub header: String,
-    pub items: Vec<String>,
-}
-
-impl LoadResp {
-    pub fn new_with_default_header(items: Vec<String>) -> Self {
-        let pwd = std::env::current_dir().unwrap().into_os_string();
-        Self {
-            header: format!("[{}]", pwd.to_string_lossy()),
-            items,
-        }
-    }
-    pub fn error(err: impl ToString) -> Self {
-        Self {
-            header: "[error]".to_string(),
-            items: vec![err.to_string()],
-        }
-    }
-}
-
-impl Method for Load {
-    type Param = LoadParam;
-    type Response = LoadResp;
-    fn method_name() -> &'static str {
-        "load"
-    }
-    fn request(self, params: Self::Param) -> Request {
-        Request::Load {
-            method: Load,
-            params,
-        }
-    }
-}
-
-impl TryFrom<String> for Load {
-    type Error = String;
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        mk_try_from()(s)
-    }
-}
-impl From<Load> for String {
-    fn from(_: Load) -> Self {
-        <Load as Method>::method_name().to_string()
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Reload method
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-#[serde(try_from = "String", into = "String")]
-pub struct Reload;
-
-impl Method for Reload {
-    type Param = ();
-    type Response = LoadResp;
-    fn method_name() -> &'static str {
-        "reload"
-    }
-    fn request(self, params: Self::Param) -> Request {
-        Request::Reload {
-            method: Reload,
-            params,
-        }
-    }
-}
-
-impl TryFrom<String> for Reload {
-    type Error = String;
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        mk_try_from()(s)
-    }
-}
-impl From<Reload> for String {
-    fn from(_: Reload) -> Self {
-        <Reload as Method>::method_name().to_string()
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
 // Preview method
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
@@ -154,7 +53,7 @@ impl From<Reload> for String {
 #[serde(try_from = "String", into = "String")]
 pub struct Preview;
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[derive(Serialize, Deserialize, clap::Parser, Default, Clone, Debug)]
 pub struct PreviewParam {
     pub item: String,
 }
@@ -195,72 +94,6 @@ impl TryFrom<String> for Preview {
 impl From<Preview> for String {
     fn from(_: Preview) -> Self {
         <Preview as Method>::method_name().to_string()
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// Run method
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-#[serde(try_from = "String", into = "String")]
-pub struct Run;
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct RunParam {
-    pub item: String,
-    pub args: Vec<String>,
-}
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-pub struct RunResp;
-
-// fzf の key binding で渡すオプション。
-// Load と異なり、Run のオプションは共通になる。
-#[derive(Parser, Debug, Clone, Serialize, Deserialize, Default)]
-pub struct RunOpts {
-    #[clap(long)]
-    pub tabedit: bool,
-
-    #[clap(long)]
-    pub vifm: bool,
-
-    #[clap(long)]
-    pub delete: bool,
-
-    #[clap(long)]
-    pub force: bool,
-
-    #[clap(long)]
-    pub browse_github: bool,
-
-    #[clap(long)]
-    pub menu: bool,
-}
-
-impl Method for Run {
-    type Param = RunParam;
-    type Response = RunResp;
-    fn method_name() -> &'static str {
-        "run"
-    }
-    fn request(self, params: Self::Param) -> Request {
-        Request::Run {
-            method: Run,
-            params,
-        }
-    }
-}
-
-impl TryFrom<String> for Run {
-    type Error = String;
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        mk_try_from()(s)
-    }
-}
-impl From<Run> for String {
-    fn from(_: Run) -> Self {
-        <Run as Method>::method_name().to_string()
     }
 }
 
@@ -321,11 +154,10 @@ impl Method for ChangeMode {
     }
 }
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[derive(Serialize, Deserialize, clap::Parser, Default, Clone, Debug)]
 pub struct ChangeModeParam {
     pub mode: String,
     pub query: Option<String>,
-    pub args: Vec<String>,
 }
 
 impl TryFrom<String> for ChangeMode {
@@ -380,6 +212,182 @@ impl TryFrom<String> for ChangeDirectory {
 impl From<ChangeDirectory> for String {
     fn from(_: ChangeDirectory) -> Self {
         <ChangeDirectory as Method>::method_name().to_string()
+    }
+}
+
+// clap impl
+////////////
+
+impl clap::Args for ChangeDirectoryParam {
+    fn augment_args(cmd: clap::Command<'_>) -> clap::Command<'_> {
+        ChangeDirectoryCommandParam::augment_args(cmd)
+    }
+    fn augment_args_for_update(cmd: clap::Command<'_>) -> clap::Command<'_> {
+        ChangeDirectoryCommandParam::augment_args(cmd)
+    }
+}
+
+impl clap::FromArgMatches for ChangeDirectoryParam {
+    fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
+        ChangeDirectoryCommandParam::from_arg_matches(matches).and_then(|param| Ok(param.into()))
+    }
+    fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
+        let mut self_ = Into::<ChangeDirectoryCommandParam>::into(self.clone());
+        self_.update_from_arg_matches(matches)?;
+        *self = self_.into();
+        Ok(())
+    }
+}
+
+#[derive(Serialize, Deserialize, clap::Parser, Clone, Debug)]
+struct ChangeDirectoryCommandParam {
+    #[clap(long, group = "input")]
+    to_parent: bool,
+    #[clap(long, group = "input")]
+    to_last_file_dir: bool,
+    #[clap(long, group = "input")]
+    dir: Option<String>,
+}
+
+impl From<ChangeDirectoryCommandParam> for ChangeDirectoryParam {
+    fn from(param: ChangeDirectoryCommandParam) -> Self {
+        if param.to_parent {
+            Self::ToParent
+        } else if param.to_last_file_dir {
+            Self::ToLastFileDir
+        } else if let Some(dir) = param.dir {
+            Self::To(dir)
+        } else {
+            unreachable!()
+        }
+    }
+}
+
+impl From<ChangeDirectoryParam> for ChangeDirectoryCommandParam {
+    fn from(param: ChangeDirectoryParam) -> Self {
+        match param {
+            ChangeDirectoryParam::ToParent => Self {
+                to_parent: true,
+                to_last_file_dir: false,
+                dir: None,
+            },
+            ChangeDirectoryParam::ToLastFileDir => Self {
+                to_parent: false,
+                to_last_file_dir: true,
+                dir: None,
+            },
+            ChangeDirectoryParam::To(dir) => Self {
+                to_parent: false,
+                to_last_file_dir: false,
+                dir: Some(dir),
+            },
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Execute method
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[serde(try_from = "String", into = "String")]
+pub struct Execute;
+
+impl Method for Execute {
+    type Param = ExecuteParam;
+    type Response = ();
+    fn method_name() -> &'static str {
+        "execute_cb"
+    }
+    fn request(self, params: Self::Param) -> Request {
+        Request::Execute {
+            method: Execute,
+            params,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, clap::Parser, Clone, Debug)]
+pub struct ExecuteParam {
+    pub registered_name: String,
+    pub query: String,
+    pub item: String,
+}
+
+impl TryFrom<String> for Execute {
+    type Error = String;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        mk_try_from()(s)
+    }
+}
+
+impl From<Execute> for String {
+    fn from(_: Execute) -> Self {
+        <Execute as Method>::method_name().to_string()
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Load method
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[serde(try_from = "String", into = "String")]
+pub struct Load;
+
+impl Method for Load {
+    type Param = LoadParam;
+    type Response = LoadResp;
+    fn method_name() -> &'static str {
+        "load"
+    }
+    fn request(self, params: Self::Param) -> Request {
+        Request::Load {
+            method: Load,
+            params,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct LoadResp {
+    pub header: String,
+    pub items: Vec<String>,
+}
+
+impl LoadResp {
+    pub fn new_with_default_header(items: Vec<String>) -> Self {
+        let pwd = std::env::current_dir().unwrap().into_os_string();
+        Self {
+            header: format!("[{}]", pwd.to_string_lossy()),
+            items,
+        }
+    }
+    pub fn error(err: impl ToString) -> Self {
+        Self {
+            header: "[error]".to_string(),
+            items: vec![err.to_string()],
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, clap::Parser, Clone, Debug)]
+pub struct LoadParam {
+    pub registered_name: String,
+    pub query: String,
+    pub item: String,
+}
+
+impl TryFrom<String> for Load {
+    type Error = String;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        mk_try_from()(s)
+    }
+}
+
+impl From<Load> for String {
+    fn from(_: Load) -> Self {
+        <Load as Method>::method_name().to_string()
     }
 }
 

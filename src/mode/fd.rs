@@ -1,17 +1,20 @@
 use crate::{
     external_command::{bat, fd, fzf, gh},
-    method::{LoadResp, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp},
+    mode::{config_builder, ModeDef},
     nvim,
-    types::{Mode, State},
+    state::State,
 };
 
 use futures::{future::BoxFuture, FutureExt};
 use tokio::process::Command;
 
+use super::CallbackMap;
+
 #[derive(Clone)]
 pub struct Fd;
 
-impl Mode for Fd {
+impl ModeDef for Fd {
     fn new() -> Self {
         Fd
     }
@@ -21,7 +24,8 @@ impl Mode for Fd {
     fn load(
         &self,
         _state: &mut State,
-        _opts: Vec<String>,
+        _query: String,
+        _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
             let fd_output = fd::new().output().await.map_err(|e| e.to_string())?;
@@ -44,54 +48,79 @@ impl Mode for Fd {
         }
         .boxed()
     }
-    fn run(
-        &self,
-        state: &mut State,
-        path: String,
-        opts: RunOpts,
-    ) -> BoxFuture<'static, Result<RunResp, String>> {
-        let nvim = state.nvim.clone();
-        async move {
-            let vifm = || async {
-                let pwd = std::env::current_dir().unwrap().into_os_string();
-                Command::new("vifm")
-                    .arg(&pwd)
-                    .spawn()
-                    .map_err(|e| e.to_string())?
-                    .wait()
-                    .await
-                    .map_err(|e| e.to_string())?;
-                Ok::<(), String>(())
-            };
-            let browse_github = || async {
-                gh::browse_github(&path).await?;
-                Ok::<(), String>(())
-            };
-            let path_ = path.clone();
-            let nvim_opt = opts.clone().into();
-            let nvim = || async {
-                let _ = tokio::spawn(async move {
-                    let r = nvim::open(&nvim, path_.into(), nvim_opt).await;
-                    if let Err(e) = r {
-                        error!("fd: run: nvim::open failed"; "error" => e.to_string());
-                    }
-                });
-            };
-            match () {
-                _ if opts.menu => {
-                    let items = vec!["browse-github", "vifm"];
-                    match &*fzf::select(items).await? {
-                        "vifm" => vifm().await?,
-                        "browse-github" => browse_github().await?,
-                        _ => (),
-                    }
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+        use config_builder::*;
+        bindings! {
+            b <= default_bindings(),
+            "enter" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = OpenOpts::Neovim { tabedit: false };
+                    open(state, item, opts).await
+                })
+            ],
+            "ctrl-t" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = OpenOpts::Neovim { tabedit: true };
+                    open(state, item, opts).await
+                })
+            ],
+            "ctrl-v" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = OpenOpts::Vifm;
+                    open(state, item, opts).await
+                })
+            ],
+            "f1" => [
+                select_and_execute!{b, |_mode,state,_query,item|
+                    "neovim" => {
+                        let opts = OpenOpts::Neovim { tabedit: false };
+                        open(state, item, opts).await
+                    },
+                    "vifm" => {
+                        let opts = OpenOpts::Vifm;
+                        open(state, item, opts).await
+                    },
+                    "browse-github" => {
+                        let opts = OpenOpts::BrowseGithub;
+                        open(state, item, opts).await
+                    },
                 }
-                _ if opts.vifm => vifm().await?,
-                _ if opts.browse_github => browse_github().await?,
-                _ => nvim().await,
-            }
-            Ok(RunResp)
+            ]
         }
-        .boxed()
     }
+}
+
+enum OpenOpts {
+    Neovim { tabedit: bool },
+    Vifm,
+    BrowseGithub,
+}
+
+async fn open(state: &mut State, file: String, opts: OpenOpts) -> Result<(), String> {
+    match opts {
+        OpenOpts::Neovim { tabedit } => {
+            let nvim = state.nvim.clone();
+            let nvim_opts = nvim::OpenOpts {
+                line: None,
+                tabedit,
+            };
+            nvim::open(&nvim, file.into(), nvim_opts)
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+        OpenOpts::Vifm => {
+            let pwd = std::env::current_dir().unwrap().into_os_string();
+            Command::new("vifm")
+                .arg(&pwd)
+                .spawn()
+                .map_err(|e| e.to_string())?
+                .wait()
+                .await
+                .map_err(|e| e.to_string())?;
+        }
+        OpenOpts::BrowseGithub => {
+            gh::browse_github(file).await?;
+        }
+    }
+    Ok(())
 }

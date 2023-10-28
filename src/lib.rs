@@ -6,8 +6,7 @@ mod method;
 mod mode;
 mod nvim;
 mod server;
-mod types;
-mod utils;
+mod state;
 
 // std
 use std::env;
@@ -107,7 +106,8 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
 
     let myself = args.fzfw_self.unwrap_or(get_program_path());
     let config = config::new();
-    let state = types::State::new(nvim, config.get_mode("fd"));
+    let state = state::State::new(nvim);
+    let initial_mode = "fd".to_string();
 
     server::server(
         myself,
@@ -115,6 +115,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
         state,
         socket_name.clone(),
         args.fzfw_log_file,
+        initial_mode,
         socket,
     )
     .await

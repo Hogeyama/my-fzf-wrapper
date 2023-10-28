@@ -4,15 +4,18 @@ use tokio::process::Command;
 
 use crate::{
     external_command::{fzf, git},
-    method::{LoadResp, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp},
+    mode::{config_builder, ModeDef},
     nvim,
-    types::{Mode, State},
+    state::State,
 };
+
+use super::CallbackMap;
 
 #[derive(Clone)]
 pub struct GitBranch;
 
-impl Mode for GitBranch {
+impl ModeDef for GitBranch {
     fn new() -> Self {
         GitBranch
     }
@@ -22,7 +25,8 @@ impl Mode for GitBranch {
     fn load(
         &self,
         _state: &mut State,
-        _opts: Vec<String>,
+        _query: String,
+        _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
             let branches = Command::new("git")
@@ -54,85 +58,80 @@ impl Mode for GitBranch {
         }
         .boxed()
     }
-    fn run(
-        &self,
-        state: &mut State,
-        branch: String,
-        _opts: RunOpts,
-    ) -> BoxFuture<'static, Result<RunResp, String>> {
-        let nvim = state.nvim.clone();
-        async move {
-            let items = vec!["switch", "repoint", "cherry-pick", "push", "push -f"];
-            match &*fzf::select(items).await? {
-                "switch" => {
-                    let _ = Command::new("git")
-                        .arg("switch")
-                        .arg("-m")
-                        .arg(branch)
-                        .output()
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+        use config_builder::*;
+        bindings! {
+            b <= default_bindings(),
+            "enter" => [
+                select_and_execute!{b, |_mode,state,_query,branch|
+                    "switch" => {
+                        let _ = Command::new("git")
+                            .arg("switch")
+                            .arg("-m")
+                            .arg(branch)
+                            .output()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        Ok(())
+                    },
+                    "repoint" => {
+                        let commit = select_commit().await?;
+                        let _ = Command::new("git")
+                            .arg("branch")
+                            .arg("-D")
+                            .arg(branch.clone())
+                            .output()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        let output = Command::new("git")
+                            .arg("branch")
+                            .arg(branch.clone())
+                            .arg(commit.clone())
+                            .output()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        nvim::notify_command_result(
+                            &state.nvim,
+                            format!("git branch {branch} {commit}"),
+                            output,
+                        )
                         .await
-                        .map_err(|e| e.to_string())?;
+                        .map_err(|e| e.to_string())
+                    },
+                    "push" => {
+                        let remote_ref = select_remote_branch().await?;
+                        let remote = remote_ref.split('/').nth(0).ok_or("No remote found")?;
+                        let remote_branch = remote_ref.split('/').nth(1).ok_or("No branch found")?;
+                        let output = Command::new("git")
+                            .arg("push")
+                            .arg(remote)
+                            .arg(format!("{}:{}", branch, remote_branch))
+                            .output()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        nvim::notify_command_result(&state.nvim, "git push", output)
+                            .await
+                            .map_err(|e| e.to_string())
+                    },
+                    "push -f" => {
+                        let remote_ref = select_remote_branch().await?;
+                        let remote = remote_ref.split('/').nth(0).ok_or("No remote found")?;
+                        let remote_branch = remote_ref.split('/').nth(1).ok_or("No branch found")?;
+                        let output = Command::new("git")
+                            .arg("push")
+                            .arg("-f")
+                            .arg(remote)
+                            .arg(format!("{}:{}", branch, remote_branch))
+                            .output()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        nvim::notify_command_result(&state.nvim, "git push", output)
+                            .await
+                            .map_err(|e| e.to_string())
+                    }
                 }
-                "repoint" => {
-                    let commit = select_commit().await?;
-                    let _ = Command::new("git")
-                        .arg("branch")
-                        .arg("-D")
-                        .arg(branch.clone())
-                        .output()
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    let output = Command::new("git")
-                        .arg("branch")
-                        .arg(branch.clone())
-                        .arg(commit.clone())
-                        .output()
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    nvim::notify_command_result(
-                        &nvim,
-                        format!("git branch {branch} {commit}"),
-                        output,
-                    )
-                    .await
-                    .map_err(|e| e.to_string())?;
-                }
-                "cherry-pick" => {
-                    let commit = select_commit().await?;
-                    let output = Command::new("git")
-                        .arg("cherry-pick")
-                        .arg(commit)
-                        .output()
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    nvim::notify_command_result(&nvim, "git cherry-pick", output)
-                        .await
-                        .map_err(|e| e.to_string())?;
-                }
-                push if push == "push" || push == "push -f" => {
-                    let remote_ref = select_remote_branch().await?;
-                    let remote = remote_ref.split('/').nth(0).ok_or("No remote found")?;
-                    let remote_branch = remote_ref.split('/').nth(1).ok_or("No branch found")?;
-                    let output = Command::new("git")
-                        .args(if push == "push" {
-                            vec!["push"]
-                        } else {
-                            vec!["push", "-f"]
-                        })
-                        .arg(remote)
-                        .arg(format!("{}:{}", branch, remote_branch))
-                        .output()
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    nvim::notify_command_result(&nvim, "git push", output)
-                        .await
-                        .map_err(|e| e.to_string())?;
-                }
-                _ => {}
-            }
-            Ok(RunResp)
+            ]
         }
-        .boxed()
     }
 }
 

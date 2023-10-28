@@ -3,35 +3,32 @@ use std::collections::HashMap;
 
 use tokio::{io::AsyncWriteExt, process::Command};
 
+// TODO 多くを mode/mod.rs に移動させる。myself を知っているのはおかしい
+
 pub struct Config {
     pub myself: String,
     pub socket: String,
     pub log_file: String,
     pub load: Vec<String>,
     pub initial_prompt: String,
-    pub initial_query: Option<String>,
+    pub initial_query: String,
     pub bindings: Bindings,
     pub extra_opts: Vec<String>,
 }
 
-type Key = String;
+pub type Key = String;
 
 pub struct Bindings(pub HashMap<Key, Vec<Action>>);
 
 impl Bindings {
+    pub fn empty() -> Self {
+        Bindings(HashMap::new())
+    }
     pub fn merge(mut self, other: Self) -> Self {
         self.0.extend(other.0);
         self
     }
 }
-
-#[macro_export]
-macro_rules! bindings {
-    ($($k:expr => $v:expr),* $(,)?) => {{
-        Bindings(core::convert::From::from([$(($k.to_string(), $v),)*]))
-    }};
-}
-pub use bindings;
 
 pub enum Action {
     Reload(String),
@@ -41,34 +38,6 @@ pub enum Action {
     ClearQuery,
     ClearScreen,
     First,
-}
-
-pub fn reload(cmd: impl AsRef<str>) -> Action {
-    Action::Reload(cmd.as_ref().to_string())
-}
-
-pub fn execute(cmd: impl Into<String>) -> Action {
-    Action::Execute(cmd.into())
-}
-
-pub fn change_prompt(prompt: impl Into<String>) -> Action {
-    Action::ChangePrompt(prompt.into())
-}
-
-pub fn toggle_sort() -> Action {
-    Action::ToggleSort
-}
-
-pub fn clear_query() -> Action {
-    Action::ClearQuery
-}
-
-pub fn clear_screen() -> Action {
-    Action::ClearScreen
-}
-
-pub fn first() -> Action {
-    Action::First
 }
 
 impl Action {
@@ -104,7 +73,7 @@ pub fn new(config: Config) -> Command {
         "FZF_DEFAULT_COMMAND",
         shellwords::join(
             &[
-                vec![myself.as_ref(), "load"],
+                vec![myself.as_ref()],
                 load.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
             ]
             .concat(),
@@ -120,7 +89,7 @@ pub fn new(config: Config) -> Command {
         c("--ansi"),
         c("--header-lines"), c("1"),
         c("--layout"), c("reverse"),
-        c("--query"), initial_query.unwrap_or_default(),
+        c("--query"), initial_query,
         c("--preview"), format!("{myself} preview {{}}"),
         c("--preview-window"), c("right:50%:noborder"),
         c("--prompt"), initial_prompt
@@ -141,48 +110,6 @@ pub fn new(config: Config) -> Command {
 
     fzf.args(args);
 
-    fzf
-}
-
-pub fn new_livegrep(myself: impl Into<String>, socket: impl Into<String>) -> Command {
-    let myself = myself.into();
-    let socket = socket.into();
-    let mut fzf = Command::new("fzf");
-    fzf.args(vec!["--ansi"]);
-    fzf.args(vec!["--layout", "reverse"]);
-    fzf.args(vec!["--bind", "ctrl-s:toggle-sort"]);
-    fzf.args(vec!["--bind", "ctrl-o:clear-query+clear-screen"]);
-    // Disable fuzzy search
-    fzf.args(vec!["--disabled"]);
-    // livegrep
-    fzf.args(vec![
-        "--bind",
-        &format!("change:reload[{myself} live-grep update -- {{q}}]"),
-    ]);
-    // preview
-    fzf.args(vec!["--preview", &format!("{myself} preview {{}}")]);
-    // run: default
-    fzf.args(vec![
-        "--bind",
-        &format!("enter:execute[{myself} run -- {{}}]"),
-    ]);
-    // run: menu
-    fzf.args(vec![
-        "--bind",
-        &format!("f1:execute[{myself} run -- {{}} --menu]"),
-    ]);
-    // run: browse-github
-    fzf.args(vec![
-        "--bind",
-        &format!("alt-g:execute[{myself} run -- {{}} --browse-github]"),
-    ]);
-    fzf.args(vec!["--preview-window", "right:50%:noborder"]);
-    fzf.args(vec!["--header-lines=1"]);
-    fzf.args(vec!["--prompt", "livegrep>"]);
-    fzf.env("FZF_DEFAULT_COMMAND", format!("echo -n"));
-    fzf.env("FZFW_LOG_FILE", format!("/tmp/fzfw-livegrep.log"));
-    fzf.env("FZFW_SOCKET", socket);
-    fzf.kill_on_drop(true);
     fzf
 }
 

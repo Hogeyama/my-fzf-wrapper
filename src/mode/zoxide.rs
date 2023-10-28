@@ -1,7 +1,8 @@
+use crate::state::State;
 use crate::{
     external_command::zoxide,
-    method::{LoadResp, PreviewResp, RunOpts, RunResp},
-    types::{Mode, State},
+    method::{LoadResp, PreviewResp},
+    mode::ModeDef,
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -10,7 +11,7 @@ use tokio::process::Command;
 #[derive(Clone)]
 pub struct Zoxide;
 
-impl Mode for Zoxide {
+impl ModeDef for Zoxide {
     fn new() -> Self {
         Zoxide
     }
@@ -20,7 +21,8 @@ impl Mode for Zoxide {
     fn load(
         &self,
         _state: &mut State,
-        _opts: Vec<String>,
+        _query: String,
+        _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
             let zoxide_output = zoxide::new().output().await.map_err(|e| e.to_string())?;
@@ -57,13 +59,5 @@ impl Mode for Zoxide {
             Ok(PreviewResp { message: output })
         }
         .boxed()
-    }
-    fn run(
-        &self,
-        _state: &mut State,
-        _path: String,
-        _opts: RunOpts,
-    ) -> BoxFuture<'static, Result<RunResp, String>> {
-        async move { Ok(RunResp) }.boxed()
     }
 }

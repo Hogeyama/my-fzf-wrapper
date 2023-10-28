@@ -1,8 +1,9 @@
-use std::process::ExitStatus;
-
 use crate::{
-    method::{LoadResp, PreviewResp, RunOpts, RunResp},
-    types::{Mode, State},
+    bindings,
+    external_command::fzf,
+    method::{LoadResp, PreviewResp},
+    mode::{config_builder, ModeDef},
+    state::State,
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -10,6 +11,8 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 use rusqlite::{params, Connection};
 use tokio::process::Command;
+
+use super::CallbackMap;
 
 #[derive(Clone)]
 pub struct BrowserHistory;
@@ -23,7 +26,7 @@ struct Item {
 static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?P<date>[^|]*)\|(?P<url>[^|]*)\|(?P<title>.*)").unwrap());
 
-impl Mode for BrowserHistory {
+impl ModeDef for BrowserHistory {
     fn new() -> Self {
         BrowserHistory
     }
@@ -33,7 +36,8 @@ impl Mode for BrowserHistory {
     fn load<'a>(
         &'a self,
         _state: &'a mut State,
-        _opts: Vec<String>,
+        _query: String,
+        _item: String,
     ) -> BoxFuture<'a, Result<LoadResp, String>> {
         async move {
             let run_query = || -> Result<Vec<Item>, String> {
@@ -82,25 +86,24 @@ impl Mode for BrowserHistory {
         }
         .boxed()
     }
-    fn run(
-        &self,
-        _state: &mut State,
-        item: String,
-        _opts: RunOpts,
-    ) -> BoxFuture<'static, Result<RunResp, String>> {
-        async move {
-            let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
-            let browser = get_browser();
-            let _: ExitStatus = Command::new(browser)
-                .arg(&url)
-                .spawn()
-                .expect("browser_history: open")
-                .wait()
-                .await
-                .expect("browser_history: open");
-            Ok(RunResp)
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+        use config_builder::*;
+        bindings! {
+            b <= default_bindings(),
+            "enter" => [
+                execute!(b, |_mode,_state,_query,item| {
+                    let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
+                    Command::new(get_browser())
+                        .arg(&url)
+                        .spawn()
+                        .expect("browser_history: open")
+                        .wait()
+                        .await
+                        .expect("browser_history: open");
+                    Ok(())
+                })
+            ],
         }
-        .boxed()
     }
 }
 

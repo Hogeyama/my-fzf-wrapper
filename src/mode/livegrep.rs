@@ -1,9 +1,10 @@
 use crate::{
     external_command::{bat, fzf, gh, git, rg},
     logger::Serde,
-    method::{LoadResp, PreviewResp, RunOpts, RunResp},
-    nvim::{self, Neovim},
-    types::{default_bindings, Mode, State},
+    method::{LoadResp, PreviewResp},
+    mode::{config_builder, CallbackMap, ModeDef},
+    nvim,
+    state::State,
 };
 
 use clap::Parser;
@@ -11,55 +12,27 @@ use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
 
-use crate::utils;
+////////////////////////////////////////////////////////////////////////////////
+// Livegrep
+////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone)]
 pub struct LiveGrep;
 
-impl Mode for LiveGrep {
+impl ModeDef for LiveGrep {
     fn new() -> Self {
         LiveGrep
     }
     fn name(&self) -> &'static str {
         "livegrep"
     }
-    fn fzf_bindings(&self) -> fzf::Bindings {
-        use fzf::*;
-        default_bindings().merge(bindings! {
-            "change" => vec![
-                reload("load livegrep -- --color=ansi {q}"),
-            ],
-            "ctrl-c" => vec![
-                execute("change-mode livegrepf"),
-            ],
-            "esc" => vec![
-                execute("change-mode livegrepf"),
-            ],
-        })
-    }
-    fn fzf_extra_opts(&self) -> Vec<String> {
-        vec!["--disabled".to_string()]
-    }
     fn load(
         &self,
         _state: &mut State,
-        opts: Vec<String>,
+        query: String,
+        _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
-        async move {
-            let LoadOpts { query, color } =
-                utils::clap_parse_from::<LoadOpts>(opts).map_err(|e| e.to_string())?;
-            let mut rg_cmd = rg::new();
-            rg_cmd.arg(&format!("--color={color}"));
-            rg_cmd.arg("--");
-            rg_cmd.arg(query);
-            let rg_output = rg_cmd.output().await.map_err(|e| e.to_string())?;
-            let rg_output = String::from_utf8_lossy(&rg_output.stdout)
-                .lines()
-                .map(|line| line.to_string())
-                .collect::<Vec<_>>();
-            Ok(LoadResp::new_with_default_header(rg_output))
-        }
-        .boxed()
+        load(query)
     }
     fn preview(
         &self,
@@ -68,35 +41,80 @@ impl Mode for LiveGrep {
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move { preview(item).await }.boxed()
     }
-    fn run(
-        &self,
-        state: &mut State,
-        item: String,
-        opts: RunOpts,
-    ) -> BoxFuture<'static, Result<RunResp, String>> {
-        let nvim = state.nvim.clone();
-        info!("rg.run");
-        async move { run(&nvim, item, opts).await }.boxed()
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+        use config_builder::*;
+        bindings! {
+            b <= default_bindings(),
+            "change" => [
+                b.reload(),
+            ],
+            "ctrl-c" => [
+                b.change_mode(LiveGrepF::new().name(), false),
+            ],
+            "esc" => [
+                b.change_mode(LiveGrepF::new().name(), false),
+            ],
+            "enter" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = OpenOpts::Neovim { tabedit: false };
+                    open(state, item, opts).await
+                })
+            ],
+            "ctrl-t" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = OpenOpts::Neovim { tabedit: true };
+                    open(state, item, opts).await
+                })
+            ],
+            "f1" => [
+                select_and_execute!{b, |_mode,state,_query,item|
+                    "neovim" => {
+                        let opts = OpenOpts::Neovim { tabedit: false };
+                        open(state, item, opts).await
+                    },
+                    "browse-github" => {
+                        let opts = OpenOpts::BrowseGithub;
+                        open(state, item, opts).await
+                    },
+                }
+            ]
+        }
+    }
+    fn fzf_extra_opts(&self) -> Vec<String> {
+        vec!["--disabled".to_string()]
     }
 }
 
-static ITEM_PATTERN: Lazy<Regex> =
-    Lazy::new(|| Regex::new(r"(?P<file>[^:]*):(?P<line>\d+):(?P<col>\d+):.*").unwrap());
-
 #[derive(Parser, Debug, Clone)]
 pub struct LoadOpts {
-    #[clap(long, default_value = "never")]
-    pub color: String,
     #[clap()]
     pub query: String,
 }
 
+fn load(query: String) -> BoxFuture<'static, Result<LoadResp, String>> {
+    async move {
+        let mut rg_cmd = rg::new();
+        rg_cmd.arg(&format!("--color=ansi"));
+        rg_cmd.arg("--");
+        rg_cmd.arg(query);
+        let rg_output = rg_cmd.output().await.map_err(|e| e.to_string())?;
+        let rg_output = String::from_utf8_lossy(&rg_output.stdout)
+            .lines()
+            .map(|line| line.to_string())
+            .collect::<Vec<_>>();
+        Ok(LoadResp::new_with_default_header(rg_output))
+    }
+    .boxed()
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Fuzzy search after livegrep
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone)]
 pub struct LiveGrepF;
 
-impl Mode for LiveGrepF {
+impl ModeDef for LiveGrepF {
     fn new() -> Self {
         LiveGrepF
     }
@@ -106,7 +124,8 @@ impl Mode for LiveGrepF {
     fn load(
         &self,
         state: &mut State,
-        _opts: Vec<String>,
+        _query: String,
+        _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
         let livegrep_result = state.last_load_resp.clone();
         async move {
@@ -125,21 +144,46 @@ impl Mode for LiveGrepF {
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move { preview(item).await }.boxed()
     }
-    fn run(
-        &self,
-        state: &mut State,
-        item: String,
-        opts: RunOpts,
-    ) -> BoxFuture<'static, Result<RunResp, String>> {
-        let nvim = state.nvim.clone();
-        info!("rg.run");
-        async move { run(&nvim, item, opts).await }.boxed()
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+        use config_builder::*;
+        bindings! {
+            b <= default_bindings(),
+            "enter" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = OpenOpts::Neovim { tabedit: false };
+                    open(state, item, opts).await
+                })
+            ],
+            "ctrl-t" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = OpenOpts::Neovim { tabedit: true };
+                    open(state, item, opts).await
+                })
+            ],
+            "f1" => [
+                select_and_execute!{b, |_mode,state,_query,item|
+                    "neovim" => {
+                        let opts = OpenOpts::Neovim { tabedit: false };
+                        open(state, item, opts).await
+                    },
+                    "browse-github" => {
+                        let opts = OpenOpts::BrowseGithub;
+                        open(state, item, opts).await
+                    },
+                }
+            ]
+        }
     }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Common
+////////////////////////////////////////////////////////////////////////////////
 
-pub async fn preview(item: String) -> Result<PreviewResp, String> {
+static ITEM_PATTERN: Lazy<Regex> =
+    Lazy::new(|| Regex::new(r"(?P<file>[^:]*):(?P<line>\d+):(?P<col>\d+):.*").unwrap());
+
+async fn preview(item: String) -> Result<PreviewResp, String> {
     let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
     let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
     let col = ITEM_PATTERN.replace(&item, "$col").into_owned();
@@ -162,40 +206,31 @@ pub async fn preview(item: String) -> Result<PreviewResp, String> {
     }
 }
 
-pub async fn run(nvim: &Neovim, item: String, opts: RunOpts) -> Result<RunResp, String> {
+enum OpenOpts {
+    Neovim { tabedit: bool },
+    BrowseGithub,
+}
+
+async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), String> {
     let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
     let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-    let nvim_opts = nvim::OpenOpts {
-        line: line.parse::<usize>().ok(),
-        ..opts.clone().into()
-    };
 
-    let file_ = file.clone();
-    let browse_github = || async {
-        let revision = git::rev_parse("HEAD").await?;
-        gh::browse_github_line(file_, &revision, line.parse::<usize>().unwrap()).await?;
-        Ok::<(), String>(())
-    };
-
-    let nvim_open = || async {
-        nvim::open(&nvim, file.into(), nvim_opts)
-            .await
-            .map_err(|e| e.to_string())?;
-        Ok::<(), String>(())
-    };
-
-    match () {
-        _ if opts.menu => {
-            let items = vec!["browse-github", "nvim"];
-            match &*fzf::select(items).await? {
-                "browse-github" => browse_github().await?,
-                "nvim" => nvim_open().await?,
-                _ => (),
-            }
+    match opts {
+        OpenOpts::Neovim { tabedit } => {
+            let nvim = state.nvim.clone();
+            let nvim_opts = nvim::OpenOpts {
+                line: line.parse::<usize>().ok(),
+                tabedit,
+            };
+            nvim::open(&nvim, file.into(), nvim_opts)
+                .await
+                .map_err(|e| e.to_string())?;
         }
-        _ if opts.browse_github => browse_github().await?,
-        _ => nvim_open().await?,
-    };
+        OpenOpts::BrowseGithub => {
+            let revision = git::rev_parse("HEAD").await?;
+            gh::browse_github_line(file, &revision, line.parse::<usize>().unwrap()).await?;
+        }
+    }
 
-    Ok(RunResp)
+    Ok(())
 }

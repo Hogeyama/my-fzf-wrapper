@@ -15,8 +15,6 @@ use rmpv::ext::{from_value, to_value};
 use serde::{Deserialize, Serialize};
 use tokio::io::WriteHalf;
 
-use crate::method::RunOpts;
-
 #[derive(Clone)]
 struct NeovimHandler {}
 
@@ -219,15 +217,6 @@ pub async fn delete_buffer(nvim: &Neovim, bufnr: usize, force: bool) -> Result<(
 pub struct OpenOpts {
     pub line: Option<usize>,
     pub tabedit: bool,
-}
-
-impl From<RunOpts> for OpenOpts {
-    fn from(val: RunOpts) -> Self {
-        OpenOpts {
-            line: None,
-            tabedit: val.tabedit,
-        }
-    }
 }
 
 pub enum OpenTarget {

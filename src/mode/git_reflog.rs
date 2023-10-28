@@ -4,15 +4,18 @@ use tokio::process::Command;
 
 use crate::{
     external_command::{fzf, git},
-    method::{LoadResp, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp},
+    mode::{config_builder, ModeDef},
     nvim,
-    types::{Mode, State},
+    state::State,
 };
+
+use super::CallbackMap;
 
 #[derive(Clone)]
 pub struct GitReflog;
 
-impl Mode for GitReflog {
+impl ModeDef for GitReflog {
     fn new() -> Self {
         GitReflog
     }
@@ -22,7 +25,8 @@ impl Mode for GitReflog {
     fn load(
         &self,
         _state: &mut State,
-        _opts: Vec<String>,
+        _query: String,
+        _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
             let mut commits = git::reflog_graph("HEAD").await?;
@@ -49,37 +53,39 @@ impl Mode for GitReflog {
         }
         .boxed()
     }
-    fn run(
-        &self,
-        state: &mut State,
-        item: String,
-        _opts: RunOpts,
-    ) -> BoxFuture<'static, Result<RunResp, String>> {
-        let nvim = state.nvim.clone();
-        async move {
-            let commit = Regex::new(r"[0-9a-f]{7}")
-                .unwrap()
-                .find(&item)
-                .ok_or("no commit found")?
-                .as_str()
-                .to_string();
-            let items = vec!["cherry-pick"];
-            match &*fzf::select(items).await? {
-                "cherry-pick" => {
-                    let output = Command::new("git")
-                        .arg("cherry-pick")
-                        .arg(commit)
-                        .output()
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    nvim::notify_command_result(&nvim, "git cherry-pick", output)
-                        .await
-                        .map_err(|e| e.to_string())?;
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+        use config_builder::*;
+        bindings! {
+            b <= default_bindings(),
+            "enter" => [
+                select_and_execute!{b, |_mode,state,_query,item|
+                    "diffview" => {
+                        let _ = nvim::hide_floaterm(&state.nvim).await;
+                        state.nvim.command(&format!("DiffviewOpen {}^!", commit_of(&item)?))
+                            .await
+                            .map_err(|e| e.to_string())
+                    },
+                    "cherry-pick" => {
+                        let output = Command::new("git")
+                            .arg("cherry-pick")
+                            .arg(commit_of(&item)?)
+                            .output()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        nvim::notify_command_result(&state.nvim, "git cherry-pick", output)
+                            .await
+                            .map_err(|e| e.to_string())
+                    },
                 }
-                _ => {}
-            }
-            Ok(RunResp)
+            ]
         }
-        .boxed()
     }
+}
+
+fn commit_of(item: &str) -> Result<String, String> {
+    Regex::new(r"[0-9a-f]{7}")
+        .unwrap()
+        .find(item)
+        .map(|m| m.as_str().to_string())
+        .ok_or("no commit found".to_string())
 }

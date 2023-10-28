@@ -6,108 +6,63 @@ use clap::Subcommand;
 
 // Tokio
 use tokio::io::AsyncBufReadExt;
-use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
 use tokio::net::UnixStream;
 
-use crate::config;
-use crate::external_command::fzf;
 use crate::method;
 use crate::method::LoadResp;
 use crate::method::Method;
-use crate::method::PreviewParam;
 use crate::method::PreviewResp;
-use crate::method::RunParam;
-use crate::method::RunResp;
 
-/// Subcommand called by the parent process (=fzf)
+/// internal
+/// Subcommand called by fzf
 #[derive(Subcommand)]
 pub enum Command {
-    /// internal
-    Menu {
-        #[clap(long, env)]
-        fzfw_socket: String,
-    },
     /// internal
     Load {
         #[clap(long, env)]
         fzfw_socket: String,
-        mode: String,
-        args: Vec<String>,
+        #[clap(flatten)]
+        params: method::LoadParam,
     },
     /// internal
-    Reload {
+    Execute {
         #[clap(long, env)]
         fzfw_socket: String,
+        #[clap(flatten)]
+        params: method::ExecuteParam,
     },
     /// internal
     Preview {
         #[clap(long, env)]
         fzfw_socket: String,
-        item: String,
-    },
-    /// internal
-    Run {
-        #[clap(long, env)]
-        fzfw_socket: String,
-        item: String,
-        args: Vec<String>,
+        #[clap(flatten)]
+        params: method::PreviewParam,
     },
     /// internal
     ChangeMode {
         #[clap(long, env)]
         fzfw_socket: String,
-        mode: String,
-        #[clap(long)]
-        query: Option<String>,
-        args: Vec<String>,
+        #[clap(flatten)]
+        params: method::ChangeModeParam,
     },
     /// internal
     ChangeDirectory {
         #[clap(long, env)]
         fzfw_socket: String,
-        #[clap(long, group = "input")]
-        to_parent: bool,
-        #[clap(long, group = "input")]
-        to_last_file_dir: bool,
-        #[clap(long, group = "input")]
-        dir: Option<String>,
+        #[clap(flatten)]
+        params: method::ChangeDirectoryParam,
     },
 }
 
 pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
     match command {
-        Command::Menu { fzfw_socket } => {
-            let config = config::new();
-            let mode = fzf::select(config.get_mode_names()).await?;
-
-            if config.is_mode_valid(&mode) {
-                let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
-                let args = method::LoadParam { mode, args: vec![] };
-                let resp = send_request(&mut tx, &mut rx, method::Load, args).await?;
-                match resp {
-                    Ok(LoadResp { .. }) => {
-                        // 贅沢にも結果は捨てて後で reload する
-                    }
-                    Err(e) => println!("Error: {}", e),
-                }
-            } else if mode == "" {
-                // aborted. do nothing.
-            } else {
-                panic!("unknown mode: {}", mode);
-            }
-            Ok(())
-        }
         Command::Load {
             fzfw_socket,
-            mode,
-            args,
+            params,
         } => {
-            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
-            let args = method::LoadParam { mode, args };
-            let resp = send_request(&mut tx, &mut rx, method::Load, args).await?;
-            match resp {
+            match send_request(fzfw_socket, method::Load, params).await? {
                 Ok(LoadResp { header, items }) => {
                     println!("{}", header);
                     for line in items {
@@ -118,54 +73,31 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
             }
             Ok(())
         }
-        Command::Reload { fzfw_socket } => {
-            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
-            let resp = send_request(&mut tx, &mut rx, method::Reload, ()).await?;
-            match resp {
-                Ok(LoadResp { header, items }) => {
-                    println!("{}", header);
-                    for line in items {
-                        println!("{}", line);
-                    }
-                }
-                Err(e) => println!("Error: {}", e),
-            }
-            Ok(())
-        }
-        Command::Preview { fzfw_socket, item } => {
-            let param = PreviewParam { item };
-            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
-            let resp = send_request(&mut tx, &mut rx, method::Preview, param).await?;
-            match resp {
-                Ok(PreviewResp { message }) => println!("{}", message),
-                Err(e) => println!("Error: {}", e),
-            }
-            Ok(())
-        }
-        Command::Run {
+        Command::Execute {
             fzfw_socket,
-            item,
-            args,
+            params,
         } => {
-            let param = RunParam { item, args };
-            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
-            let resp = send_request(&mut tx, &mut rx, method::Run, param).await?;
-            match resp {
-                Ok(RunResp) => {}
+            match send_request(fzfw_socket, method::Execute, params).await? {
+                Ok(_) => {}
+                Err(e) => println!("Error: {}", e),
+            }
+            Ok(())
+        }
+        Command::Preview {
+            fzfw_socket,
+            params,
+        } => {
+            match send_request(fzfw_socket, method::Preview, params).await? {
+                Ok(PreviewResp { message }) => println!("{}", message),
                 Err(e) => println!("Error: {}", e),
             }
             Ok(())
         }
         Command::ChangeMode {
             fzfw_socket,
-            mode,
-            query,
-            args,
+            params,
         } => {
-            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
-            let params = method::ChangeModeParam { mode, query, args };
-            let resp = send_request(&mut tx, &mut rx, method::ChangeMode, params).await?;
-            match resp {
+            match send_request(fzfw_socket, method::ChangeMode, params).await? {
                 Ok(_) => {}
                 Err(e) => println!("Error: {}", e),
             }
@@ -173,22 +105,9 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
         }
         Command::ChangeDirectory {
             fzfw_socket,
-            to_parent,
-            to_last_file_dir,
-            dir,
+            params,
         } => {
-            let (mut rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
-            let params = if to_parent {
-                method::ChangeDirectoryParam::ToParent
-            } else if to_last_file_dir {
-                method::ChangeDirectoryParam::ToLastFileDir
-            } else if let Some(dir) = dir {
-                method::ChangeDirectoryParam::To(dir)
-            } else {
-                Err("either --to-parent or --dir is required")?
-            };
-            let resp = send_request(&mut tx, &mut rx, method::ChangeDirectory, params).await?;
-            match resp {
+            match send_request(fzfw_socket, method::ChangeDirectory, params).await? {
                 Ok(_) => {}
                 Err(e) => println!("Error: {}", e),
             }
@@ -197,32 +116,19 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
     }
 }
 
-// TODO (tx,rx)をまとめる（tokioを隠蔽）
-// TODO Result<<M as method::Method>::Response, method::CommonError> みたいにする
-// TODO serde_json ではなく rmp_serde を使う？
-//      lines() が使えなくなるが、Codec というのを実装すれば代わりに framed() が使えるようになる。
-//      参考: https://docs.rs/tokio-util/latest/src/tokio_util/codec/lines_codec.rs.html
-//      buf: &mut BytesMut を読んで、成功したらそこまで buf を進めて
-//      失敗したら Ok(None) を返せばよい。が、効率よくやる方法がわからん。
-//      と思ったら、その部分は rmpv::decode::value::read_value が
-//      やってくれるらしい。じゃあ簡単そう。
-//
-//      これもイメージを掴むのによいかも（古いからそのままでは動かないはず）：
-//      https://github.com/little-dude/rmp-rpc/blob/master/src/codec.rs
 pub async fn send_request<M: Method>(
-    tx: &mut (impl AsyncWriteExt + Unpin),
-    rx: &mut (impl AsyncReadExt + Unpin),
+    fzfw_socket: String,
     method: M,
     param: <M as method::Method>::Param,
 ) -> Result<Result<<M as method::Method>::Response, String>, Box<dyn Error>> {
-    let req = <M as Method>::request(method, param);
-    let req = serde_json::to_string(&req)?;
-    let req = format!("{}\n", req);
-    tx.write_all(req.as_bytes()).await?;
+    let (rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
     let mut rx = BufReader::new(rx).lines();
+
+    let req = serde_json::to_string(&<M as Method>::request(method, param))?;
+    tx.write_all(format!("{req}\n").as_bytes()).await?;
+
     let resp = rx.next_line().await?.unwrap();
-    let resp = serde_json::from_str(&resp);
-    match resp {
+    match serde_json::from_str(&resp) {
         Ok(resp) => Ok(Ok(resp)),
         Err(e) => Ok(Err(e.to_string())),
     }

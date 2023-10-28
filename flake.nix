@@ -1,5 +1,5 @@
 {
-  description = "TODO";
+  description = "Hogeyama's fzf wrapper";
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";

@@ -1,11 +1,12 @@
 use std::error::Error;
 
 use crate::{
-    external_command::bat,
+    external_command::{bat, fzf},
     logger::Serde,
-    method::{LoadResp, PreviewResp, RunOpts, RunResp},
+    method::{LoadResp, PreviewResp},
+    mode::{config_builder, ModeDef},
     nvim::{self, Neovim},
-    types::{Mode, State},
+    state::State,
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -14,13 +15,15 @@ use regex::Regex;
 use rmpv::ext::from_value;
 use serde::{Deserialize, Serialize};
 
+use super::CallbackMap;
+
 #[derive(Clone)]
 pub struct Buffer;
 
 static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"\s*(?P<bufnr>\d+):(?P<path>.*)").unwrap());
 
-impl Mode for Buffer {
+impl ModeDef for Buffer {
     fn new() -> Self {
         Buffer
     }
@@ -30,7 +33,8 @@ impl Mode for Buffer {
     fn load(
         &self,
         state: &mut State,
-        _opts: Vec<String>,
+        _query: String,
+        _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
         let nvim = state.nvim.clone();
         async move {
@@ -64,35 +68,29 @@ impl Mode for Buffer {
         }
         .boxed()
     }
-    fn run(
-        &self,
-        state: &mut State,
-        item: String,
-        opts: RunOpts,
-    ) -> BoxFuture<'static, Result<RunResp, String>> {
-        let nvim = state.nvim.clone();
-        async move {
-            let bufnr = ITEM_PATTERN
-                .replace(&item, "$bufnr")
-                .into_owned()
-                .parse::<usize>()
-                .map_err(|e| e.to_string())?;
-            let _ = tokio::spawn(async move {
-                if opts.delete {
-                    let r = nvim::delete_buffer(&nvim, bufnr, opts.force).await;
-                    if let Err(e) = r {
-                        error!("buffer: run: nvim_delete_buffer failed"; "error" => e.to_string());
-                    }
-                } else {
-                    let r = nvim::open(&nvim, bufnr.into(), opts.into()).await;
-                    if let Err(e) = r {
-                        error!("buffer: run: nvim_open failed"; "error" => e.to_string());
-                    }
-                }
-            });
-            Ok(RunResp)
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+        use config_builder::*;
+        bindings! {
+            b <= default_bindings(),
+            "enter" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = ExecOpts::Open { tabedit: false };
+                    exec(state, item, opts).await
+                })
+            ],
+            "ctrl-t" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = ExecOpts::Open { tabedit: true };
+                    exec(state, item, opts).await
+                })
+            ],
+            "ctrl-d" => [
+                execute!(b, |_mode,state,_query,item| {
+                    let opts = ExecOpts::Delete { force: true };
+                    exec(state, item, opts).await
+                })
+            ],
         }
-        .boxed()
     }
 }
 
@@ -126,4 +124,38 @@ struct BufferItem {
     listed: u64,
     hidden: u64,
     loaded: u64,
+}
+
+enum ExecOpts {
+    Open { tabedit: bool },
+    Delete { force: bool },
+}
+
+async fn exec(state: &mut State, item: String, opts: ExecOpts) -> Result<(), String> {
+    let bufnr = ITEM_PATTERN
+        .replace(&item, "$bufnr")
+        .into_owned()
+        .parse::<usize>()
+        .map_err(|e| e.to_string())?;
+    match opts {
+        ExecOpts::Open { tabedit } => {
+            let nvim = state.nvim.clone();
+            let nvim_opts = nvim::OpenOpts {
+                line: None,
+                tabedit,
+            };
+            let r = nvim::open(&nvim, bufnr.into(), nvim_opts).await;
+            if let Err(e) = r {
+                error!("buffer: run: nvim_open failed"; "error" => e.to_string());
+            }
+        }
+        ExecOpts::Delete { force } => {
+            let nvim = state.nvim.clone();
+            let r = nvim::delete_buffer(&nvim, bufnr, force).await;
+            if let Err(e) = r {
+                error!("buffer: run: nvim_delete_buffer failed"; "error" => e.to_string());
+            }
+        }
+    }
+    Ok(())
 }
