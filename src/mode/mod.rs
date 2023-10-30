@@ -351,6 +351,7 @@ pub mod config_builder {
             ],
             "ctrl-l" => [
                 b.execute_raw("change-directory --dir {}"),
+                b.clear_query(),
                 b.reload(),
             ],
             "ctrl-n" => [
