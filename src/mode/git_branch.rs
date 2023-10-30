@@ -161,7 +161,7 @@ async fn select_commit(context: impl Into<String>) -> Result<String, String> {
 }
 
 async fn select_remote_branch(context: impl Into<String>) -> Result<String, String> {
-    let branches = git::remote_branches().await?;
+    let branches = git::remote_branches()?;
     let branches: Vec<&str> = branches.iter().map(|s| s.as_str()).collect();
     fzf::select_with_header(context, branches).await
     // let mut candidates = vec!["@{upstream}"];

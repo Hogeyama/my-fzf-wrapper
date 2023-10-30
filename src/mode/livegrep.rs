@@ -227,7 +227,7 @@ async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), Str
                 .map_err(|e| e.to_string())?;
         }
         OpenOpts::BrowseGithub => {
-            let revision = git::rev_parse("HEAD").await?;
+            let revision = git::rev_parse("HEAD")?;
             gh::browse_github_line(file, &revision, line.parse::<usize>().unwrap()).await?;
         }
     }

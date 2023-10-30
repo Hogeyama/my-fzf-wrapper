@@ -1,3 +1,4 @@
+use git2::{BranchType, Repository};
 use tokio::process::Command;
 
 pub async fn log_graph(commit: impl AsRef<str>) -> Result<Vec<String>, String> {
@@ -43,23 +44,6 @@ pub async fn reflog_graph(commit: impl AsRef<str>) -> Result<Vec<String>, String
         .collect())
 }
 
-pub async fn remote_branches() -> Result<Vec<String>, String> {
-    let refs = Command::new("git")
-        .arg("for-each-ref")
-        .arg("--format=%(refname:short)")
-        .arg("refs/remotes")
-        .output()
-        .await
-        .map_err(|e| e.to_string())?
-        .stdout;
-    Ok(String::from_utf8_lossy(refs.as_slice())
-        .into_owned()
-        .split('\n')
-        .map(|s| s.to_string())
-        .filter(|s| !s.is_empty())
-        .collect())
-}
-
 pub async fn show_commit(commit: impl AsRef<str>) -> Result<String, String> {
     let format = [
         "%C(yellow)commit %H%Creset",
@@ -85,15 +69,46 @@ pub async fn show_commit(commit: impl AsRef<str>) -> Result<String, String> {
     Ok(String::from_utf8_lossy(commit.as_slice()).into_owned())
 }
 
-pub async fn rev_parse(commit: impl AsRef<str>) -> Result<String, String> {
-    let commit = Command::new("git")
-        .arg("rev-parse")
-        .arg(commit.as_ref())
-        .output()
-        .await
+#[allow(dead_code)]
+pub fn remotes() -> Result<Vec<String>, String> {
+    let remotes = get_repo()?
+        .remotes()
         .map_err(|e| e.to_string())?
-        .stdout;
-    Ok(String::from_utf8_lossy(commit.as_slice())
-        .trim_end()
+        .iter()
+        .filter_map(|r| r.map(|s| s.to_string()))
+        .collect::<Vec<_>>();
+    Ok(remotes)
+}
+
+#[allow(dead_code)]
+pub fn local_branches() -> Result<Vec<String>, String> {
+    list_branches(Some(BranchType::Local))
+}
+
+pub fn remote_branches() -> Result<Vec<String>, String> {
+    list_branches(Some(BranchType::Remote))
+}
+
+pub fn rev_parse(commitish: impl AsRef<str>) -> Result<String, String> {
+    Ok(get_repo()?
+        .revparse_single(commitish.as_ref())
+        .map_err(|e| e.to_string())?
+        .id()
         .to_string())
+}
+
+fn list_branches(filter: Option<BranchType>) -> Result<Vec<String>, String> {
+    let branches = get_repo()?
+        .branches(filter)
+        .map_err(|e| e.to_string())?
+        .filter_map(|b| {
+            b.ok()
+                .and_then(|(b, _)| b.name().ok().flatten().map(|s| s.to_string()))
+        })
+        .collect::<Vec<_>>();
+    Ok(branches)
+}
+
+fn get_repo() -> Result<Repository, String> {
+    Repository::discover(".").map_err(|e| e.to_string())
 }
