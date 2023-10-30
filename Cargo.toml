@@ -27,3 +27,4 @@ rusqlite = { version = "0.28", features = ["bundled"] }
 ansi_term = "0.12.1"
 libc = "0.2.149"
 shellwords = "1.1.0"
+git2 = "0.18.1"

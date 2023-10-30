@@ -34,6 +34,8 @@
         shell = pkgs.mkShell {
           packages = [
             toolchain
+            pkgs.pkg-config
+            pkgs.openssl.dev
           ];
           CARGO_FPATH = "${toolchain}/share/zsh/site-functions/";
           # `MANPATH=$FZF_MANPATH man fzf` でこのバージョンのfzfのマニュアルを見る
@@ -43,6 +45,10 @@
         fzfw-unwrapped = naerskLib.buildPackage {
           name = "fzfw-unwrapped";
           src = ./.;
+          buildInputs = [
+            pkgs.pkg-config
+            pkgs.openssl.dev
+          ];
         };
         fzfw = pkgs.runCommandCC "fzfw"
           { buildInputs = [ pkgs.makeWrapper fzfw-unwrapped ]; }
