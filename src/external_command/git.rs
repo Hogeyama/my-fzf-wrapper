@@ -1,4 +1,4 @@
-use git2::{BranchType, Repository};
+use git2::{BranchType, IntoCString, Repository, Status, StatusEntry, StatusOptions};
 use tokio::process::Command;
 
 pub async fn log_graph(commit: impl AsRef<str>) -> Result<Vec<String>, String> {
@@ -69,6 +69,43 @@ pub async fn show_commit(commit: impl AsRef<str>) -> Result<String, String> {
     Ok(String::from_utf8_lossy(commit.as_slice()).into_owned())
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Status
+////////////////////////////////////////////////////////////////////////////////
+
+pub fn files_with_status(oneof: impl IntoIterator<Item = Status>) -> Result<Vec<String>, String> {
+    let status_bits = oneof.into_iter().fold(Status::empty(), |acc, s| acc | s);
+    Ok(get_repo()?
+        .statuses(None)
+        .map_err(|e| e.to_string())?
+        .into_iter()
+        .filter_map(|s| {
+            if s.status().intersects(status_bits) {
+                s.path().map(|s| s.to_string())
+            } else {
+                None
+            }
+        })
+        .collect::<Vec<_>>())
+}
+
+#[allow(dead_code)]
+pub fn status<F, T>(path: impl IntoCString, k: F) -> Result<T, String>
+where
+    F: FnOnce(StatusEntry<'_>) -> Result<T, String>,
+{
+    let repo = get_repo()?;
+    let mut opts = StatusOptions::new();
+    opts.pathspec(path);
+    let statuses = repo.statuses(Some(&mut opts)).map_err(|e| e.to_string())?;
+    let r = statuses.get(0).ok_or("no status")?;
+    k(r)
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Remote
+////////////////////////////////////////////////////////////////////////////////
+
 #[allow(dead_code)]
 pub fn remotes() -> Result<Vec<String>, String> {
     let remotes = get_repo()?
@@ -80,6 +117,10 @@ pub fn remotes() -> Result<Vec<String>, String> {
     Ok(remotes)
 }
 
+////////////////////////////////////////////////////////////////////////////////
+// Branch
+////////////////////////////////////////////////////////////////////////////////
+
 #[allow(dead_code)]
 pub fn local_branches() -> Result<Vec<String>, String> {
     list_branches(Some(BranchType::Local))
@@ -87,14 +128,6 @@ pub fn local_branches() -> Result<Vec<String>, String> {
 
 pub fn remote_branches() -> Result<Vec<String>, String> {
     list_branches(Some(BranchType::Remote))
-}
-
-pub fn rev_parse(commitish: impl AsRef<str>) -> Result<String, String> {
-    Ok(get_repo()?
-        .revparse_single(commitish.as_ref())
-        .map_err(|e| e.to_string())?
-        .id()
-        .to_string())
 }
 
 fn list_branches(filter: Option<BranchType>) -> Result<Vec<String>, String> {
@@ -109,6 +142,31 @@ fn list_branches(filter: Option<BranchType>) -> Result<Vec<String>, String> {
     Ok(branches)
 }
 
-fn get_repo() -> Result<Repository, String> {
+////////////////////////////////////////////////////////////////////////////////
+// Commit
+////////////////////////////////////////////////////////////////////////////////
+
+pub fn rev_parse(commitish: impl AsRef<str>) -> Result<String, String> {
+    Ok(get_repo()?
+        .revparse_single(commitish.as_ref())
+        .map_err(|e| e.to_string())?
+        .id()
+        .to_string())
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Repository
+////////////////////////////////////////////////////////////////////////////////
+
+pub fn get_repo() -> Result<Repository, String> {
     Repository::discover(".").map_err(|e| e.to_string())
+}
+
+pub fn workdir() -> Result<String, String> {
+    Ok(get_repo()?
+        .workdir()
+        .ok_or("no workdir")?
+        .to_str()
+        .unwrap()
+        .to_string())
 }
