@@ -61,9 +61,22 @@ pub async fn remote_branches() -> Result<Vec<String>, String> {
 }
 
 pub async fn show_commit(commit: impl AsRef<str>) -> Result<String, String> {
+    let format = [
+        "%C(yellow)commit %H%Creset",
+        "Author:       %aN <%aE>",
+        "AuthorDate:   %ai",
+        "Commiter:     %cN <%cE>",
+        "CommiterDate: %ci",
+        "Co-Author:    %(trailers:key=Co-authored-by)",
+        "Refname:      %D",
+        "",
+        "%w(0,2,2)%B",
+    ]
+    .join("%n");
     let commit = Command::new("git")
         .arg("show")
         .arg("--color=always")
+        .arg(format!("--format={format}"))
         .arg(commit.as_ref())
         .output()
         .await
