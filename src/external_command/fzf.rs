@@ -135,3 +135,32 @@ pub async fn select(items: Vec<&str>) -> Result<String, String> {
     .trim()
     .to_string())
 }
+
+pub async fn select_with_header(
+    header: impl Into<String>,
+    items: Vec<&str>,
+) -> Result<String, String> {
+    let mut fzf = Command::new("fzf")
+        .arg("--ansi")
+        .args(vec!["--header-lines", "1"])
+        .args(vec!["--layout", "reverse"])
+        .stdin(std::process::Stdio::piped())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    let mut stdin = fzf.stdin.take().unwrap();
+    let header = format!("{}\n", header.into());
+    stdin.write_all(header.as_bytes()).await.unwrap();
+    stdin.write_all(items.join("\n").as_bytes()).await.unwrap();
+    drop(stdin);
+
+    Ok(String::from_utf8_lossy(
+        &fzf.wait_with_output()
+            .await
+            .map_err(|e| e.to_string())?
+            .stdout,
+    )
+    .trim()
+    .to_string())
+}

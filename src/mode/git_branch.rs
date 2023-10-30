@@ -75,7 +75,8 @@ impl ModeDef for GitBranch {
                         Ok(())
                     },
                     "repoint" => {
-                        let commit = select_commit().await?;
+                        let commit = select_commit(format!("select commit to repoint {branch} to"))
+                            .await?;
                         let _ = Command::new("git")
                             .arg("branch")
                             .arg("-D")
@@ -99,9 +100,15 @@ impl ModeDef for GitBranch {
                         .map_err(|e| e.to_string())
                     },
                     "push" => {
-                        let remote_ref = select_remote_branch().await?;
-                        let remote = remote_ref.split('/').nth(0).ok_or("No remote found")?;
-                        let remote_branch = remote_ref.split('/').nth(1).ok_or("No branch found")?;
+                        let remote_ref = select_remote_branch(
+                            format!("select remote branch to push {branch} to")
+                        ).await?;
+                        let (remote, remote_branch) = remote_ref.split_once('/').ok_or("No remote found")?;
+                        info!("git push";
+                            "temote_branch" => &branch,
+                            "remote" => &remote,
+                            "remote_branch" => &remote_branch
+                        );
                         let output = Command::new("git")
                             .arg("push")
                             .arg(remote)
@@ -114,9 +121,15 @@ impl ModeDef for GitBranch {
                             .map_err(|e| e.to_string())
                     },
                     "push -f" => {
-                        let remote_ref = select_remote_branch().await?;
-                        let remote = remote_ref.split('/').nth(0).ok_or("No remote found")?;
-                        let remote_branch = remote_ref.split('/').nth(1).ok_or("No branch found")?;
+                        let remote_ref = select_remote_branch(
+                            format!("select remote branch to push {branch} to")
+                        ).await?;
+                        let (remote, remote_branch) = remote_ref.split_once('/').ok_or("No remote found")?;
+                        info!("git push -f";
+                            "temote_branch" => &branch,
+                            "remote" => &remote,
+                            "remote_branch" => &remote_branch
+                        );
                         let output = Command::new("git")
                             .arg("push")
                             .arg("-f")
@@ -135,10 +148,10 @@ impl ModeDef for GitBranch {
     }
 }
 
-async fn select_commit() -> Result<String, String> {
+async fn select_commit(context: impl Into<String>) -> Result<String, String> {
     let commits = git::log_graph("--all").await?;
     let commits = commits.iter().map(|s| s.as_str()).collect();
-    let commit_line = fzf::select(commits).await?;
+    let commit_line = fzf::select_with_header(context, commits).await?;
     Ok(Regex::new(r"[0-9a-f]{7}")
         .unwrap()
         .find(&commit_line)
@@ -147,10 +160,10 @@ async fn select_commit() -> Result<String, String> {
         .to_string())
 }
 
-async fn select_remote_branch() -> Result<String, String> {
+async fn select_remote_branch(context: impl Into<String>) -> Result<String, String> {
     let branches = git::remote_branches().await?;
     let branches: Vec<&str> = branches.iter().map(|s| s.as_str()).collect();
-    fzf::select(branches).await
+    fzf::select_with_header(context, branches).await
     // let mut candidates = vec!["@{upstream}"];
     // candidates.extend(branches);
     // fzf::select(candidates).await
