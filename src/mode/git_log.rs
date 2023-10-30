@@ -42,12 +42,7 @@ impl ModeDef for GitLog {
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
-            let commit = Regex::new(r"[0-9a-f]{7}")
-                .unwrap()
-                .find(&item)
-                .ok_or("no commit found")?
-                .as_str()
-                .to_string();
+            let commit = commit_of(&item)?;
             let message = git::show_commit(commit).await?;
             Ok(PreviewResp { message })
         }
@@ -57,6 +52,26 @@ impl ModeDef for GitLog {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
+            "ctrl-l" => [
+                execute!{b, |_mode,state,_query,item| {
+                    let branch = match branches_of(&item)? {
+                        branches if branches.len() == 1 => {
+                            branches[0].clone()
+                        }
+                        branches => {
+                            fzf::select_with_header(
+                                "select branch for TODO",
+                                branches.iter().map(|b| b.as_str()).collect(),
+                            ).await?
+                        }
+                    };
+                    nvim::notify_info(&state.nvim, &format!("selected branch: {}", branch))
+                        .await
+                        .map_err(|e| e.to_string())?;
+                    // TODO change-mode
+                    Ok(())
+                }}
+            ],
             "enter" => [
                 select_and_execute!{b, |_mode,state,_query,item|
                     "diffview" => {
@@ -105,7 +120,7 @@ impl ModeDef for GitLog {
                             .map_err(|e| e.to_string())
                     },
                 }
-            ]
+            ],
         }
     }
 }
@@ -116,4 +131,18 @@ fn commit_of(item: &str) -> Result<String, String> {
         .find(item)
         .map(|m| m.as_str().to_string())
         .ok_or("no commit found".to_string())
+}
+
+fn branches_of(item: &str) -> Result<Vec<String>, String> {
+    // git::log_graph の %d [%an] 部分
+    Ok(Regex::new(r"\((.*)\) \[.*\]")
+        .unwrap()
+        .captures(item)
+        .map(|c| c.get(1).unwrap().as_str().to_string())
+        .ok_or("no refs found".to_string())?
+        .split(", ")
+        .map(|s| s.strip_prefix("HEAD -> ").unwrap_or(s).to_string())
+        .filter(|s| !s.starts_with("tag: "))
+        .filter(|s| !s.starts_with("origin/")) // FIXME ad-hoc
+        .collect::<Vec<_>>())
 }
