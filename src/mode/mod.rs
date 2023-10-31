@@ -18,7 +18,7 @@ use crate::{
     state::State,
 };
 
-use futures::future::BoxFuture;
+use futures::{future::BoxFuture, FutureExt};
 
 pub struct Mode {
     pub mode_def: Box<dyn ModeDef + Sync + Send>,
@@ -99,12 +99,23 @@ pub trait ModeDef {
         item: String, // currently selected item
     ) -> BoxFuture<'a, Result<LoadResp, String>>;
 
-    /// Run command with the selected item
+    /// Preview the currently selected item
     fn preview<'a>(
         &'a self,
         state: &'a mut State,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp, String>>;
+
+    /// Execute the currently selected item
+    /// (Optional. Intended to be used by the callback of fzf_bindings)
+    fn execute<'a>(
+        &'a mut self,
+        _state: &'a mut State,
+        _item: String,
+        _args: serde_json::Value,
+    ) -> BoxFuture<'a, Result<(), String>> {
+        async move { Ok(()) }.boxed()
+    }
 }
 
 pub struct FzfArgs {
@@ -157,7 +168,7 @@ pub struct PreviewCallback {
 pub struct ExecuteCallback {
     pub callback: Box<
         dyn for<'a> FnMut(
-                &'a (dyn ModeDef + Sync + Send),
+                &'a mut (dyn ModeDef + Sync + Send),
                 &'a mut State,
                 String,
                 String,
@@ -188,7 +199,7 @@ pub mod config_builder {
         pub fn execute<F>(&mut self, callback: F) -> fzf::Action
         where
             for<'a> F: FnMut(
-                    &'a (dyn ModeDef + Sync + Send),
+                    &'a mut (dyn ModeDef + Sync + Send),
                     &'a mut State,
                     String,
                     String,

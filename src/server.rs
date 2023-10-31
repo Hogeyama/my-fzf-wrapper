@@ -216,7 +216,7 @@ async fn handle_one_client(
                     })
                     .callback;
 
-                match callback(s.mode.mode_def.as_ref(), &mut s.state, query, item).await {
+                match callback(s.mode.mode_def.as_mut(), &mut s.state, query, item).await {
                     Ok(_) => {}
                     Err(e) => error!("server: execute error"; "error" => e),
                 }
