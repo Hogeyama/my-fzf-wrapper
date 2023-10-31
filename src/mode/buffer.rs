@@ -31,7 +31,7 @@ impl ModeDef for Buffer {
         "buffer"
     }
     fn load(
-        &self,
+        &mut self,
         state: &mut State,
         _query: String,
         _item: String,

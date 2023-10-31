@@ -27,7 +27,7 @@ impl ModeDef for LiveGrep {
         "livegrep"
     }
     fn load(
-        &self,
+        &mut self,
         _state: &mut State,
         query: String,
         _item: String,
@@ -122,7 +122,7 @@ impl ModeDef for LiveGrepF {
         "livegrepf"
     }
     fn load(
-        &self,
+        &mut self,
         state: &mut State,
         _query: String,
         _item: String,

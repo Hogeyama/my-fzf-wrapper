@@ -20,10 +20,21 @@ impl ModeDef for GitStatus {
         GitStatus
     }
     fn name(&self) -> &'static str {
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
         "git-status"
     }
     fn load(
-        &self,
+        &mut self,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -52,13 +63,25 @@ pub struct GitStatusW;
 
 impl ModeDef for GitStatusW {
     fn new() -> Self {
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
+        //
         GitStatusW
     }
     fn name(&self) -> &'static str {
         "git-status(worktree)"
     }
     fn load(
-        &self,
+        &mut self,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -88,7 +111,7 @@ impl ModeDef for GitStatusI {
         "git-status(index)"
     }
     fn load(
-        &self,
+        &mut self,
         _state: &mut State,
         _query: String,
         _item: String,

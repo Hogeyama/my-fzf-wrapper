@@ -93,7 +93,7 @@ pub trait ModeDef {
 
     /// Load items into fzf
     fn load<'a>(
-        &'a self,
+        &'a mut self,
         state: &'a mut State,
         query: String,
         item: String, // currently selected item
@@ -132,7 +132,7 @@ impl CallbackMap {
 pub struct LoadCallback {
     pub callback: Box<
         dyn for<'a> FnMut(
-                &'a (dyn ModeDef + Sync + Send),
+                &'a mut (dyn ModeDef + Sync + Send),
                 &'a mut State,
                 String,
                 String,
@@ -212,7 +212,7 @@ pub mod config_builder {
         pub fn reload_with<F>(&mut self, callback: F) -> fzf::Action
         where
             for<'a> F: FnMut(
-                    &'a (dyn ModeDef + Sync + Send),
+                    &'a mut (dyn ModeDef + Sync + Send),
                     &'a mut State,
                     String,
                     String,

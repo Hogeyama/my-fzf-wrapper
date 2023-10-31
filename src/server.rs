@@ -156,7 +156,7 @@ async fn handle_one_client(
                             })
                             .callback;
 
-                        let resp = callback(s.mode.mode_def.as_ref(), &mut s.state, query, item)
+                        let resp = callback(s.mode.mode_def.as_mut(), &mut s.state, query, item)
                             .await
                             .unwrap_or_else(LoadResp::error);
 

@@ -34,7 +34,7 @@ impl ModeDef for BrowserHistory {
         "browser-history"
     }
     fn load<'a>(
-        &'a self,
+        &'a mut self,
         _state: &'a mut State,
         _query: String,
         _item: String,

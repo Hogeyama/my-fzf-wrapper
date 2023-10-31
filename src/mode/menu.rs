@@ -19,7 +19,7 @@ impl ModeDef for Menu {
         "menu"
     }
     fn load(
-        &self,
+        &mut self,
         _state: &mut State,
         _query: String,
         _item: String,

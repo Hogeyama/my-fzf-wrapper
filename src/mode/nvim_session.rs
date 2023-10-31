@@ -42,7 +42,7 @@ impl ModeDef for NeovimSession {
         }
     }
     fn load(
-        &self,
+        &mut self,
         _state: &mut State,
         _query: String,
         _item: String,
