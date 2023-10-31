@@ -20,17 +20,6 @@ impl ModeDef for GitStatus {
         GitStatus
     }
     fn name(&self) -> &'static str {
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        //
         "git-status"
     }
     fn load(
@@ -63,18 +52,6 @@ pub struct GitStatusW;
 
 impl ModeDef for GitStatusW {
     fn new() -> Self {
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        //
-        //
         GitStatusW
     }
     fn name(&self) -> &'static str {

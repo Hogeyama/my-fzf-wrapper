@@ -53,6 +53,7 @@ impl ModeDef for GitLog {
         bindings! {
             b <= default_bindings(),
             "ctrl-l" => [
+                // TODO git_branch に飛ぶ
                 execute!{b, |_mode,state,_query,item| {
                     let branch = match branches_of(&item)? {
                         branches if branches.len() == 1 => {
@@ -119,7 +120,8 @@ impl ModeDef for GitLog {
                             .await
                             .map_err(|e| e.to_string())
                     },
-                }
+                },
+                b.reload(),
             ],
         }
     }

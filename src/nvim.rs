@@ -206,6 +206,26 @@ pub async fn notify_command_result(
     }
 }
 
+pub async fn notify_command_result_if_error(
+    nvim: &Neovim,
+    command: impl AsRef<str>,
+    output: Output,
+) -> Result<(), Box<dyn Error>> {
+    if !output.status.success() {
+        notify_error(
+            nvim,
+            format!(
+                "{} failed\n{}",
+                command.as_ref(),
+                String::from_utf8_lossy(output.stderr.as_slice())
+            ),
+        )
+        .await
+    } else {
+        Ok(())
+    }
+}
+
 #[allow(dead_code)]
 pub async fn delete_buffer(nvim: &Neovim, bufnr: usize, force: bool) -> Result<(), Box<dyn Error>> {
     let cmd = format!("bdelete{} {}", if force { "!" } else { "" }, bufnr);

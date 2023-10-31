@@ -3,6 +3,7 @@ pub mod buffer;
 pub mod diagnostics;
 pub mod fd;
 pub mod git_branch;
+pub mod git_diff;
 pub mod git_log;
 pub mod git_reflog;
 pub mod git_status;
@@ -216,6 +217,26 @@ pub mod config_builder {
             fzf::Action::Execute(format!("execute {name} {{q}} {{}}"))
         }
 
+        pub fn execute_silent<F>(&mut self, callback: F) -> fzf::Action
+        where
+            for<'a> F: FnMut(
+                    &'a mut (dyn ModeDef + Sync + Send),
+                    &'a mut State,
+                    String,
+                    String,
+                ) -> BoxFuture<'a, Result<(), String>>
+                + Send
+                + Sync
+                + 'static,
+        {
+            let name = self.gen_name();
+            let callback = Box::new(callback);
+            self.callback_map
+                .execute
+                .insert(name.clone(), super::ExecuteCallback { callback });
+            fzf::Action::ExecuteSilent(format!("execute {name} {{q}} {{}}"))
+        }
+
         pub fn reload(&mut self) -> fzf::Action {
             self.reload_raw("load default {q} {}")
         }
@@ -308,6 +329,14 @@ pub mod config_builder {
         };
     }
     pub use execute;
+
+    #[macro_export]
+    macro_rules! execute_silent {
+        ($builder:ident, |$mode:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
+            $builder.execute_silent(|$mode, $state, $query, $item| async move { $v }.boxed())
+        };
+    }
+    pub use execute_silent;
 
     #[macro_export]
     macro_rules! select_and_execute {

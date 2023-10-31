@@ -33,6 +33,7 @@ impl Bindings {
 pub enum Action {
     Reload(String),
     Execute(String),
+    ExecuteSilent(String),
     ChangePrompt(String),
     ToggleSort,
     ClearQuery,
@@ -45,6 +46,7 @@ impl Action {
         match self {
             Action::Reload(cmd) => format!("reload[{myself} {cmd}]"),
             Action::Execute(cmd) => format!("execute[{myself} {cmd}]"),
+            Action::ExecuteSilent(cmd) => format!("execute-silent[{myself} {cmd}]"),
             Action::ChangePrompt(prompt) => format!("change-prompt[{prompt}]"),
             Action::ToggleSort => "toggle-sort".to_string(),
             Action::ClearQuery => "clear-query".to_string(),

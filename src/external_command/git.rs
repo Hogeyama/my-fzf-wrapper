@@ -70,6 +70,33 @@ pub async fn show_commit(commit: impl AsRef<str>) -> Result<String, String> {
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+// Diff
+////////////////////////////////////////////////////////////////////////////////
+
+pub async fn diff() -> Result<String, String> {
+    let diff = Command::new("git")
+        .arg("diff")
+        .arg("--no-ext")
+        .output()
+        .await
+        .map_err(|e| e.to_string())?
+        .stdout;
+    Ok(String::from_utf8_lossy(diff.as_slice()).into_owned())
+}
+
+pub async fn diff_cached() -> Result<String, String> {
+    let diff = Command::new("git")
+        .arg("diff")
+        .arg("--no-ext")
+        .arg("--cached")
+        .output()
+        .await
+        .map_err(|e| e.to_string())?
+        .stdout;
+    Ok(String::from_utf8_lossy(diff.as_slice()).into_owned())
+}
+
+////////////////////////////////////////////////////////////////////////////////
 // Status
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,6 +127,10 @@ where
     let statuses = repo.statuses(Some(&mut opts)).map_err(|e| e.to_string())?;
     let r = statuses.get(0).ok_or("no status")?;
     k(r)
+}
+
+pub fn untracked_files() -> Result<Vec<String>, String> {
+    files_with_status([Status::WT_NEW])
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -44,6 +44,7 @@ pub fn new() -> Config {
         Box::pin(|| f(Box::new(mode::git_status::GitStatus))),
         Box::pin(|| f(Box::new(mode::git_status::GitStatusW))),
         Box::pin(|| f(Box::new(mode::git_status::GitStatusI))),
+        Box::pin(|| f(Box::new(mode::git_diff::GitDiff::new()))),
         Box::pin(|| f(Box::new(mode::nvim_session::NeovimSession))),
         Box::pin(|| f(Box::new(mode::livegrep::LiveGrep))),
         Box::pin(|| f(Box::new(mode::livegrep::LiveGrepF))),
