@@ -66,7 +66,7 @@ impl ModeDef for LiveGrep {
                     open(state, item, opts).await
                 })
             ],
-            "f1" => [
+            "ctrl-space" => [
                 select_and_execute!{b, |_mode,state,_query,item|
                     "neovim" => {
                         let opts = OpenOpts::Neovim { tabedit: false };
@@ -160,7 +160,7 @@ impl ModeDef for LiveGrepF {
                     open(state, item, opts).await
                 })
             ],
-            "f1" => [
+            "ctrl-space" => [
                 select_and_execute!{b, |_mode,state,_query,item|
                     "neovim" => {
                         let opts = OpenOpts::Neovim { tabedit: false };

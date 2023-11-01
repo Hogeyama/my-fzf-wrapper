@@ -345,7 +345,7 @@ impl ModeDef for GitDiff {
             "ctrl-l" => [
                 // TODO git_diff_file に飛ぶ。1行単位でstage/unstageできるようにする
             ],
-            "f1" => [
+            "ctrl-space" => [
                 select_and_execute!{b, |mode,state,_query,item|
                     "commit" => {
                         let opts = ExecOpts::Commit.value();
