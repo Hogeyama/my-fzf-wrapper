@@ -47,66 +47,6 @@ impl ModeDef for GitStatus {
     }
 }
 
-#[derive(Clone)]
-pub struct GitStatusW;
-
-impl ModeDef for GitStatusW {
-    fn new() -> Self {
-        GitStatusW
-    }
-    fn name(&self) -> &'static str {
-        "git-status(worktree)"
-    }
-    fn load(
-        &mut self,
-        _state: &mut State,
-        _query: String,
-        _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
-        load([Status::WT_NEW, Status::WT_MODIFIED])
-    }
-    fn preview(
-        &self,
-        _state: &mut State,
-        item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
-        preview(item)
-    }
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
-        fzf_bindings()
-    }
-}
-
-#[derive(Clone)]
-pub struct GitStatusI;
-
-impl ModeDef for GitStatusI {
-    fn new() -> Self {
-        GitStatusI
-    }
-    fn name(&self) -> &'static str {
-        "git-status(index)"
-    }
-    fn load(
-        &mut self,
-        _state: &mut State,
-        _query: String,
-        _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
-        load([Status::INDEX_NEW, Status::INDEX_MODIFIED])
-    }
-    fn preview(
-        &self,
-        _state: &mut State,
-        item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
-        preview(item)
-    }
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
-        fzf_bindings()
-    }
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 fn load(
