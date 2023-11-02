@@ -80,8 +80,8 @@ impl ModeDef for LiveGrep {
             ]
         }
     }
-    fn fzf_extra_opts(&self) -> Vec<String> {
-        vec!["--disabled".to_string()]
+    fn fzf_extra_opts(&self) -> Vec<&str> {
+        vec!["--disabled"]
     }
 }
 

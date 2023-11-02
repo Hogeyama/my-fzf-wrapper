@@ -67,7 +67,12 @@ impl Mode {
             initial_prompt: self.mode_def.fzf_prompt(),
             initial_query: args.initial_query,
             bindings,
-            extra_opts: self.mode_def.fzf_extra_opts(),
+            extra_opts: self
+                .mode_def
+                .fzf_extra_opts()
+                .into_iter()
+                .map(|s| s.to_string())
+                .collect(),
         }
     }
 }
@@ -88,7 +93,7 @@ pub trait ModeDef {
         config_builder::default_bindings()
     }
 
-    fn fzf_extra_opts(&self) -> Vec<String> {
+    fn fzf_extra_opts<'a>(&'a self) -> Vec<&'a str> {
         vec![]
     }
 

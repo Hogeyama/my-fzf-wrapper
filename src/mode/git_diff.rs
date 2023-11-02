@@ -363,6 +363,9 @@ impl ModeDef for GitDiff {
             ]
         }
     }
+    fn fzf_extra_opts(&self) -> Vec<&str> {
+        vec!["--multi", "--preview-window", "right:60%:noborder"]
+    }
 }
 
 #[derive(Serialize, serde::Deserialize)]
