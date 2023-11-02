@@ -103,7 +103,6 @@ async fn is_file(path: String) -> bool {
 
 async fn get_nvim_oldefiles(nvim: &Neovim) -> Result<Vec<String>, Box<dyn Error>> {
     let mrus: Vec<String> = from_value(nvim.eval("v:oldfiles").await?)?;
-    // TODO clone が必要な理由
     let mrus = stream::iter(mrus)
         .filter(|x| is_file(x.clone()))
         .collect::<Vec<_>>()
