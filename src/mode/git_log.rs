@@ -3,6 +3,7 @@ use regex::Regex;
 use tokio::process::Command;
 
 use crate::{
+    config::Config,
     external_command::{fzf, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
@@ -24,6 +25,7 @@ impl ModeDef for GitLog {
     }
     fn load(
         &mut self,
+        _config: &Config,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -38,6 +40,7 @@ impl ModeDef for GitLog {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -53,28 +56,39 @@ impl ModeDef for GitLog {
         bindings! {
             b <= default_bindings(),
             "ctrl-l" => [
-                // TODO git_branch に飛ぶ
-                execute!{b, |_mode,state,_query,item| {
+                execute_silent!{b, |_mode,config,_state,_query,item| {
                     let branch = match branches_of(&item)? {
                         branches if branches.len() == 1 => {
                             branches[0].clone()
                         }
                         branches => {
                             fzf::select_with_header(
-                                "select branch for TODO",
+                                "select branch",
                                 branches.iter().map(|b| b.as_str()).collect(),
                             ).await?
                         }
                     };
-                    nvim::notify_info(&state.nvim, &format!("selected branch: {}", branch))
-                        .await
-                        .map_err(|e| e.to_string())?;
-                    // TODO change-mode
+
+                    // ad-hoc なので何か考えたい
+                    let myself = config.myself.clone();
+                    let socket = config.socket.clone();
+                    tokio::spawn(async move {
+                        let _ = Command::new(myself)
+                            .arg("change-mode")
+                            .arg("git-branch")
+                            .arg(branch)
+                            .env("FZFW_SOCKET", socket)
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
+                            .output()
+                            .await
+                            .map_err(|e| e.to_string());
+                    });
                     Ok(())
                 }}
             ],
             "enter" => [
-                select_and_execute!{b, |_mode,state,_query,item|
+                select_and_execute!{b, |_mode,_config,state,_query,item|
                     "diffview" => {
                         let _ = nvim::hide_floaterm(&state.nvim).await;
                         state.nvim.command(&format!("DiffviewOpen {}^!", commit_of(&item)?))
@@ -137,7 +151,7 @@ fn commit_of(item: &str) -> Result<String, String> {
 
 fn branches_of(item: &str) -> Result<Vec<String>, String> {
     // git::log_graph の %d [%an] 部分
-    Ok(Regex::new(r"\((.*)\) \[.*\]")
+    Ok(Regex::new(r"\(([^()]+)\) \[.*\]$")
         .unwrap()
         .captures(item)
         .map(|c| c.get(1).unwrap().as_str().to_string())

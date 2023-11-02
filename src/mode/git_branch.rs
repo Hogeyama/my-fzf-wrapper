@@ -3,6 +3,7 @@ use regex::Regex;
 use tokio::process::Command;
 
 use crate::{
+    config::Config,
     external_command::{fzf, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
@@ -24,6 +25,7 @@ impl ModeDef for GitBranch {
     }
     fn load(
         &mut self,
+        _config: &Config,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -48,6 +50,7 @@ impl ModeDef for GitBranch {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         branch: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -63,7 +66,7 @@ impl ModeDef for GitBranch {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,state,_query,branch|
+                select_and_execute!{b, |_mode,_config,state,_query,branch|
                     "switch" => {
                         let _ = Command::new("git")
                             .arg("switch")

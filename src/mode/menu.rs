@@ -1,5 +1,5 @@
 use crate::{
-    config,
+    config::Config,
     external_command::fzf,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, CallbackMap, ModeDef},
@@ -18,14 +18,15 @@ impl ModeDef for Menu {
     fn name(&self) -> &'static str {
         "menu"
     }
-    fn load(
-        &mut self,
-        _state: &mut State,
+    fn load<'a>(
+        &'a mut self,
+        config: &'a Config,
+        _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp, String>> {
         async move {
-            let items = config::new()
+            let items = config
                 .get_mode_names()
                 .into_iter()
                 .map(|s| s.to_string())
@@ -37,6 +38,7 @@ impl ModeDef for Menu {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {

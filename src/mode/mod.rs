@@ -14,6 +14,7 @@ pub mod nvim_session;
 pub mod zoxide;
 
 use crate::{
+    config::Config,
     external_command::fzf,
     method::{LoadResp, PreviewResp},
     state::State,
@@ -35,15 +36,17 @@ impl Mode {
         callback_map.load.insert(
             "default".to_string(),
             LoadCallback {
-                callback: Box::new(|mode_def, state, query, item| {
-                    mode_def.load(state, query, item)
+                callback: Box::new(|mode_def, config, state, query, item| {
+                    mode_def.load(config, state, query, item)
                 }),
             },
         );
         callback_map.preview.insert(
             "default".to_string(),
             PreviewCallback {
-                callback: Box::new(|mode_def, state, item| mode_def.preview(state, item)),
+                callback: Box::new(|mode_def, config, state, item| {
+                    mode_def.preview(config, state, item)
+                }),
             },
         );
         callback_map
@@ -100,6 +103,7 @@ pub trait ModeDef {
     /// Load items into fzf
     fn load<'a>(
         &'a mut self,
+        config: &'a Config,
         state: &'a mut State,
         query: String,
         item: String, // currently selected item
@@ -108,6 +112,7 @@ pub trait ModeDef {
     /// Preview the currently selected item
     fn preview<'a>(
         &'a self,
+        config: &'a Config,
         state: &'a mut State,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp, String>>;
@@ -116,6 +121,7 @@ pub trait ModeDef {
     /// (Optional. Intended to be used by the callback of fzf_bindings)
     fn execute<'a>(
         &'a mut self,
+        _config: &'a Config,
         _state: &'a mut State,
         _item: String,
         _args: serde_json::Value,
@@ -150,6 +156,7 @@ pub struct LoadCallback {
     pub callback: Box<
         dyn for<'a> FnMut(
                 &'a mut (dyn ModeDef + Sync + Send),
+                &'a Config,
                 &'a mut State,
                 String,
                 String,
@@ -163,6 +170,7 @@ pub struct PreviewCallback {
     pub callback: Box<
         dyn for<'a> FnMut(
                 &'a (dyn ModeDef + Sync + Send),
+                &'a Config,
                 &'a mut State,
                 String,
             ) -> BoxFuture<'a, Result<PreviewResp, String>>
@@ -175,6 +183,7 @@ pub struct ExecuteCallback {
     pub callback: Box<
         dyn for<'a> FnMut(
                 &'a mut (dyn ModeDef + Sync + Send),
+                &'a Config,
                 &'a mut State,
                 String,
                 String,
@@ -186,7 +195,7 @@ pub struct ExecuteCallback {
 
 pub mod config_builder {
     #![allow(dead_code)]
-    use crate::{external_command::fzf, mode::ModeDef, state::State};
+    use crate::{config::Config, external_command::fzf, mode::ModeDef, state::State};
     use futures::future::BoxFuture;
 
     pub struct ConfigBuilder {
@@ -206,6 +215,7 @@ pub mod config_builder {
         where
             for<'a> F: FnMut(
                     &'a mut (dyn ModeDef + Sync + Send),
+                    &'a Config,
                     &'a mut State,
                     String,
                     String,
@@ -226,6 +236,7 @@ pub mod config_builder {
         where
             for<'a> F: FnMut(
                     &'a mut (dyn ModeDef + Sync + Send),
+                    &'a Config,
                     &'a mut State,
                     String,
                     String,
@@ -250,6 +261,7 @@ pub mod config_builder {
         where
             for<'a> F: FnMut(
                     &'a mut (dyn ModeDef + Sync + Send),
+                    &'a Config,
                     &'a mut State,
                     String,
                     String,
@@ -276,10 +288,9 @@ pub mod config_builder {
 
         pub fn change_mode(&self, mode: impl Into<String>, keep_query: bool) -> fzf::Action {
             fzf::Action::ExecuteSilent(format!(
-                "change-mode {} {} {}",
+                "change-mode {} {}",
                 mode.into(),
                 if keep_query { "{q}" } else { "" }, // query
-                ""                                   // item
             ))
         }
 
@@ -333,25 +344,26 @@ pub mod config_builder {
 
     #[macro_export]
     macro_rules! execute {
-        ($builder:ident, |$mode:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
-            $builder.execute(|$mode, $state, $query, $item| async move { $v }.boxed())
+        ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
+            $builder.execute(|$mode, $config, $state, $query, $item| async move { $v }.boxed())
         };
     }
     pub use execute;
 
     #[macro_export]
     macro_rules! execute_silent {
-        ($builder:ident, |$mode:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
-            $builder.execute_silent(|$mode, $state, $query, $item| async move { $v }.boxed())
+        ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
+            $builder
+                .execute_silent(|$mode, $config, $state, $query, $item| async move { $v }.boxed())
         };
     }
     pub use execute_silent;
 
     #[macro_export]
     macro_rules! select_and_execute {
-        ($builder:ident, |$mode:ident, $state:ident, $query:ident, $item:ident|
+        ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident|
          $($k:expr => $v:expr),* $(,)?) => {
-            $builder.execute(|$mode, $state, $query, $item| async move {
+            $builder.execute(|$mode, $config, $state, $query, $item| async move {
                 match &*crate::external_command::fzf::select(vec![$($k),*]).await? {
                     $($k => { $v })*
                     _ => { Ok(()) }

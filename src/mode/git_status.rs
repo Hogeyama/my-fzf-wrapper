@@ -3,6 +3,7 @@ use git2::Status;
 use tokio::process::Command;
 
 use crate::{
+    config::Config,
     external_command::{fzf, gh, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
@@ -24,6 +25,7 @@ impl ModeDef for GitStatus {
     }
     fn load(
         &mut self,
+        _config: &Config,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -37,6 +39,7 @@ impl ModeDef for GitStatus {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -87,31 +90,31 @@ fn fzf_bindings() -> (fzf::Bindings, CallbackMap) {
     bindings! {
         b <= default_bindings(),
         "enter" => [
-            execute!(b, |_mode,state,_query,item| {
+            execute!(b, |_mode,_config,state,_query,item| {
                 let opts = OpenOpts::Neovim { tabedit: false };
                 open(state, item, opts).await
             })
         ],
         "enter" => [
-            execute!(b, |_mode,state,_query,item| {
+            execute!(b, |_mode,_config,state,_query,item| {
                 let opts = OpenOpts::Neovim { tabedit: false };
                 open(state, item, opts).await
             })
         ],
         "ctrl-t" => [
-            execute!(b, |_mode,state,_query,item| {
+            execute!(b, |_mode,_config,state,_query,item| {
                 let opts = OpenOpts::Neovim { tabedit: true };
                 open(state, item, opts).await
             })
         ],
         "ctrl-v" => [
-            execute!(b, |_mode,state,_query,item| {
+            execute!(b, |_mode,_config,state,_query,item| {
                 let opts = OpenOpts::Vifm;
                 open(state, item, opts).await
             })
         ],
         "ctrl-space" => [
-            select_and_execute!{b, |_mode,state,_query,item|
+            select_and_execute!{b, |_mode,_config,state,_query,item|
                 "neovim" => {
                     let opts = OpenOpts::Neovim { tabedit: false };
                     open(state, item, opts).await

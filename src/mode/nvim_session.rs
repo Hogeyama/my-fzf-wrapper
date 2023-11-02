@@ -4,6 +4,7 @@ use futures::{future::BoxFuture, FutureExt};
 
 use crate::{
     bindings,
+    config::Config,
     external_command::fzf,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
@@ -28,7 +29,7 @@ impl ModeDef for NeovimSession {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,state,_query,session|
+                select_and_execute!{b, |_mode,_config,state,_query,session|
                     "switch" => {
                         possesion(&state.nvim, "load", session).await;
                         Ok(())
@@ -43,6 +44,7 @@ impl ModeDef for NeovimSession {
     }
     fn load(
         &mut self,
+        _config: &Config,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -60,6 +62,7 @@ impl ModeDef for NeovimSession {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {

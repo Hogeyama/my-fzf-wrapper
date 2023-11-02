@@ -4,8 +4,11 @@ use crate::mode;
 use crate::mode::Mode;
 
 pub struct Config {
-    initial_mode: String,
-    modes: Vec<(String, MkMode)>,
+    pub myself: String,
+    pub socket: String,
+    pub log_file: String,
+    pub initial_mode: String,
+    pub modes: Vec<(String, MkMode)>,
 }
 
 // modeの切り替えの度に初期化するため複雑になっている。もっと良い方法がありそう。
@@ -31,7 +34,7 @@ impl Config {
     }
 }
 
-pub fn new() -> Config {
+pub fn new(myself: String, socket: String, log_file: String) -> Config {
     fn f(mode_def: Box<dyn mode::ModeDef + Sync + Send>) -> Mode {
         Mode { mode_def }
     }
@@ -58,6 +61,9 @@ pub fn new() -> Config {
         .map(|mk_mode| (mk_mode().name().to_string(), mk_mode))
         .collect();
     Config {
+        myself,
+        socket,
+        log_file,
         initial_mode,
         modes,
     }

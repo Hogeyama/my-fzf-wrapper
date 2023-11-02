@@ -105,21 +105,14 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     let socket = create_listener(&socket_name);
 
     let myself = args.fzfw_self.unwrap_or(get_program_path());
-    let config = config::new();
+    let config = config::new(myself.clone(), socket_name.clone(), args.fzfw_log_file);
     let state = state::State::new(nvim);
 
-    server::server(
-        myself,
-        config,
-        state,
-        socket_name.clone(),
-        args.fzfw_log_file,
-        socket,
-    )
-    .await
-    .unwrap_or_else(|e| {
-        error!("server: error"; "error" => e);
-    });
+    server::server(config, state, socket)
+        .await
+        .unwrap_or_else(|e| {
+            error!("server: error"; "error" => e);
+        });
 
     // 後始末
     fs::remove_file(&socket_name).expect("Failed to remove socket");

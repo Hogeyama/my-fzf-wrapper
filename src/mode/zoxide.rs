@@ -1,3 +1,4 @@
+use crate::config::Config;
 use crate::state::State;
 use crate::{
     external_command::zoxide,
@@ -20,6 +21,7 @@ impl ModeDef for Zoxide {
     }
     fn load(
         &mut self,
+        _config: &Config,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -36,6 +38,7 @@ impl ModeDef for Zoxide {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {

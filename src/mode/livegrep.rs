@@ -1,4 +1,5 @@
 use crate::{
+    config::Config,
     external_command::{bat, fzf, gh, git, rg},
     logger::Serde,
     method::{LoadResp, PreviewResp},
@@ -28,6 +29,7 @@ impl ModeDef for LiveGrep {
     }
     fn load(
         &mut self,
+        _config: &Config,
         _state: &mut State,
         query: String,
         _item: String,
@@ -36,6 +38,7 @@ impl ModeDef for LiveGrep {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -55,19 +58,19 @@ impl ModeDef for LiveGrep {
                 b.change_mode(LiveGrepF::new().name(), false),
             ],
             "enter" => [
-                execute!(b, |_mode,state,_query,item| {
+                execute!(b, |_mode,_config,state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: false };
                     open(state, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,state,_query,item| {
+                execute!(b, |_mode,_config,state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: true };
                     open(state, item, opts).await
                 })
             ],
             "ctrl-space" => [
-                select_and_execute!{b, |_mode,state,_query,item|
+                select_and_execute!{b, |_mode,_config,state,_query,item|
                     "neovim" => {
                         let opts = OpenOpts::Neovim { tabedit: false };
                         open(state, item, opts).await
@@ -123,6 +126,7 @@ impl ModeDef for LiveGrepF {
     }
     fn load(
         &mut self,
+        _config: &Config,
         state: &mut State,
         _query: String,
         _item: String,
@@ -139,6 +143,7 @@ impl ModeDef for LiveGrepF {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -149,19 +154,19 @@ impl ModeDef for LiveGrepF {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,state,_query,item| {
+                execute!(b, |_mode,_config,state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: false };
                     open(state, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,state,_query,item| {
+                execute!(b, |_mode,_config,state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: true };
                     open(state, item, opts).await
                 })
             ],
             "ctrl-space" => [
-                select_and_execute!{b, |_mode,state,_query,item|
+                select_and_execute!{b, |_mode,_config,state,_query,item|
                     "neovim" => {
                         let opts = OpenOpts::Neovim { tabedit: false };
                         open(state, item, opts).await

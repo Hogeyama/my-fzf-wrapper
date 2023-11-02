@@ -1,5 +1,6 @@
 use crate::{
     bindings,
+    config::Config,
     external_command::fzf,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
@@ -35,6 +36,7 @@ impl ModeDef for BrowserHistory {
     }
     fn load<'a>(
         &'a mut self,
+        _config: &'a Config,
         _state: &'a mut State,
         _query: String,
         _item: String,
@@ -74,6 +76,7 @@ impl ModeDef for BrowserHistory {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -91,7 +94,7 @@ impl ModeDef for BrowserHistory {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,_state,_query,item| {
+                execute!(b, |_mode,_config,_state,_query,item| {
                     let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
                     Command::new(get_browser())
                         .arg(&url)

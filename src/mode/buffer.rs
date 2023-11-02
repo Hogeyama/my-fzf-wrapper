@@ -1,6 +1,7 @@
 use std::error::Error;
 
 use crate::{
+    config::Config,
     external_command::{bat, fzf},
     logger::Serde,
     method::{LoadResp, PreviewResp},
@@ -32,6 +33,7 @@ impl ModeDef for Buffer {
     }
     fn load(
         &mut self,
+        _config: &Config,
         state: &mut State,
         _query: String,
         _item: String,
@@ -45,6 +47,7 @@ impl ModeDef for Buffer {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -73,19 +76,19 @@ impl ModeDef for Buffer {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,state,_query,item| {
+                execute!(b, |_mode,_config,state,_query,item| {
                     let opts = ExecOpts::Open { tabedit: false };
                     exec(state, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,state,_query,item| {
+                execute!(b, |_mode,_config,state,_query,item| {
                     let opts = ExecOpts::Open { tabedit: true };
                     exec(state, item, opts).await
                 })
             ],
             "ctrl-d" => [
-                execute!(b, |_mode,state,_query,item| {
+                execute!(b, |_mode,_config,state,_query,item| {
                     let opts = ExecOpts::Delete { force: true };
                     exec(state, item, opts).await
                 })

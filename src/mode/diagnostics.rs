@@ -1,4 +1,5 @@
 use crate::{
+    config::Config,
     external_command::{bat, fzf, glow},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
@@ -25,6 +26,7 @@ impl ModeDef for Diagnostics {
     }
     fn load<'a>(
         &'a mut self,
+        _config: &Config,
         state: &'a mut State,
         _query: String,
         _item: String,
@@ -45,6 +47,7 @@ impl ModeDef for Diagnostics {
     }
     fn preview(
         &self,
+        _config: &Config,
         state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -86,13 +89,13 @@ impl ModeDef for Diagnostics {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,state,_query,item| {
+                execute!(b, |_mode,_config,state,_query,item| {
                     let opts = OpenOpts { tabedit: false };
                     open(state, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,state,_query,item| {
+                execute!(b, |_mode,_config,state,_query,item| {
                     let opts = OpenOpts { tabedit: true };
                     open(state, item, opts).await
                 })

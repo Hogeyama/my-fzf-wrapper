@@ -3,6 +3,7 @@ use regex::Regex;
 use tokio::process::Command;
 
 use crate::{
+    config::Config,
     external_command::{fzf, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
@@ -24,6 +25,7 @@ impl ModeDef for GitReflog {
     }
     fn load(
         &mut self,
+        _config: &Config,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -38,6 +40,7 @@ impl ModeDef for GitReflog {
     }
     fn preview(
         &self,
+        _config: &Config,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
@@ -58,7 +61,7 @@ impl ModeDef for GitReflog {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,state,_query,item|
+                select_and_execute!{b, |_mode,_config,state,_query,item|
                     "diffview" => {
                         let _ = nvim::hide_floaterm(&state.nvim).await;
                         state.nvim.command(&format!("DiffviewOpen {}^!", commit_of(&item)?))

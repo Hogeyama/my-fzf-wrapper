@@ -10,6 +10,7 @@ use tokio::process::Command;
 use unidiff::{Hunk, PatchSet, PatchedFile};
 
 use crate::{
+    config::Config,
     external_command::{fzf, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
@@ -101,6 +102,7 @@ impl ModeDef for GitDiff {
     }
     fn load<'a>(
         &'a mut self,
+        _config: &Config,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -130,6 +132,7 @@ impl ModeDef for GitDiff {
     }
     fn preview<'a>(
         &'a self,
+        _config: &Config,
         _state: &mut State,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp, String>> {
@@ -143,6 +146,7 @@ impl ModeDef for GitDiff {
     }
     fn execute<'a>(
         &'a mut self,
+        _config: &Config,
         state: &'a mut State,
         item: String,
         args: serde_json::Value,
@@ -303,42 +307,42 @@ impl ModeDef for GitDiff {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |mode,state,_query,item| {
+                execute!(b, |mode,config,state,_query,item| {
                     let opts = ExecOpts::Open { tabedit: false }.value();
-                    mode.execute(state, item, opts).await
+                    mode.execute(config, state, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |mode,state,_query,item| {
+                execute!(b, |mode,config,state,_query,item| {
                     let opts = ExecOpts::Open { tabedit: false }.value();
-                    mode.execute(state, item, opts).await
+                    mode.execute(config, state, item, opts).await
                 })
             ],
             "ctrl-s" => [
-                execute_silent!(b, |mode,state,_query,item| {
+                execute_silent!(b, |mode,config,state,_query,item| {
                     let opts = ExecOpts::Stage.value();
-                    mode.execute(state, item, opts).await
+                    mode.execute(config, state, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-u" => [
-                execute_silent!(b, |mode,state,_query,item| {
+                execute_silent!(b, |mode,config,state,_query,item| {
                     let opts = ExecOpts::Unstage.value();
-                    mode.execute(state, item, opts).await
+                    mode.execute(config, state, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-x" => [
-                execute_silent!(b, |mode,state,_query,item| {
+                execute_silent!(b, |mode,config,state,_query,item| {
                     let opts = ExecOpts::Discard.value();
-                    mode.execute(state, item, opts).await
+                    mode.execute(config, state, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-a" => [
-                execute_silent!(b, |mode,state,_query,item| {
+                execute_silent!(b, |mode,config,state,_query,item| {
                     let opts = ExecOpts::Commit.value();
-                    mode.execute(state, item, opts).await
+                    mode.execute(config, state, item, opts).await
                 }),
                 b.reload()
             ],
@@ -346,18 +350,18 @@ impl ModeDef for GitDiff {
                 // TODO git_diff_file に飛ぶ。1行単位でstage/unstageできるようにする
             ],
             "ctrl-space" => [
-                select_and_execute!{b, |mode,state,_query,item|
+                select_and_execute!{b, |mode,config,state,_query,item|
                     "commit" => {
                         let opts = ExecOpts::Commit.value();
-                        mode.execute(state, item, opts).await
+                        mode.execute(config, state, item, opts).await
                     },
                     "commit(fixup)" => {
                         let opts = ExecOpts::CommitFixup.value();
-                        mode.execute(state, item, opts).await
+                        mode.execute(config, state, item, opts).await
                     },
                     "commit(instant fixup)" => {
                         let opts = ExecOpts::CommitInstantFixup.value();
-                        mode.execute(state, item, opts).await
+                        mode.execute(config, state, item, opts).await
                     },
                 }
             ]

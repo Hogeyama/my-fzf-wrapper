@@ -34,19 +34,12 @@ use crate::nvim;
 use crate::state::State;
 use crate::Config;
 
-pub async fn server(
-    myself: String,
-    config: Config,
-    state: State,
-    socket: String,
-    log_file: String,
-    listener: UnixListener,
-) -> Result<(), String> {
+pub async fn server(config: Config, state: State, listener: UnixListener) -> Result<(), String> {
     let mode = config.get_initial_mode();
     let fzf_config = mode.fzf_config(mode::FzfArgs {
-        myself: myself.clone(),
-        socket: socket.clone(),
-        log_file: log_file.clone(),
+        myself: config.myself.clone(),
+        socket: config.socket.clone(),
+        log_file: config.log_file.clone(),
         initial_query: "".to_string(),
     });
     let callbacks = mode.callbacks();
@@ -69,12 +62,9 @@ pub async fn server(
             s = listener.accept() => {
                 if let Ok((unix_stream, _addr)) = s {
                     handle_one_client(
-                        myself.clone(),
                         config.clone(),
                         server_state.clone(),
                         current_load_task.clone(),
-                        socket.clone(),
-                        log_file.clone(),
                         unix_stream,
                     )
                     .await?;
@@ -106,12 +96,9 @@ struct ServerState {
 type MutexServerState = Arc<Mutex<ServerState>>;
 
 async fn handle_one_client(
-    myself: String,
     config: Arc<Config>,
     server_state: MutexServerState,
     current_load_task: Arc<Mutex<Option<(JoinHandle<Result<(), Aborted>>, AbortHandle)>>>,
-    socket: String,
-    log_file: String,
     unix_stream: UnixStream,
 ) -> Result<(), String> {
     let (rx, tx) = tokio::io::split(unix_stream);
@@ -155,9 +142,10 @@ async fn handle_one_client(
                             })
                             .callback;
 
-                        let resp = callback(s.mode.mode_def.as_mut(), &mut s.state, query, item)
-                            .await
-                            .unwrap_or_else(LoadResp::error);
+                        let resp =
+                            callback(s.mode.mode_def.as_mut(), &config, &mut s.state, query, item)
+                                .await
+                                .unwrap_or_else(LoadResp::error);
 
                         s.state.last_load_resp = Some(resp.clone());
                         let mut tx = tx.lock().await;
@@ -183,7 +171,7 @@ async fn handle_one_client(
                         panic!("unknown callback");
                     })
                     .callback;
-                let resp = callback(s.mode.mode_def.as_ref(), &mut s.state, params.item)
+                let resp = callback(s.mode.mode_def.as_ref(), &config, &mut s.state, params.item)
                     .await
                     .unwrap_or_else(PreviewResp::error);
                 let mut tx = tx.lock().await;
@@ -215,7 +203,7 @@ async fn handle_one_client(
                     })
                     .callback;
 
-                match callback(s.mode.mode_def.as_mut(), &mut s.state, query, item).await {
+                match callback(s.mode.mode_def.as_mut(), &config, &mut s.state, query, item).await {
                     Ok(_) => {}
                     Err(e) => error!("server: execute error"; "error" => e),
                 }
@@ -254,9 +242,9 @@ async fn handle_one_client(
                 let new_mode = config.get_mode(new_mode);
                 let new_callback_map = new_mode.callbacks();
                 let new_fzf_config = new_mode.fzf_config(mode::FzfArgs {
-                    myself,
-                    socket,
-                    log_file,
+                    myself: config.myself.clone(),
+                    socket: config.socket.clone(),
+                    log_file: config.log_file.clone(),
                     initial_query: query.unwrap_or_default(),
                 });
 
