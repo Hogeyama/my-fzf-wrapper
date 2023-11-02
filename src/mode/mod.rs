@@ -406,7 +406,10 @@ pub mod config_builder {
                 b.change_mode(super::zoxide::Zoxide.name(), false),
             ],
             "alt-l" => [
-                b.change_mode(super::git_log::GitLog.name(), false),
+                b.change_mode(super::git_log::GitLog::Head.name(), false),
+            ],
+            "ctrl-alt-l" => [
+                b.change_mode(super::git_log::GitLog::Head.name(), false),
             ],
             "alt-w" => [
                 b.change_mode(super::diagnostics::Diagnostics.name(), false),

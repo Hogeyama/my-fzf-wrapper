@@ -14,21 +14,30 @@ use crate::{
 use super::CallbackMap;
 
 #[derive(Clone)]
-pub struct GitLog;
+pub enum GitLog {
+    Head,
+    All,
+}
 
 impl ModeDef for GitLog {
     fn name(&self) -> &'static str {
-        "git-log"
+        match self {
+            GitLog::Head => "git-log",
+            GitLog::All => "git-log(all)",
+        }
     }
-    fn load(
-        &mut self,
-        _config: &Config,
-        _state: &mut State,
+    fn load<'a>(
+        &'a mut self,
+        _config: &'a Config,
+        _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp, String>> {
         async move {
-            let mut commits = git::log_graph("HEAD").await?;
+            let mut commits = match self {
+                GitLog::Head => git::log_graph("HEAD").await?,
+                GitLog::All => git::log_graph("--all").await?,
+            };
             // reset color to white
             commits.push(ansi_term::Colour::White.normal().paint("").to_string());
             Ok(LoadResp::new_with_default_header(commits))
