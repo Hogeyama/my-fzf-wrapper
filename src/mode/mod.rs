@@ -374,6 +374,9 @@ pub mod config_builder {
             "ctrl-h" => [
                 b.change_mode(super::mru::Mru::new().name(), false),
             ],
+            "ctrl-j" => [
+                b.change_mode(super::git_diff::GitDiff::new().name(), false),
+            ],
             "ctrl-g" => [
                 b.change_mode(super::livegrep::LiveGrep::new().name(), true),
             ],
