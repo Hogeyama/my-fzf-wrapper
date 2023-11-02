@@ -39,6 +39,7 @@ pub enum Action {
     ClearQuery,
     ClearScreen,
     First,
+    Toggle,
 }
 
 impl Action {
@@ -52,6 +53,7 @@ impl Action {
             Action::ClearQuery => "clear-query".to_string(),
             Action::ClearScreen => "clear-screen".to_string(),
             Action::First => "first".to_string(),
+            Action::Toggle => "toggle".to_string(),
         }
     }
 }

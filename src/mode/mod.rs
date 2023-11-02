@@ -298,6 +298,10 @@ pub mod config_builder {
             fzf::Action::First
         }
 
+        pub fn toggle(&self) -> fzf::Action {
+            fzf::Action::Toggle
+        }
+
         fn gen_name(&mut self) -> String {
             self.callback_counter += 1;
             format!("callback{}", self.callback_counter)
