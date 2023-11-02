@@ -13,9 +13,6 @@ use tokio::process::Command;
 pub struct Zoxide;
 
 impl ModeDef for Zoxide {
-    fn new() -> Self {
-        Zoxide
-    }
     fn name(&self) -> &'static str {
         "zoxide"
     }

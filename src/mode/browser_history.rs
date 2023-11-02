@@ -28,9 +28,6 @@ static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?P<date>[^|]*)\|(?P<url>[^|]*)\|(?P<title>.*)").unwrap());
 
 impl ModeDef for BrowserHistory {
-    fn new() -> Self {
-        BrowserHistory
-    }
     fn name(&self) -> &'static str {
         "browser-history"
     }

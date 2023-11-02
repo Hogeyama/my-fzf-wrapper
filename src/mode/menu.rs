@@ -12,9 +12,6 @@ use futures::{future::BoxFuture, FutureExt};
 pub struct Menu;
 
 impl ModeDef for Menu {
-    fn new() -> Self {
-        Menu
-    }
     fn name(&self) -> &'static str {
         "menu"
     }

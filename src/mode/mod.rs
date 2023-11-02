@@ -84,10 +84,6 @@ pub trait ModeDef {
     /// The name of the mode
     fn name(&self) -> &'static str;
 
-    fn new() -> Self
-    where
-        Self: Sized;
-
     fn fzf_prompt(&self) -> String {
         format!("{}>", self.name())
     }
@@ -389,31 +385,34 @@ pub mod config_builder {
                 b.clear_screen(),
             ],
             "pgdn" => [
-                b.change_mode(super::menu::Menu::new().name(), false),
+                b.change_mode(super::menu::Menu.name(), false),
             ],
             "ctrl-f" => [
-                b.change_mode(super::fd::Fd::new().name(), false),
+                b.change_mode(super::fd::Fd.name(), false),
             ],
             "ctrl-b" => [
-                b.change_mode(super::buffer::Buffer::new().name(), false),
+                b.change_mode(super::buffer::Buffer.name(), false),
             ],
             "ctrl-h" => [
-                b.change_mode(super::mru::Mru::new().name(), false),
+                b.change_mode(super::mru::Mru.name(), false),
             ],
             "ctrl-j" => [
                 b.change_mode(super::git_diff::GitDiff::new().name(), false),
             ],
             "ctrl-g" => [
-                b.change_mode(super::livegrep::LiveGrep::new().name(), true),
+                b.change_mode(super::livegrep::LiveGrep.name(), true),
             ],
             "alt-d" => [
-                b.change_mode(super::zoxide::Zoxide::new().name(), false),
+                b.change_mode(super::zoxide::Zoxide.name(), false),
+            ],
+            "alt-l" => [
+                b.change_mode(super::git_log::GitLog.name(), false),
             ],
             "alt-w" => [
-                b.change_mode(super::diagnostics::Diagnostics::new().name(), false),
+                b.change_mode(super::diagnostics::Diagnostics.name(), false),
             ],
             "ctrl-b" => [
-                b.change_mode(super::browser_history::BrowserHistory::new().name(), false),
+                b.change_mode(super::browser_history::BrowserHistory.name(), false),
             ],
             "ctrl-u" => [
                 b.execute_silent_raw("change-directory --to-parent"),

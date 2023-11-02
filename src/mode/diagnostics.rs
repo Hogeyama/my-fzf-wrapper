@@ -18,9 +18,6 @@ use super::CallbackMap;
 pub struct Diagnostics;
 
 impl ModeDef for Diagnostics {
-    fn new() -> Self {
-        Diagnostics
-    }
     fn name(&self) -> &'static str {
         "diagnostics"
     }

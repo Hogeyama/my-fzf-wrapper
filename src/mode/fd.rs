@@ -16,9 +16,6 @@ use super::CallbackMap;
 pub struct Fd;
 
 impl ModeDef for Fd {
-    fn new() -> Self {
-        Fd
-    }
     fn name(&self) -> &'static str {
         "fd"
     }

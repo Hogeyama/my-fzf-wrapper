@@ -17,9 +17,6 @@ use super::CallbackMap;
 pub struct GitBranch;
 
 impl ModeDef for GitBranch {
-    fn new() -> Self {
-        GitBranch
-    }
     fn name(&self) -> &'static str {
         "git-branch"
     }

@@ -94,9 +94,6 @@ impl GitDiff {
 }
 
 impl ModeDef for GitDiff {
-    fn new() -> Self {
-        GitDiff::new()
-    }
     fn name(&self) -> &'static str {
         "git-diff"
     }

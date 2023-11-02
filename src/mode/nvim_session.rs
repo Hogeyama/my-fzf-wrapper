@@ -18,9 +18,6 @@ use super::CallbackMap;
 pub struct NeovimSession;
 
 impl ModeDef for NeovimSession {
-    fn new() -> Self {
-        NeovimSession
-    }
     fn name(&self) -> &'static str {
         "neovim-session"
     }

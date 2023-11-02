@@ -21,9 +21,6 @@ use regex::Regex;
 pub struct LiveGrep;
 
 impl ModeDef for LiveGrep {
-    fn new() -> Self {
-        LiveGrep
-    }
     fn name(&self) -> &'static str {
         "livegrep"
     }
@@ -52,10 +49,10 @@ impl ModeDef for LiveGrep {
                 b.reload(),
             ],
             "ctrl-c" => [
-                b.change_mode(LiveGrepF::new().name(), false),
+                b.change_mode(LiveGrepF.name(), false),
             ],
             "esc" => [
-                b.change_mode(LiveGrepF::new().name(), false),
+                b.change_mode(LiveGrepF.name(), false),
             ],
             "enter" => [
                 execute!(b, |_mode,_config,state,_query,item| {
@@ -118,9 +115,6 @@ fn load(query: String) -> BoxFuture<'static, Result<LoadResp, String>> {
 pub struct LiveGrepF;
 
 impl ModeDef for LiveGrepF {
-    fn new() -> Self {
-        LiveGrepF
-    }
     fn name(&self) -> &'static str {
         "livegrepf"
     }

@@ -26,9 +26,6 @@ static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"\s*(?P<bufnr>\d+):(?P<path>.*)").unwrap());
 
 impl ModeDef for Mru {
-    fn new() -> Self {
-        Mru
-    }
     fn name(&self) -> &'static str {
         "mru"
     }

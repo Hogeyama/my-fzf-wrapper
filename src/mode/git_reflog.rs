@@ -17,9 +17,6 @@ use super::CallbackMap;
 pub struct GitReflog;
 
 impl ModeDef for GitReflog {
-    fn new() -> Self {
-        GitReflog
-    }
     fn name(&self) -> &'static str {
         "git-reflog"
     }

@@ -17,9 +17,6 @@ use super::CallbackMap;
 pub struct GitStatus;
 
 impl ModeDef for GitStatus {
-    fn new() -> Self {
-        GitStatus
-    }
     fn name(&self) -> &'static str {
         "git-status"
     }
