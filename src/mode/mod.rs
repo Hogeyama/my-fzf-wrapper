@@ -275,7 +275,7 @@ pub mod config_builder {
         }
 
         pub fn change_mode(&self, mode: impl Into<String>, keep_query: bool) -> fzf::Action {
-            fzf::Action::Execute(format!(
+            fzf::Action::ExecuteSilent(format!(
                 "change-mode {} {} {}",
                 mode.into(),
                 if keep_query { "{q}" } else { "" }, // query
