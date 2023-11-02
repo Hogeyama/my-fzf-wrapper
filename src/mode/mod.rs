@@ -282,6 +282,10 @@ pub mod config_builder {
             fzf::Action::Reload(cmd.as_ref().to_string())
         }
 
+        pub fn execute_silent_raw(&self, cmd: impl Into<String>) -> fzf::Action {
+            fzf::Action::ExecuteSilent(cmd.into())
+        }
+
         pub fn execute_raw(&self, cmd: impl Into<String>) -> fzf::Action {
             fzf::Action::Execute(cmd.into())
         }
@@ -332,6 +336,7 @@ pub mod config_builder {
             let (bindings, callback_map) = $init;
             let mut $builder = crate::mode::config_builder::ConfigBuilder::new();
             $builder.callback_counter = callback_map.execute.len() + callback_map.load.len();
+            $builder.callback_map = callback_map;
             let bindings = bindings.merge(
                 crate::external_command::fzf::Bindings(core::convert::From::from([$(
                     ($k.to_string(), vec![$($v),*]),
@@ -411,16 +416,16 @@ pub mod config_builder {
                 b.change_mode(super::browser_history::BrowserHistory::new().name(), false),
             ],
             "ctrl-u" => [
-                b.execute_raw("change-directory --to-parent"),
+                b.execute_silent_raw("change-directory --to-parent"),
                 b.reload(),
             ],
             "ctrl-l" => [
-                b.execute_raw("change-directory --dir {}"),
+                b.execute_silent_raw("change-directory --dir {}"),
                 b.clear_query(),
                 b.reload(),
             ],
             "ctrl-n" => [
-                b.execute_raw("change-directory --to-last-file-dir"),
+                b.execute_silent_raw("change-directory --to-last-file-dir"),
                 b.reload(),
             ],
         }
