@@ -40,10 +40,9 @@ pub async fn server(
     state: State,
     socket: String,
     log_file: String,
-    initial_mode: String,
     listener: UnixListener,
 ) -> Result<(), String> {
-    let mode = config.get_mode(initial_mode);
+    let mode = config.get_initial_mode();
     let fzf_config = mode.fzf_config(mode::FzfArgs {
         myself: myself.clone(),
         socket: socket.clone(),

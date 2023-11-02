@@ -4,6 +4,7 @@ use crate::mode;
 use crate::mode::Mode;
 
 pub struct Config {
+    initial_mode: String,
     modes: Vec<(String, MkMode)>,
 }
 
@@ -11,6 +12,10 @@ pub struct Config {
 type MkMode = Pin<Box<dyn (Fn() -> Mode) + Send + Sync>>;
 
 impl Config {
+    pub fn get_initial_mode(&self) -> Mode {
+        self.get_mode(&self.initial_mode)
+    }
+
     pub fn get_mode(&self, mode: impl Into<String>) -> Mode {
         let mode = mode.into();
         for (name, mk_mode) in &self.modes {
@@ -30,6 +35,7 @@ pub fn new() -> Config {
     fn f(mode_def: Box<dyn mode::ModeDef + Sync + Send>) -> Mode {
         Mode { mode_def }
     }
+    let initial_mode = "menu".to_string();
     let modes: Vec<MkMode> = vec![
         Box::pin(|| f(Box::new(mode::menu::Menu))),
         Box::pin(|| f(Box::new(mode::fd::Fd))),
@@ -53,5 +59,8 @@ pub fn new() -> Config {
         .into_iter()
         .map(|mk_mode| (mk_mode().name().to_string(), mk_mode))
         .collect();
-    Config { modes }
+    Config {
+        initial_mode,
+        modes,
+    }
 }
