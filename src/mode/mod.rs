@@ -386,7 +386,7 @@ pub mod config_builder {
             "alt-w" => [
                 b.change_mode(super::diagnostics::Diagnostics::new().name(), false),
             ],
-            "ctrl-i" => [
+            "ctrl-b" => [
                 b.change_mode(super::browser_history::BrowserHistory::new().name(), false),
             ],
             "ctrl-u" => [
