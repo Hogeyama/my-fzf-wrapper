@@ -379,7 +379,6 @@ pub mod config_builder {
             b <= (fzf::Bindings::empty(), super::CallbackMap::empty()),
             "change" => [ b.first() ],
             "ctrl-s" => [ b.toggle_sort() ],
-            "ctrl-o" => [ b.clear_query(), b.clear_screen() ],
             "ctrl-r" => [
                 b.reload(),
                 b.clear_screen(),
@@ -399,23 +398,20 @@ pub mod config_builder {
             "ctrl-j" => [
                 b.change_mode(super::git_diff::GitDiff::new().name(), false),
             ],
+            "ctrl-k" => [
+                b.change_mode(super::git_branch::GitBranch.name(), false),
+            ],
+            "ctrl-o" => [
+                b.change_mode(super::git_log::GitLog::Head.name(), false),
+            ],
             "ctrl-g" => [
                 b.change_mode(super::livegrep::LiveGrep.name(), true),
             ],
             "alt-d" => [
                 b.change_mode(super::zoxide::Zoxide.name(), false),
             ],
-            "alt-l" => [
-                b.change_mode(super::git_log::GitLog::Head.name(), false),
-            ],
-            "ctrl-alt-l" => [
-                b.change_mode(super::git_log::GitLog::Head.name(), false),
-            ],
             "alt-w" => [
                 b.change_mode(super::diagnostics::Diagnostics.name(), false),
-            ],
-            "ctrl-b" => [
-                b.change_mode(super::browser_history::BrowserHistory.name(), false),
             ],
             "ctrl-u" => [
                 b.execute_silent_raw("change-directory --to-parent"),
