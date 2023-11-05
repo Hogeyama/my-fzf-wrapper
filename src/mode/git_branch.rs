@@ -105,6 +105,11 @@ impl ModeDef for GitBranch {
                     }
                 }
             ],
+            "ctrl-p" => [
+                execute!(b, |_mode,_config,state,_query,branch| {
+                    push_branch_to_remote(&state.nvim, branch, true).await
+                }),
+            ],
         }
     }
 }
