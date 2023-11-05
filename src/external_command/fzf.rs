@@ -141,7 +141,7 @@ pub async fn select(items: Vec<&str>) -> Result<String, String> {
 }
 
 pub async fn select_with_header(
-    header: impl Into<String>,
+    header: impl AsRef<str>,
     items: Vec<&str>,
 ) -> Result<String, String> {
     let mut fzf = Command::new("fzf")
@@ -154,7 +154,7 @@ pub async fn select_with_header(
         .map_err(|e| e.to_string())?;
 
     let mut stdin = fzf.stdin.take().unwrap();
-    let header = format!("{}\n", header.into());
+    let header = format!("{}\n", header.as_ref());
     stdin.write_all(header.as_bytes()).await.unwrap();
     stdin.write_all(items.join("\n").as_bytes()).await.unwrap();
     drop(stdin);

@@ -28,19 +28,7 @@ impl ModeDef for GitBranch {
         _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
-            let branches = Command::new("git")
-                .arg("branch")
-                .arg("--format=%(refname:short)")
-                .output()
-                .await
-                .map_err(|e| e.to_string())?
-                .stdout;
-            let branches = String::from_utf8_lossy(branches.as_slice())
-                .into_owned()
-                .split('\n')
-                .map(|s| s.to_string())
-                .filter(|s| !s.is_empty())
-                .collect();
+            let branches = git::local_branches()?;
             Ok(LoadResp::new_with_default_header(branches))
         }
         .boxed()
@@ -52,7 +40,7 @@ impl ModeDef for GitBranch {
         branch: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
-            let log = git::log_graph(branch.clone()).await?;
+            let log = git::log_graph(branch).await?;
             let message = log.join("\n");
             Ok(PreviewResp { message })
         }
@@ -148,7 +136,7 @@ impl ModeDef for GitBranch {
     }
 }
 
-async fn select_commit(context: impl Into<String>) -> Result<String, String> {
+async fn select_commit(context: impl AsRef<str>) -> Result<String, String> {
     let commits = git::log_graph("--all").await?;
     let commits = commits.iter().map(|s| s.as_str()).collect();
     let commit_line = fzf::select_with_header(context, commits).await?;
@@ -160,7 +148,7 @@ async fn select_commit(context: impl Into<String>) -> Result<String, String> {
         .to_string())
 }
 
-async fn select_remote_branch(context: impl Into<String>) -> Result<String, String> {
+async fn select_remote_branch(context: impl AsRef<str>) -> Result<String, String> {
     let branches = git::remote_branches()?;
     let branches: Vec<&str> = branches.iter().map(|s| s.as_str()).collect();
     fzf::select_with_header(context, branches).await

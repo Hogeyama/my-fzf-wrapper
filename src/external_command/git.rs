@@ -152,7 +152,6 @@ pub fn remotes() -> Result<Vec<String>, String> {
 // Branch
 ////////////////////////////////////////////////////////////////////////////////
 
-#[allow(dead_code)]
 pub fn local_branches() -> Result<Vec<String>, String> {
     list_branches(Some(BranchType::Local))
 }
