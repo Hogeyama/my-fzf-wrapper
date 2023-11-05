@@ -7,7 +7,7 @@ use crate::{
     external_command::{fzf, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim,
+    nvim::{self, Neovim},
     state::State,
 };
 
@@ -28,7 +28,17 @@ impl ModeDef for GitBranch {
         _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
         async move {
-            let branches = git::local_branches()?;
+            let head = git::head()?;
+            let mut branches = git::local_branches()?;
+            branches.sort_by(|a, b| {
+                if a == &head {
+                    return std::cmp::Ordering::Less;
+                } else if b == &head {
+                    return std::cmp::Ordering::Greater;
+                } else {
+                    return a.cmp(b);
+                }
+            });
             Ok(LoadResp::new_with_default_header(branches))
         }
         .boxed()
@@ -88,50 +98,13 @@ impl ModeDef for GitBranch {
                         .map_err(|e| e.to_string())
                     },
                     "push" => {
-                        let remote_ref = select_remote_branch(
-                            format!("select remote branch to push {branch} to")
-                        ).await?;
-                        let (remote, remote_branch) = remote_ref.split_once('/').ok_or("No remote found")?;
-                        info!("git push";
-                            "temote_branch" => &branch,
-                            "remote" => &remote,
-                            "remote_branch" => &remote_branch
-                        );
-                        let output = Command::new("git")
-                            .arg("push")
-                            .arg(remote)
-                            .arg(format!("{}:{}", branch, remote_branch))
-                            .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
-                        nvim::notify_command_result(&state.nvim, "git push", output)
-                            .await
-                            .map_err(|e| e.to_string())
+                        push_branch_to_remote(&state.nvim, branch, false).await
                     },
                     "push -f" => {
-                        let remote_ref = select_remote_branch(
-                            format!("select remote branch to push {branch} to")
-                        ).await?;
-                        let (remote, remote_branch) = remote_ref.split_once('/').ok_or("No remote found")?;
-                        info!("git push -f";
-                            "temote_branch" => &branch,
-                            "remote" => &remote,
-                            "remote_branch" => &remote_branch
-                        );
-                        let output = Command::new("git")
-                            .arg("push")
-                            .arg("-f")
-                            .arg(remote)
-                            .arg(format!("{}:{}", branch, remote_branch))
-                            .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
-                        nvim::notify_command_result(&state.nvim, "git push", output)
-                            .await
-                            .map_err(|e| e.to_string())
+                        push_branch_to_remote(&state.nvim, branch, true).await
                     }
                 }
-            ]
+            ],
         }
     }
 }
@@ -148,11 +121,41 @@ async fn select_commit(context: impl AsRef<str>) -> Result<String, String> {
         .to_string())
 }
 
-async fn select_remote_branch(context: impl AsRef<str>) -> Result<String, String> {
-    let branches = git::remote_branches()?;
-    let branches: Vec<&str> = branches.iter().map(|s| s.as_str()).collect();
-    fzf::select_with_header(context, branches).await
-    // let mut candidates = vec!["@{upstream}"];
-    // candidates.extend(branches);
-    // fzf::select(candidates).await
+async fn select_remote(local_branch: impl AsRef<str>) -> Result<String, String> {
+    let upstream = git::upstream_of(&local_branch)?;
+    let mut branches = git::remote_branches()?
+        .into_iter()
+        .filter(|b| !b.ends_with("/HEAD"))
+        .collect::<Vec<_>>();
+    branches.sort_by(|a, b| {
+        if a == &upstream {
+            return std::cmp::Ordering::Less;
+        } else if b == &upstream {
+            return std::cmp::Ordering::Greater;
+        } else {
+            return a.cmp(b);
+        }
+    });
+    let context = format!("pushing {} => ?", local_branch.as_ref());
+    fzf::select_with_header(context, branches.iter().map(|s| s.as_str()).collect()).await
+}
+async fn push_branch_to_remote(nvim: &Neovim, branch: String, force: bool) -> Result<(), String> {
+    let remote_ref = select_remote(&branch).await?;
+    let (remote, remote_branch) = remote_ref.split_once('/').ok_or("No remote found")?;
+    info!("git push -f";
+        "temote_branch" => &branch,
+        "remote" => &remote,
+        "remote_branch" => &remote_branch
+    );
+    let output = Command::new("git")
+        .arg("push")
+        .args(if force { vec!["-f"] } else { vec![] })
+        .arg(remote)
+        .arg(format!("{}:{}", branch, remote_branch))
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    nvim::notify_command_result(nvim, "git push", output)
+        .await
+        .map_err(|e| e.to_string())
 }

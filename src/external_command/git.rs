@@ -152,6 +152,31 @@ pub fn remotes() -> Result<Vec<String>, String> {
 // Branch
 ////////////////////////////////////////////////////////////////////////////////
 
+pub fn head() -> Result<String, String> {
+    let head = get_repo()?
+        .head()
+        .map_err(|e| e.to_string())?
+        .name()
+        .ok_or("no head")?
+        .strip_prefix("refs/heads/")
+        .ok_or("no head")?
+        .to_string();
+    Ok(head)
+}
+
+pub fn upstream_of(branch: impl AsRef<str>) -> Result<String, String> {
+    let repo = get_repo()?;
+    let branch = repo
+        .find_branch(branch.as_ref(), BranchType::Local)
+        .map_err(|e| e.to_string())?;
+    let upstream = branch.upstream().map_err(|e| e.to_string())?;
+    Ok(upstream
+        .name()
+        .map_err(|e| e.to_string())?
+        .ok_or("no upstream")?
+        .to_string())
+}
+
 pub fn local_branches() -> Result<Vec<String>, String> {
     list_branches(Some(BranchType::Local))
 }
