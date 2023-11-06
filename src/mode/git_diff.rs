@@ -212,7 +212,7 @@ impl ModeDef for GitDiff {
                             git_apply(&state.nvim, patch, vec!["--reverse", "--index"]).await?;
                         }
                         Item::Unstaged { .. } => {
-                            let (_, patch) = self.save_patch_to_temp(&item)?;
+                            let (__, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--reverse"]).await?;
                         }
                         Item::Untracked { .. } => {
