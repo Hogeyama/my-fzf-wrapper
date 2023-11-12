@@ -71,6 +71,9 @@ impl GitDiff {
         patch.parse(&diff).map_err(|e| e.to_string())?;
         for patched_file in patch {
             let file = patched_file.target_file.clone();
+            if file == "/dev/null" {
+                continue;
+            }
             let file = file.strip_prefix("b/").unwrap().to_string();
             self.files.insert(file.clone(), patched_file.clone());
             for hunk in patched_file {
