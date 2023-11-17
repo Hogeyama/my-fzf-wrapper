@@ -154,9 +154,17 @@ impl ModeDef for GitDiff {
         async move {
             match from_value(args).map_err(|e| e.to_string())? {
                 ExecOpts::Open { tabedit } => {
+                    let root = git::get_repo()?
+                        .workdir()
+                        .ok_or("wow")?
+                        .to_owned()
+                        .into_os_string()
+                        .into_string()
+                        .map_err(|_| "wow")?;
                     let item = Item::parse(&item)?;
                     match item {
                         Item::Staged { file, target_start } => {
+                            let file = format!("{root}/{file}");
                             let nvim_opts = nvim::OpenOpts {
                                 line: Some(target_start),
                                 tabedit,
@@ -166,6 +174,7 @@ impl ModeDef for GitDiff {
                                 .map_err(|e| e.to_string())?;
                         }
                         Item::Unstaged { file, target_start } => {
+                            let file = format!("{root}/{file}");
                             let nvim_opts = nvim::OpenOpts {
                                 line: Some(target_start),
                                 tabedit,
@@ -175,6 +184,7 @@ impl ModeDef for GitDiff {
                                 .map_err(|e| e.to_string())?;
                         }
                         Item::Untracked { file } => {
+                            let file = format!("{root}/{file}");
                             let nvim_opts = nvim::OpenOpts {
                                 line: None,
                                 tabedit,
