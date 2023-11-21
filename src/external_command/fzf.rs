@@ -40,6 +40,7 @@ pub enum Action {
     ClearScreen,
     First,
     Toggle,
+    Raw(String),
 }
 
 impl Action {
@@ -54,6 +55,7 @@ impl Action {
             Action::ClearScreen => "clear-screen".to_string(),
             Action::First => "first".to_string(),
             Action::Toggle => "toggle".to_string(),
+            Action::Raw(s) => s.to_string(),
         }
     }
 }

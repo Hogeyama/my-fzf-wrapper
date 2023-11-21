@@ -318,6 +318,10 @@ pub mod config_builder {
             fzf::Action::Toggle
         }
 
+        pub fn raw(&self, cmd: impl Into<String>) -> fzf::Action {
+            fzf::Action::Raw(cmd.into())
+        }
+
         fn gen_name(&mut self) -> String {
             self.callback_counter += 1;
             format!("callback{}", self.callback_counter)
@@ -382,6 +386,9 @@ pub mod config_builder {
             "ctrl-r" => [
                 b.reload(),
                 b.clear_screen(),
+            ],
+            "shift-right" => [
+                b.raw("change-preview-window[right:50%:noborder|right:80%:noborder]"),
             ],
             "pgdn" => [
                 b.change_mode(super::menu::Menu.name(), false),
