@@ -84,11 +84,12 @@ impl ModeDef for Buffer {
                     exec(state, item, opts).await
                 })
             ],
-            "ctrl-d" => [
+            "ctrl-x" => [
                 execute!(b, |_mode,_config,state,_query,item| {
                     let opts = ExecOpts::Delete { force: true };
                     exec(state, item, opts).await
-                })
+                }),
+                b.reload(),
             ],
         }
     }
