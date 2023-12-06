@@ -63,7 +63,10 @@ impl ModeDef for GitLog {
             b <= default_bindings(),
             "ctrl-l" => [
                 execute_silent!{b, |_mode,config,_state,_query,item| {
-                    let branch = match branches_of(&item)? {
+                    let query = match branches_of(&item) {
+                        branches if branches.len() == 0 => {
+                            "".to_string()
+                        }
                         branches if branches.len() == 1 => {
                             branches[0].clone()
                         }
@@ -82,7 +85,7 @@ impl ModeDef for GitLog {
                         let _ = Command::new(myself)
                             .arg("change-mode")
                             .arg("git-branch")
-                            .arg(branch)
+                            .arg(query)
                             .env("FZFW_SOCKET", socket)
                             .stdout(std::process::Stdio::null())
                             .stderr(std::process::Stdio::null())
@@ -101,7 +104,7 @@ impl ModeDef for GitLog {
                             .await
                             .map_err(|e| e.to_string())
                     },
-                    "interactive-rebase" => {
+                    "interactive rebase" => {
                         let _ = nvim::hide_floaterm(&state.nvim).await;
                         let commit = commit_of(&item)?;
                         let output = Command::new("git")
@@ -168,16 +171,16 @@ fn commit_of(item: &str) -> Result<String, String> {
         .ok_or("no commit found".to_string())
 }
 
-fn branches_of(item: &str) -> Result<Vec<String>, String> {
+fn branches_of(item: &str) -> Vec<String> {
     // git::log_graph の %d [%an] 部分
-    Ok(Regex::new(r"\(([^()]+)\) \[.*\]$")
+    Regex::new(r"\(([^()]+)\) \[.*\]$")
         .unwrap()
         .captures(item)
         .map(|c| c.get(1).unwrap().as_str().to_string())
-        .ok_or("no refs found".to_string())?
+        .unwrap_or("".to_string())
         .split(", ")
         .map(|s| s.strip_prefix("HEAD -> ").unwrap_or(s).to_string())
         .filter(|s| !s.starts_with("tag: "))
         .filter(|s| !s.starts_with("origin/")) // FIXME ad-hoc
-        .collect::<Vec<_>>())
+        .collect::<Vec<_>>()
 }
