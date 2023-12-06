@@ -102,8 +102,15 @@ impl ModeDef for GitBranch {
                     },
                     "push -f" => {
                         push_branch_to_remote(&state.nvim, branch, true).await
-                    }
-                }
+                    },
+                    "delete" => {
+                        delete_branch(&state.nvim, branch, false).await
+                    },
+                    "delete -f" => {
+                        delete_branch(&state.nvim, branch, true).await
+                    },
+                },
+                b.reload(),
             ],
             "ctrl-p" => [
                 execute!(b, |_mode,_config,state,_query,branch| {
@@ -161,6 +168,20 @@ async fn push_branch_to_remote(nvim: &Neovim, branch: String, force: bool) -> Re
         .await
         .map_err(|e| e.to_string())?;
     nvim::notify_command_result(nvim, "git push", output)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn delete_branch(nvim: &Neovim, branch: String, force: bool) -> Result<(), String> {
+    let opt = if force { "-D" } else { "-d" };
+    let output = Command::new("git")
+        .arg("branch")
+        .arg(opt)
+        .arg(branch)
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    nvim::notify_command_result(nvim, format!("git branch {opt}"), output)
         .await
         .map_err(|e| e.to_string())
 }
