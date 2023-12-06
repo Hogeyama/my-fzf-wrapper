@@ -170,3 +170,24 @@ pub async fn select_with_header(
     .trim()
     .to_string())
 }
+
+pub async fn input(header: impl AsRef<str>) -> Result<String, String> {
+    let fzf = Command::new("fzf")
+        .arg("--ansi")
+        .args(vec!["--header", header.as_ref()])
+        .args(vec!["--layout", "reverse"])
+        .args(vec!["--bind", "enter:print-query"])
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .map_err(|e| e.to_string())?;
+
+    Ok(String::from_utf8_lossy(
+        &fzf.wait_with_output()
+            .await
+            .map_err(|e| e.to_string())?
+            .stdout,
+    )
+    .trim()
+    .to_string())
+}

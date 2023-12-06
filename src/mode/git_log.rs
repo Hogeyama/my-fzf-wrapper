@@ -140,6 +140,19 @@ impl ModeDef for GitLog {
                             .await
                             .map_err(|e| e.to_string())
                     },
+                    "new branch" => {
+                        let branch = fzf::input("Enter branch name").await?;
+                        let output = Command::new("git")
+                            .arg("branch")
+                            .arg(branch)
+                            .arg(commit_of(&item)?)
+                            .output()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        nvim::notify_command_result(&state.nvim, "git branch", output)
+                            .await
+                            .map_err(|e| e.to_string())
+                    }
                 },
                 b.reload(),
             ],
