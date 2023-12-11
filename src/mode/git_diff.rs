@@ -11,7 +11,7 @@ use unidiff::{Hunk, PatchSet, PatchedFile};
 
 use crate::{
     config::Config,
-    external_command::{fzf, git},
+    external_command::{bat, fzf, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim},
@@ -144,9 +144,27 @@ impl ModeDef for GitDiff {
     ) -> BoxFuture<'a, Result<PreviewResp, String>> {
         async move {
             let item = Item::parse(&item)?;
-            let hunk = self.hunk_of_item(&item)?;
-            let message = hunk.colorize();
-            Ok(PreviewResp { message })
+            match item {
+                Item::Staged { .. } => {
+                    let hunk = self.hunk_of_item(&item)?;
+                    let message = hunk.colorize();
+                    Ok(PreviewResp { message })
+                }
+                Item::Unstaged { .. } => {
+                    let hunk = self.hunk_of_item(&item)?;
+                    let message = hunk.colorize();
+                    Ok(PreviewResp { message })
+                }
+                Item::Untracked { file } => {
+                    let message = bat::render_file(&file).await?;
+                    Ok(PreviewResp { message })
+                }
+                Item::Conflicted { file } => {
+                    info!("conflicted file: {}", file);
+                    let message = bat::render_file(&file).await?;
+                    Ok(PreviewResp { message })
+                }
+            }
         }
         .boxed()
     }
