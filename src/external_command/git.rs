@@ -133,6 +133,10 @@ pub fn untracked_files() -> Result<Vec<String>, String> {
     files_with_status([Status::WT_NEW])
 }
 
+pub fn conflicted_files() -> Result<Vec<String>, String> {
+    files_with_status([Status::CONFLICTED])
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Remote
 ////////////////////////////////////////////////////////////////////////////////

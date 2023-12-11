@@ -126,6 +126,12 @@ impl ModeDef for GitDiff {
                 .for_each(|item| {
                     items.push(item.render());
                 });
+            git::conflicted_files()?
+                .into_iter()
+                .map(|s| Item::Conflicted { file: s })
+                .for_each(|item| {
+                    items.push(item.render());
+                });
             Ok(LoadResp::new_with_default_header(items))
         }
         .boxed()
@@ -193,6 +199,16 @@ impl ModeDef for GitDiff {
                                 .await
                                 .map_err(|e| e.to_string())?;
                         }
+                        Item::Conflicted { file } => {
+                            let file = format!("{root}/{file}");
+                            let nvim_opts = nvim::OpenOpts {
+                                line: None,
+                                tabedit,
+                            };
+                            nvim::open(&state.nvim, file.into(), nvim_opts)
+                                .await
+                                .map_err(|e| e.to_string())?;
+                        }
                     }
                 }
                 ExecOpts::Stage => {
@@ -207,6 +223,9 @@ impl ModeDef for GitDiff {
                         }
                         Item::Untracked { file } => {
                             git_add(&state.nvim, file).await?;
+                        }
+                        Item::Conflicted { .. } => {
+                            // conflicted file cannot be staged
                         }
                     }
                 }
@@ -230,6 +249,9 @@ impl ModeDef for GitDiff {
                         }
                         Item::Untracked { .. } => {
                             // untracked file cannot be discarded
+                        }
+                        Item::Conflicted { .. } => {
+                            // conflicted file cannot be discarded
                         }
                     }
                 }
@@ -404,6 +426,7 @@ enum Item {
     Staged { file: String, target_start: usize },
     Unstaged { file: String, target_start: usize },
     Untracked { file: String },
+    Conflicted { file: String },
 }
 
 impl Item {
@@ -412,6 +435,7 @@ impl Item {
             Item::Staged { file, .. } => file,
             Item::Unstaged { file, .. } => file,
             Item::Untracked { file } => file,
+            Item::Conflicted { file } => file,
         }
     }
 
@@ -431,6 +455,9 @@ impl Item {
             ),
             Item::Untracked { file } => {
                 format!("{} {}:0", ansi_term::Colour::Red.bold().paint("A"), file)
+            }
+            Item::Conflicted { file } => {
+                format!("{} {}:0", ansi_term::Colour::Red.bold().paint("C"), file)
             }
         }
     }
@@ -454,7 +481,10 @@ impl Item {
             'A' => Ok(Item::Untracked {
                 file: file.to_string(),
             }),
-            _ => return Err("".to_string()),
+            'C' => Ok(Item::Untracked {
+                file: file.to_string(),
+            }),
+            _ => return Err("parse error".to_string()),
         }
     }
 }
