@@ -4,7 +4,7 @@ use tokio::process::Command;
 
 use crate::{
     config::Config,
-    external_command::{fzf, git},
+    external_command::{fzf, git, xsel},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim,
@@ -78,7 +78,7 @@ impl ModeDef for GitLog {
                         }
                     };
 
-                    // ad-hoc なので何か考えたい
+                    // TODO ad-hoc なので何か考えたい
                     let myself = config.myself.clone();
                     let socket = config.socket.clone();
                     tokio::spawn(async move {
@@ -93,6 +93,13 @@ impl ModeDef for GitLog {
                             .await
                             .map_err(|e| e.to_string());
                     });
+                    Ok(())
+                }}
+            ],
+            "ctrl-y" => [
+                execute_silent!{b, |_mode,_config,_state,_query,item| {
+                    let commit = commit_of(&item)?;
+                    xsel::yank(commit).await?;
                     Ok(())
                 }}
             ],
