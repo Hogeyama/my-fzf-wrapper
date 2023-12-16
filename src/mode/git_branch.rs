@@ -4,7 +4,7 @@ use tokio::process::Command;
 
 use crate::{
     config::Config,
-    external_command::{fzf, git},
+    external_command::{fzf, git, xsel},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim},
@@ -111,6 +111,12 @@ impl ModeDef for GitBranch {
                     },
                 },
                 b.reload(),
+            ],
+            "ctrl-y" => [
+                execute!(b, |_mode,_config,_state,_query,branch| {
+                    xsel::yank(branch).await?;
+                    Ok(())
+                }),
             ],
             "ctrl-p" => [
                 execute!(b, |_mode,_config,state,_query,branch| {

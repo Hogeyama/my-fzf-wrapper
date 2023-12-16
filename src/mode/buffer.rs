@@ -2,7 +2,7 @@ use std::error::Error;
 
 use crate::{
     config::Config,
-    external_command::{bat, fzf},
+    external_command::{bat, fzf, xsel},
     logger::Serde,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
@@ -90,6 +90,13 @@ impl ModeDef for Buffer {
                     exec(state, item, opts).await
                 }),
                 b.reload(),
+            ],
+            "ctrl-y" => [
+                execute!(b, |_mode,_config,_state,_query,item| {
+                    let file = ITEM_PATTERN.replace(&item, "$path");
+                    xsel::yank(file).await?;
+                    Ok(())
+                })
             ],
         }
     }

@@ -2,7 +2,7 @@ use std::error::Error;
 
 use crate::{
     config::Config,
-    external_command::{bat, fzf},
+    external_command::{bat, fzf, xsel},
     logger::Serde,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
@@ -83,6 +83,12 @@ impl ModeDef for Mru {
                 execute!(b, |_mode,_config,state,_query,item| {
                     let opts = OpenOpts { tabedit: true };
                     open(state, item, opts).await
+                })
+            ],
+            "ctrl-y" => [
+                execute!(b, |_mode,_config,_state,_query,item| {
+                    xsel::yank(item).await?;
+                    Ok(())
                 })
             ],
         }

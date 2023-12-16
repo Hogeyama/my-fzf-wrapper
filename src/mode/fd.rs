@@ -1,6 +1,6 @@
 use crate::{
     config::Config,
-    external_command::{bat, fd, fzf, gh},
+    external_command::{bat, fd, fzf, gh, xsel},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim,
@@ -68,6 +68,12 @@ impl ModeDef for Fd {
                 execute!(b, |_mode,_config,state,_query,item| {
                     let opts = OpenOpts::Vifm;
                     open(state, item, opts).await
+                })
+            ],
+            "ctrl-y" => [
+                execute!(b, |_mode,_config,_state,_query,item| {
+                    xsel::yank(item).await?;
+                    Ok(())
                 })
             ],
             "ctrl-space" => [
