@@ -62,6 +62,12 @@ impl ModeDef for GitBranch {
             b <= default_bindings(),
             "enter" => [
                 select_and_execute!{b, |_mode,_config,state,_query,branch|
+                    "push" => {
+                        push_branch_to_remote(&state.nvim, branch, false).await
+                    },
+                    "push -f" => {
+                        push_branch_to_remote(&state.nvim, branch, true).await
+                    },
                     "switch" => {
                         let _ = Command::new("git")
                             .arg("switch")
@@ -96,12 +102,6 @@ impl ModeDef for GitBranch {
                         )
                         .await
                         .map_err(|e| e.to_string())
-                    },
-                    "push" => {
-                        push_branch_to_remote(&state.nvim, branch, false).await
-                    },
-                    "push -f" => {
-                        push_branch_to_remote(&state.nvim, branch, true).await
                     },
                     "delete" => {
                         delete_branch(&state.nvim, branch, false).await
