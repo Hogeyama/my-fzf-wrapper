@@ -548,6 +548,7 @@ async fn select_commit() -> Result<String, String> {
 
 async fn git_add(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
     let output = Command::new("git")
+        .current_dir(git::workdir()?)
         .arg("add")
         .arg(file.as_ref())
         .output()
@@ -561,6 +562,7 @@ async fn git_add(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
 
 async fn git_apply(nvim: &Neovim, patch: String, args: Vec<&str>) -> Result<(), String> {
     let output = Command::new("git")
+        .current_dir(git::workdir()?)
         .arg("apply")
         .args(args)
         .arg(format!("{}", patch))
