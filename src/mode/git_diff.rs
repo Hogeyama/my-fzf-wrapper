@@ -156,6 +156,7 @@ impl ModeDef for GitDiff {
                     Ok(PreviewResp { message })
                 }
                 Item::Untracked { file } => {
+                    let file = format!("{}{}", git::workdir()?, file);
                     let message = bat::render_file(&file).await?;
                     Ok(PreviewResp { message })
                 }
