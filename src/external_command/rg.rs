@@ -5,6 +5,8 @@ pub fn new() -> Command {
     rg.arg("--column");
     rg.arg("--line-number");
     rg.arg("--no-heading");
+    rg.arg("--no-ignore-vcs");
+    rg.arg("--hidden");
     rg.arg("--color=never");
     rg.arg("--smart-case");
 
