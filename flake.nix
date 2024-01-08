@@ -50,7 +50,7 @@
             pkgs.openssl.dev
           ];
         };
-        fzfw = pkgs.runCommandCC "fzfw"
+        fzfw = pkgs.runCommand "fzfw"
           { buildInputs = [ pkgs.makeWrapper fzfw-unwrapped ]; }
           ''
             set -x
