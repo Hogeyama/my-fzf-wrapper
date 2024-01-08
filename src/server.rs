@@ -95,10 +95,12 @@ struct ServerState {
 
 type MutexServerState = Arc<Mutex<ServerState>>;
 
+type LoadTask = Arc<Mutex<Option<(JoinHandle<Result<(), Aborted>>, AbortHandle)>>>;
+
 async fn handle_one_client(
     config: Arc<Config>,
     server_state: MutexServerState,
-    current_load_task: Arc<Mutex<Option<(JoinHandle<Result<(), Aborted>>, AbortHandle)>>>,
+    current_load_task: LoadTask,
     unix_stream: UnixStream,
 ) -> Result<(), String> {
     let (rx, tx) = tokio::io::split(unix_stream);
@@ -129,7 +131,7 @@ async fn handle_one_client(
                             item,
                         } = params;
 
-                        let ref mut callback = s
+                        let callback = &mut s
                             .callbacks
                             .load
                             .get_mut(&registered_name)
@@ -163,7 +165,7 @@ async fn handle_one_client(
             Some(method::Request::Preview { method, params }) => {
                 let mut s = server_state.lock().await;
                 let s = s.deref_mut();
-                let ref mut callback = s
+                let callback = &mut s
                     .callbacks
                     .preview
                     .get_mut("default")
@@ -190,7 +192,7 @@ async fn handle_one_client(
                     item,
                 } = params;
 
-                let ref mut callback = s
+                let callback = &mut s
                     .callbacks
                     .execute
                     .get_mut(&registered_name)

@@ -101,10 +101,7 @@ impl ModeDef for Mru {
 
 async fn is_file(path: String) -> bool {
     let meta = tokio::fs::metadata(path).await;
-    match meta {
-        Ok(meta) if meta.is_file() => true,
-        _ => false,
-    }
+    matches!(meta, Ok(meta) if meta.is_file())
 }
 
 async fn get_nvim_oldefiles(nvim: &Neovim) -> Result<Vec<String>, Box<dyn Error>> {
@@ -135,17 +132,14 @@ struct OpenOpts {
 
 async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), String> {
     let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
-    match opts {
-        OpenOpts { tabedit } => {
-            let nvim = state.nvim.clone();
-            let nvim_opts = nvim::OpenOpts {
-                line: None,
-                tabedit,
-            };
-            nvim::open(&nvim, bufnr.into(), nvim_opts)
-                .await
-                .map_err(|e| e.to_string())?;
-        }
-    }
+    let OpenOpts { tabedit } = opts;
+    let nvim = state.nvim.clone();
+    let nvim_opts = nvim::OpenOpts {
+        line: None,
+        tabedit,
+    };
+    nvim::open(&nvim, bufnr.into(), nvim_opts)
+        .await
+        .map_err(|e| e.to_string())?;
     Ok(())
 }

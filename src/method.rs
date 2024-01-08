@@ -229,7 +229,7 @@ impl clap::Args for ChangeDirectoryParam {
 
 impl clap::FromArgMatches for ChangeDirectoryParam {
     fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
-        ChangeDirectoryCommandParam::from_arg_matches(matches).and_then(|param| Ok(param.into()))
+        ChangeDirectoryCommandParam::from_arg_matches(matches).map(|param| param.into())
     }
     fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
         let mut self_ = Into::<ChangeDirectoryCommandParam>::into(self.clone());

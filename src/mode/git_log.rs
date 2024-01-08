@@ -64,7 +64,7 @@ impl ModeDef for GitLog {
             "ctrl-l" => [
                 execute_silent!{b, |_mode,config,_state,_query,item| {
                     let query = match branches_of(&item) {
-                        branches if branches.len() == 0 => {
+                        branches if branches.is_empty() => {
                             "".to_string()
                         }
                         branches if branches.len() == 1 => {

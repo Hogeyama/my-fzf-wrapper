@@ -16,7 +16,6 @@ pub async fn log_graph(commit: impl AsRef<str>) -> Result<Vec<String>, String> {
         .map_err(|e| e.to_string())?
         .stdout;
     Ok(String::from_utf8_lossy(commits.as_slice())
-        .into_owned()
         .split('\n')
         .map(|s| s.to_string())
         .filter(|s| !s.is_empty())
@@ -37,7 +36,6 @@ pub async fn reflog_graph(commit: impl AsRef<str>) -> Result<Vec<String>, String
         .map_err(|e| e.to_string())?
         .stdout;
     Ok(String::from_utf8_lossy(commits.as_slice())
-        .into_owned()
         .split('\n')
         .map(|s| s.to_string())
         .filter(|s| !s.is_empty())

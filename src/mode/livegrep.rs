@@ -94,7 +94,7 @@ pub struct LoadOpts {
 fn load(query: String) -> BoxFuture<'static, Result<LoadResp, String>> {
     async move {
         let mut rg_cmd = rg::new();
-        rg_cmd.arg(&format!("--color=ansi"));
+        rg_cmd.arg("--color=ansi");
         rg_cmd.arg("--");
         rg_cmd.arg(query);
         let rg_output = rg_cmd.output().await.map_err(|e| e.to_string())?;

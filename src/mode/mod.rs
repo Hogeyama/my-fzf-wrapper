@@ -88,11 +88,11 @@ pub trait ModeDef {
         format!("{}>", self.name())
     }
 
-    fn fzf_bindings<'a>(&'a self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
         config_builder::default_bindings()
     }
 
-    fn fzf_extra_opts<'a>(&'a self) -> Vec<&'a str> {
+    fn fzf_extra_opts(&self) -> Vec<&str> {
         vec![]
     }
 
@@ -148,6 +148,7 @@ impl CallbackMap {
     }
 }
 
+#[allow(clippy::type_complexity)]
 pub struct LoadCallback {
     pub callback: Box<
         dyn for<'a> FnMut(
@@ -162,6 +163,7 @@ pub struct LoadCallback {
     >,
 }
 
+#[allow(clippy::type_complexity)]
 pub struct PreviewCallback {
     pub callback: Box<
         dyn for<'a> FnMut(
@@ -175,6 +177,7 @@ pub struct PreviewCallback {
     >,
 }
 
+#[allow(clippy::type_complexity)]
 pub struct ExecuteCallback {
     pub callback: Box<
         dyn for<'a> FnMut(
@@ -334,11 +337,11 @@ pub mod config_builder {
         ($builder:ident <= $init:expr,
          $($k:expr => [ $($v:expr),* $(,)? ] ),* $(,)?) => {{
             let (bindings, callback_map) = $init;
-            let mut $builder = crate::mode::config_builder::ConfigBuilder::new();
+            let mut $builder = $crate::mode::config_builder::ConfigBuilder::new();
             $builder.callback_counter = callback_map.execute.len() + callback_map.load.len();
             $builder.callback_map = callback_map;
             let bindings = bindings.merge(
-                crate::external_command::fzf::Bindings(core::convert::From::from([$(
+                $crate::external_command::fzf::Bindings(core::convert::From::from([$(
                     ($k.to_string(), vec![$($v),*]),
                 )*]))
             );
@@ -369,7 +372,7 @@ pub mod config_builder {
         ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident|
          $($k:expr => $v:expr),* $(,)?) => {
             $builder.execute(|$mode, $config, $state, $query, $item| async move {
-                match &*crate::external_command::fzf::select(vec![$($k),*]).await? {
+                match &*$crate::external_command::fzf::select(vec![$($k),*]).await? {
                     $($k => { $v })*
                     _ => { Ok(()) }
                 }

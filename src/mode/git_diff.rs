@@ -237,7 +237,7 @@ impl ModeDef for GitDiff {
                             // already staged
                         }
                         Item::Unstaged { .. } => {
-                            let (__, patch) = self.save_patch_to_temp(&item)?;
+                            let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--cached"]).await?;
                         }
                         Item::Untracked { file } => {
@@ -251,7 +251,7 @@ impl ModeDef for GitDiff {
                 ExecOpts::Unstage => {
                     let item = Item::parse(&item)?;
                     if let Item::Staged { .. } = item {
-                        let (__, patch) = self.save_patch_to_temp(&item)?;
+                        let (_temp, patch) = self.save_patch_to_temp(&item)?;
                         git_apply(&state.nvim, patch, vec!["--reverse", "--cached"]).await?;
                     }
                 }
@@ -259,11 +259,11 @@ impl ModeDef for GitDiff {
                     let item = Item::parse(&item)?;
                     match item {
                         Item::Staged { .. } => {
-                            let (__, patch) = self.save_patch_to_temp(&item)?;
+                            let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--reverse", "--index"]).await?;
                         }
                         Item::Unstaged { .. } => {
-                            let (__, patch) = self.save_patch_to_temp(&item)?;
+                            let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--reverse"]).await?;
                         }
                         Item::Untracked { .. } => {
@@ -483,10 +483,10 @@ impl Item {
 
     fn parse(item: &str) -> Result<Self, String> {
         let (file, target) = item
-            .split_once(" ")
+            .split_once(' ')
             .ok_or("")?
             .1
-            .split_once(":")
+            .split_once(':')
             .ok_or("")?;
         match item.chars().next().ok_or("")? {
             'S' => Ok(Item::Staged {
@@ -503,7 +503,7 @@ impl Item {
             'C' => Ok(Item::Untracked {
                 file: file.to_string(),
             }),
-            _ => return Err("parse error".to_string()),
+            _ => Err("parse error".to_string()),
         }
     }
 }
@@ -521,12 +521,12 @@ impl HunkExt for Hunk {
         format!("{}", self)
             .lines()
             .map(|line| {
-                if line.starts_with("+") {
+                if line.starts_with('+') {
                     format!("{}", ansi_term::Colour::Green.paint(line))
-                } else if line.starts_with("-") {
+                } else if line.starts_with('-') {
                     format!("{}", ansi_term::Colour::Red.paint(line))
                 } else {
-                    format!("{}", line)
+                    line.to_string()
                 }
             })
             .collect::<Vec<_>>()
@@ -566,7 +566,7 @@ async fn git_apply(nvim: &Neovim, patch: String, args: Vec<&str>) -> Result<(), 
         .current_dir(git::workdir()?)
         .arg("apply")
         .args(args)
-        .arg(format!("{}", patch))
+        .arg(&patch)
         .output()
         .await
         .map_err(|e| e.to_string())?;

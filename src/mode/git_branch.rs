@@ -32,7 +32,7 @@ impl ModeDef for GitBranch {
             let mut branches = git::local_branches()?;
             branches.sort_by(|a, b| {
                 if a == &head {
-                    return std::cmp::Ordering::Less;
+                    std::cmp::Ordering::Less
                 } else if b == &head {
                     return std::cmp::Ordering::Greater;
                 } else {
@@ -147,7 +147,7 @@ async fn select_remote(local_branch: impl AsRef<str>) -> Result<String, String> 
         .collect::<Vec<_>>();
     branches.sort_by(|a, b| {
         if a == &upstream {
-            return std::cmp::Ordering::Less;
+            std::cmp::Ordering::Less
         } else if b == &upstream {
             return std::cmp::Ordering::Greater;
         } else {

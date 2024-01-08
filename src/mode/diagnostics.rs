@@ -171,6 +171,7 @@ async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), Str
         if let Err(e) = r {
             error!("diagnostics: run: nvim_open failed"; "error" => e.to_string());
         }
-    });
+    })
+    .await;
     Ok(())
 }

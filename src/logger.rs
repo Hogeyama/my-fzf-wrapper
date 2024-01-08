@@ -8,7 +8,6 @@ pub fn init(log_path: impl AsRef<Path>) -> Result<GlobalLoggerGuard, Box<dyn Err
     let file = OpenOptions::new()
         .create(true)
         .append(true)
-        .write(true)
         .open(log_path)?;
     let drain = slog_json::Json::new(file)
         .add_key_value(o!(
