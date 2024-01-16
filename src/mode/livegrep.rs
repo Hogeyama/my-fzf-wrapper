@@ -18,11 +18,29 @@ use regex::Regex;
 ////////////////////////////////////////////////////////////////////////////////
 
 #[derive(Clone)]
-pub struct LiveGrep;
+pub struct LiveGrep {
+    name: &'static str,
+    rg_opts: Vec<String>,
+}
+
+impl LiveGrep {
+    pub fn new() -> Self {
+        Self {
+            name: "livegrep",
+            rg_opts: vec![],
+        }
+    }
+    pub fn new_no_ignore() -> Self {
+        Self {
+            name: "livegrep(no-ignore)",
+            rg_opts: vec!["--no-ignore".to_string()],
+        }
+    }
+}
 
 impl ModeDef for LiveGrep {
     fn name(&self) -> &'static str {
-        "livegrep"
+        self.name
     }
     fn load(
         &mut self,
@@ -31,7 +49,7 @@ impl ModeDef for LiveGrep {
         query: String,
         _item: String,
     ) -> BoxFuture<'static, Result<LoadResp, String>> {
-        load(query)
+        load(query, &self.rg_opts)
     }
     fn preview(
         &self,
@@ -91,12 +109,12 @@ pub struct LoadOpts {
     pub query: String,
 }
 
-fn load(query: String) -> BoxFuture<'static, Result<LoadResp, String>> {
+fn load(query: String, opts: &Vec<String>) -> BoxFuture<'static, Result<LoadResp, String>> {
+    let mut rg_cmd = rg::new();
+    rg_cmd.args(opts);
+    rg_cmd.arg("--");
+    rg_cmd.arg(query);
     async move {
-        let mut rg_cmd = rg::new();
-        rg_cmd.arg("--color=ansi");
-        rg_cmd.arg("--");
-        rg_cmd.arg(query);
         let rg_output = rg_cmd.output().await.map_err(|e| e.to_string())?;
         let rg_output = String::from_utf8_lossy(&rg_output.stdout)
             .lines()

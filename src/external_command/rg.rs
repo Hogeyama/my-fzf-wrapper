@@ -5,10 +5,10 @@ pub fn new() -> Command {
     rg.arg("--column");
     rg.arg("--line-number");
     rg.arg("--no-heading");
-    rg.arg("--no-ignore-vcs");
     rg.arg("--hidden");
     rg.arg("--color=never");
     rg.arg("--smart-case");
+    rg.arg("--color=ansi");
 
     let extra_opts = std::env::var("FZFW_RG_EXTRA_OPTS");
     if let Ok(extra_opts) = extra_opts {

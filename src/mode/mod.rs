@@ -415,7 +415,7 @@ pub mod config_builder {
                 b.change_mode(super::git_log::GitLog::Head.name(), false),
             ],
             "ctrl-g" => [
-                b.change_mode(super::livegrep::LiveGrep.name(), true),
+                b.change_mode(super::livegrep::LiveGrep::new().name(), true),
             ],
             "alt-d" => [
                 b.change_mode(super::zoxide::Zoxide.name(), false),

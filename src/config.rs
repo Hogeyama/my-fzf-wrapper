@@ -54,7 +54,8 @@ pub fn new(myself: String, socket: String, log_file: String) -> Config {
         Box::pin(|| f(Box::new(mode::git_status::GitStatus))),
         Box::pin(|| f(Box::new(mode::git_diff::GitDiff::new()))),
         Box::pin(|| f(Box::new(mode::nvim_session::NeovimSession))),
-        Box::pin(|| f(Box::new(mode::livegrep::LiveGrep))),
+        Box::pin(|| f(Box::new(mode::livegrep::LiveGrep::new()))),
+        Box::pin(|| f(Box::new(mode::livegrep::LiveGrep::new_no_ignore()))),
         Box::pin(|| f(Box::new(mode::livegrep::LiveGrepF))),
     ];
     let modes = modes
