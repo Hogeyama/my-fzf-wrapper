@@ -28,11 +28,11 @@ impl ModeDef for NeovimSession {
             "enter" => [
                 select_and_execute!{b, |_mode,_config,state,_query,session|
                     "switch" => {
-                        possesion(&state.nvim, "load", session).await;
+                        session_command(&state.nvim, "read", session).await;
                         Ok(())
                     },
                     "delete" => {
-                        possesion(&state.nvim, "delete_selected", session).await;
+                        session_command(&state.nvim, "delete", session).await;
                         Ok(())
                     },
                 }
@@ -49,7 +49,7 @@ impl ModeDef for NeovimSession {
         async move {
             let home = std::env::var("HOME").unwrap();
             // わざわざ tokio::fs にしなくていいかな
-            let sessions = fs::read_dir(format!("{home}/.local/share/nvim/sessions"))
+            let sessions = fs::read_dir(format!("{home}/.local/share/nvim/session"))
                 .map_err(|e| e.to_string())?
                 .filter_map(|x| x.ok().and_then(|x| x.file_name().into_string().ok()))
                 .collect::<Vec<String>>();
@@ -72,11 +72,11 @@ impl ModeDef for NeovimSession {
     }
 }
 
-async fn possesion(nvim: &Neovim, action: &str, session: String) {
+async fn session_command(nvim: &Neovim, action: &str, session: String) {
     let _ = nvim::hide_floaterm(nvim).await;
     let r = nvim::eval_lua(
         nvim,
-        format!("require(\"nvim-possession\").{action}({{\"{session}\"}})"),
+        format!("require(\"mini.sessions\").{action}(\"{session}\")"),
     )
     .await
     .map_err(|e| e.to_string());
@@ -84,14 +84,14 @@ async fn possesion(nvim: &Neovim, action: &str, session: String) {
         Ok(_) => {
             let _ = nvim::notify_info(
                 nvim,
-                format!("possession.{action}(\"{session}\") succeeded"),
+                format!("mini.sessions.{action}(\"{session}\") succeeded"),
             )
             .await;
         }
         Err(e) => {
             let _ = nvim::notify_error(
                 nvim,
-                format!("possession.{action}(\"{session}\") failed: {e}"),
+                format!("mini.sessions.{action}(\"{session}\") failed: {e}"),
             )
             .await;
         }
