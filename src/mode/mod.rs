@@ -8,6 +8,7 @@ pub mod git_log;
 pub mod git_reflog;
 pub mod git_status;
 pub mod livegrep;
+pub mod mark;
 pub mod menu;
 pub mod mru;
 pub mod nvim_session;
@@ -401,6 +402,9 @@ pub mod config_builder {
             ],
             "ctrl-b" => [
                 b.change_mode(super::buffer::Buffer.name(), false),
+            ],
+            "ctrl-d" => [
+                b.change_mode(super::mark::Mark::new().name(), false),
             ],
             "ctrl-h" => [
                 b.change_mode(super::mru::Mru.name(), false),
