@@ -348,6 +348,16 @@ impl ModeDef for GitDiff {
                         .await
                         .map_err(|e| e.to_string())?;
                 }
+                ExecOpts::LazyGit => {
+                    let pwd = std::env::current_dir().unwrap().into_os_string();
+                    Command::new("lazygit")
+                        .current_dir(pwd)
+                        .spawn()
+                        .map_err(|e| e.to_string())?
+                        .wait()
+                        .await
+                        .map_err(|e| e.to_string())?;
+                }
             }
             Ok(())
         }
@@ -397,8 +407,12 @@ impl ModeDef for GitDiff {
                 }),
                 b.reload()
             ],
-            "ctrl-l" => [
-                // TODO git_diff_file に飛ぶ。1行単位でstage/unstageできるようにする
+            "ctrl-v" => [
+                execute!(b, |mode,config,state,_query,item| {
+                    let opts = ExecOpts::LazyGit.value();
+                    mode.execute(config, state, item, opts).await
+                }),
+                b.reload()
             ],
             "ctrl-space" => [
                 select_and_execute!{b, |mode,config,state,_query,item|
@@ -432,6 +446,7 @@ enum ExecOpts {
     CommitFixup,
     CommitInstantFixup,
     Open { tabedit: bool },
+    LazyGit,
 }
 
 impl ExecOpts {
