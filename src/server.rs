@@ -144,10 +144,15 @@ async fn handle_one_client(
                             })
                             .callback;
 
-                        let resp =
-                            callback(s.mode.mode_def.as_mut(), &config, &mut s.state, query, item)
-                                .await
-                                .unwrap_or_else(LoadResp::error);
+                        let resp = callback(
+                            s.mode.mode_def.as_mut(),
+                            &config,
+                            &mut s.state,
+                            query,
+                            item.unwrap_or_default(),
+                        )
+                        .await
+                        .unwrap_or_else(LoadResp::error);
 
                         s.state.last_load_resp = Some(resp.clone());
                         let mut tx = tx.lock().await;

@@ -375,7 +375,7 @@ impl LoadResp {
 pub struct LoadParam {
     pub registered_name: String,
     pub query: String,
-    pub item: String,
+    pub item: Option<String>,
 }
 
 impl TryFrom<String> for Load {
