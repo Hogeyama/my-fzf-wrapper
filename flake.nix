@@ -3,7 +3,9 @@
 
   inputs = {
     nixpkgs.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    nixpkgs-old.url = "github:nixos/nixpkgs/6141b8932a5cf376fe18fcd368cecd9ad946cb68";
+    # fzf等のバイナリを取り込むためのnixpkgs
+    # 互換性のために特定のコミットを指定したくなることがあるため分けている。
+    nixpkgs-for-bin.url = "github:nixos/nixpkgs/nixpkgs-unstable";
     fenix.url = "github:nix-community/fenix";
     fenix.inputs.nixpkgs.follows = "nixpkgs";
     naersk.url = "github:nix-community/naersk";
@@ -11,11 +13,11 @@
     flake-utils.url = "github:numtide/flake-utils/main";
   };
 
-  outputs = { nixpkgs, nixpkgs-old, naersk, fenix, flake-utils, ... }:
+  outputs = { nixpkgs, nixpkgs-for-bin, naersk, fenix, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
-        pkgs-old = import nixpkgs-old { inherit system; };
+        pkgs-for-bin = import nixpkgs-for-bin { inherit system; };
 
         toolchain = with fenix.packages.${system}; combine [
           complete.cargo
@@ -39,7 +41,7 @@
           ];
           CARGO_FPATH = "${toolchain}/share/zsh/site-functions/";
           # `MANPATH=$FZF_MANPATH man fzf` でこのバージョンのfzfのマニュアルを見る
-          FZF_MANPATH = "${pkgs-old.fzf.man}/share/man";
+          FZF_MANPATH = "${pkgs-for-bin.fzf.man}/share/man";
         };
 
         fzfw-unwrapped = naerskLib.buildPackage {
@@ -57,8 +59,8 @@
             mkdir -p $out/bin
             cp ${fzfw-unwrapped}/bin/fzfw $out/bin/fzfw
             wrapProgram $out/bin/fzfw \
-              --prefix PATH : ${pkgs-old.fzf}/bin \
-              --prefix PATH : ${pkgs-old.ripgrep}/bin \
+              --prefix PATH : ${pkgs-for-bin.fzf}/bin \
+              --prefix PATH : ${pkgs-for-bin.ripgrep}/bin \
           '';
       in
       {
