@@ -1,5 +1,14 @@
+use std::process::Output;
+
 use git2::{BranchType, IntoCString, Repository, Status, StatusEntry, StatusOptions};
+use regex::Regex;
 use tokio::process::Command;
+
+use crate::external_command::fzf;
+
+////////////////////////////////////////////////////////////////////////////////
+// Log
+////////////////////////////////////////////////////////////////////////////////
 
 pub async fn log_graph(commit: impl AsRef<str>) -> Result<Vec<String>, String> {
     let commits = Command::new("git")
@@ -42,6 +51,23 @@ pub async fn reflog_graph(commit: impl AsRef<str>) -> Result<Vec<String>, String
         .collect())
 }
 
+// log_graph の %d [%an] 部分をパースする
+pub fn parse_branches_of_log(line: impl AsRef<str>) -> Vec<String> {
+    Regex::new(r"\(([^()]+)\) \[.*\]$")
+        .unwrap()
+        .captures(line.as_ref())
+        .map(|c| c.get(1).unwrap().as_str().to_string())
+        .unwrap_or("".to_string())
+        .split(", ")
+        .map(|s| s.strip_prefix("HEAD -> ").unwrap_or(s).to_string())
+        .filter(|s| s.len() == 0 || !s.starts_with("tag: "))
+        .collect::<Vec<_>>()
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Commit
+////////////////////////////////////////////////////////////////////////////////
+
 pub async fn show_commit(commit: impl AsRef<str>) -> Result<String, String> {
     let format = [
         "%C(yellow)commit %H%Creset",
@@ -65,6 +91,21 @@ pub async fn show_commit(commit: impl AsRef<str>) -> Result<String, String> {
         .map_err(|e| e.to_string())?
         .stdout;
     Ok(String::from_utf8_lossy(commit.as_slice()).into_owned())
+}
+
+pub fn parse_short_commit(commit: impl AsRef<str>) -> Result<String, String> {
+    Regex::new(r"[0-9a-f]{7}")
+        .unwrap()
+        .find(commit.as_ref())
+        .map(|m| m.as_str().to_string())
+        .ok_or("no commit found".to_string())
+}
+
+pub async fn select_commit(context: impl AsRef<str>) -> Result<String, String> {
+    let commits = log_graph("--all").await?;
+    let commits = commits.iter().map(|s| s.as_str()).collect();
+    let commit_line = fzf::select_with_header(context, commits).await?;
+    parse_short_commit(&commit_line)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -92,6 +133,17 @@ pub async fn diff_cached() -> Result<String, String> {
         .map_err(|e| e.to_string())?
         .stdout;
     Ok(String::from_utf8_lossy(diff.as_slice()).into_owned())
+}
+
+pub async fn apply(patch_file: String, args: Vec<&str>) -> Result<Output, String> {
+    Command::new("git")
+        .current_dir(workdir()?)
+        .arg("apply")
+        .args(args)
+        .arg(&patch_file)
+        .output()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -135,11 +187,21 @@ pub fn conflicted_files() -> Result<Vec<String>, String> {
     files_with_status([Status::CONFLICTED])
 }
 
+pub async fn add(file: impl AsRef<str>) -> Result<Output, String> {
+    let output = Command::new("git")
+        .current_dir(workdir()?)
+        .arg("add")
+        .arg(file.as_ref())
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(output)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Remote
 ////////////////////////////////////////////////////////////////////////////////
 
-#[allow(dead_code)]
 pub fn remotes() -> Result<Vec<String>, String> {
     let remotes = get_repo()?
         .remotes()
@@ -148,6 +210,22 @@ pub fn remotes() -> Result<Vec<String>, String> {
         .filter_map(|r| r.map(|s| s.to_string()))
         .collect::<Vec<_>>();
     Ok(remotes)
+}
+
+pub async fn push(
+    remote: impl AsRef<str>,
+    from: impl AsRef<str>,
+    to: impl AsRef<str>,
+    force: bool,
+) -> Result<Output, String> {
+    Command::new("git")
+        .arg("push")
+        .args(if force { vec!["-f"] } else { vec![] })
+        .arg(remote.as_ref())
+        .arg(format!("{}:{}", from.as_ref(), to.as_ref()))
+        .output()
+        .await
+        .map_err(|e| e.to_string())
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -184,7 +262,10 @@ pub fn local_branches() -> Result<Vec<String>, String> {
 }
 
 pub fn remote_branches() -> Result<Vec<String>, String> {
-    list_branches(Some(BranchType::Remote))
+    Ok(list_branches(Some(BranchType::Remote))?
+        .into_iter()
+        .filter(|b| !b.ends_with("/HEAD"))
+        .collect::<Vec<_>>())
 }
 
 fn list_branches(filter: Option<BranchType>) -> Result<Vec<String>, String> {

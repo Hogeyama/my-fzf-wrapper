@@ -1,5 +1,4 @@
 use futures::{future::BoxFuture, FutureExt};
-use regex::Regex;
 use tokio::process::Command;
 
 use crate::{
@@ -42,12 +41,7 @@ impl ModeDef for GitReflog {
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
-            let commit = Regex::new(r"[0-9a-f]{7}")
-                .unwrap()
-                .find(&item)
-                .ok_or("no commit found")?
-                .as_str()
-                .to_string();
+            let commit = git::parse_short_commit(&item)?;
             let message = git::show_commit(commit).await?;
             Ok(PreviewResp { message })
         }
@@ -61,14 +55,14 @@ impl ModeDef for GitReflog {
                 select_and_execute!{b, |_mode,_config,state,_query,item|
                     "diffview" => {
                         let _ = state.nvim.hide_floaterm().await;
-                        state.nvim.command(&format!("DiffviewOpen {}^!", commit_of(&item)?))
+                        state.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))
                             .await
                             .map_err(|e| e.to_string())
                     },
                     "cherry-pick" => {
                         let output = Command::new("git")
                             .arg("cherry-pick")
-                            .arg(commit_of(&item)?)
+                            .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await
                             .map_err(|e| e.to_string())?;
@@ -80,12 +74,4 @@ impl ModeDef for GitReflog {
             ]
         }
     }
-}
-
-fn commit_of(item: &str) -> Result<String, String> {
-    Regex::new(r"[0-9a-f]{7}")
-        .unwrap()
-        .find(item)
-        .map(|m| m.as_str().to_string())
-        .ok_or("no commit found".to_string())
 }

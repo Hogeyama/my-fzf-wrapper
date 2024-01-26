@@ -1,5 +1,4 @@
 use futures::{future::BoxFuture, FutureExt};
-use regex::Regex;
 use tokio::process::Command;
 
 use crate::{
@@ -79,7 +78,7 @@ impl ModeDef for GitBranch {
                         Ok(())
                     },
                     "repoint" => {
-                        let commit = select_commit(format!("select commit to repoint {branch} to"))
+                        let commit = git::select_commit(format!("select commit to repoint {branch} to"))
                             .await?;
                         let _ = Command::new("git")
                             .arg("branch")
@@ -126,24 +125,9 @@ impl ModeDef for GitBranch {
     }
 }
 
-async fn select_commit(context: impl AsRef<str>) -> Result<String, String> {
-    let commits = git::log_graph("--all").await?;
-    let commits = commits.iter().map(|s| s.as_str()).collect();
-    let commit_line = fzf::select_with_header(context, commits).await?;
-    Ok(Regex::new(r"[0-9a-f]{7}")
-        .unwrap()
-        .find(&commit_line)
-        .ok_or("No commit selected")?
-        .as_str()
-        .to_string())
-}
-
 async fn select_remote(local_branch: impl AsRef<str>) -> Result<String, String> {
     let upstream = git::upstream_of(&local_branch)?;
-    let mut branches = git::remote_branches()?
-        .into_iter()
-        .filter(|b| !b.ends_with("/HEAD"))
-        .collect::<Vec<_>>();
+    let mut branches = git::remote_branches()?;
     branches.sort_by(|a, b| {
         if a == &upstream {
             std::cmp::Ordering::Less
@@ -156,6 +140,7 @@ async fn select_remote(local_branch: impl AsRef<str>) -> Result<String, String> 
     let context = format!("pushing {} => ?", local_branch.as_ref());
     fzf::select_with_header(context, branches.iter().map(|s| s.as_str()).collect()).await
 }
+
 async fn push_branch_to_remote(nvim: &Neovim, branch: String, force: bool) -> Result<(), String> {
     let remote_ref = select_remote(&branch).await?;
     let (remote, remote_branch) = remote_ref.split_once('/').ok_or("No remote found")?;
@@ -164,14 +149,7 @@ async fn push_branch_to_remote(nvim: &Neovim, branch: String, force: bool) -> Re
         "remote" => &remote,
         "remote_branch" => &remote_branch
     );
-    let output = Command::new("git")
-        .arg("push")
-        .args(if force { vec!["-f"] } else { vec![] })
-        .arg(remote)
-        .arg(format!("{}:{}", branch, remote_branch))
-        .output()
-        .await
-        .map_err(|e| e.to_string())?;
+    let output = git::push(remote, branch, remote_branch, force).await?;
     nvim.notify_command_result("git push", output)
         .await
         .map_err(|e| e.to_string())

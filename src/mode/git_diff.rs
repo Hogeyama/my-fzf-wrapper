@@ -1,7 +1,6 @@
 use std::collections::HashMap;
 
 use futures::{future::BoxFuture, FutureExt};
-use regex::Regex;
 use serde::Serialize;
 use serde_json::{from_value, to_value};
 use std::io::Write;
@@ -311,7 +310,7 @@ impl ModeDef for GitDiff {
                     });
                 }
                 ExecOpts::CommitFixup => {
-                    let commit = select_commit().await?;
+                    let commit = git::select_commit("target of fixup").await?;
                     let output = Command::new("git")
                         .arg("commit")
                         .arg(format!("--fixup={commit}"))
@@ -327,7 +326,7 @@ impl ModeDef for GitDiff {
                         .map_err(|e| e.to_string())?;
                 }
                 ExecOpts::CommitInstantFixup => {
-                    let commit = select_commit().await?;
+                    let commit = git::select_commit("target of instant fixup").await?;
                     let output = Command::new("git")
                         .arg("commit")
                         .arg(format!("--fixup={commit}"))
@@ -565,44 +564,16 @@ impl HunkExt for Hunk {
     }
 }
 
-async fn select_commit() -> Result<String, String> {
-    let commits = git::log_graph("--all").await?;
-    let commits = commits.iter().map(|s| s.as_str()).collect();
-    let commit_line = fzf::select(commits).await?;
-    let commit = Regex::new(r"[0-9a-f]{7}")
-        .unwrap()
-        .find(&commit_line)
-        .ok_or("No commit selected")?
-        .as_str()
-        .to_string();
-    Ok(commit)
-}
-
 async fn git_add(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
-    let output = Command::new("git")
-        .current_dir(git::workdir()?)
-        .arg("add")
-        .arg(file.as_ref())
-        .output()
-        .await
-        .map_err(|e| e.to_string())?;
+    let output = git::add(file).await?;
     nvim.notify_command_result_if_error("git add", output)
         .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
+        .map_err(|e| e.to_string())
 }
 
 async fn git_apply(nvim: &Neovim, patch: String, args: Vec<&str>) -> Result<(), String> {
-    let output = Command::new("git")
-        .current_dir(git::workdir()?)
-        .arg("apply")
-        .args(args)
-        .arg(&patch)
-        .output()
-        .await
-        .map_err(|e| e.to_string())?;
+    let output = git::apply(patch, args).await?;
     nvim.notify_command_result_if_error("git apply", output)
         .await
-        .map_err(|e| e.to_string())?;
-    Ok(())
+        .map_err(|e| e.to_string())
 }
