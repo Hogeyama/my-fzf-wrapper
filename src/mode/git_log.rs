@@ -78,6 +78,7 @@ impl ModeDef for GitLog {
                     };
 
                     // TODO ad-hoc なので何か考えたい
+                    // fzf 0.45 で追加された transform を使うのが良さそう
                     let myself = config.myself.clone();
                     let socket = config.socket.clone();
                     tokio::spawn(async move {

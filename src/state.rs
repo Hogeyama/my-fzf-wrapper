@@ -7,6 +7,7 @@ pub struct State {
 
     pub last_load_resp: Option<LoadResp>,
 
+    // TODO remove
     pub keymap: HashMap<String, serde_json::Value>,
 }
 
