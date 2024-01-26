@@ -14,7 +14,7 @@ use crate::{
     external_command::{bat, fzf, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim::{self, Neovim},
+    nvim::{self, Neovim, NeovimExt},
     state::State,
 };
 
@@ -194,7 +194,9 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            nvim::open(&state.nvim, file.into(), nvim_opts)
+                            state
+                                .nvim
+                                .open(file.into(), nvim_opts)
                                 .await
                                 .map_err(|e| e.to_string())?;
                         }
@@ -204,7 +206,9 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            nvim::open(&state.nvim, file.into(), nvim_opts)
+                            state
+                                .nvim
+                                .open(file.into(), nvim_opts)
                                 .await
                                 .map_err(|e| e.to_string())?;
                         }
@@ -214,7 +218,9 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            nvim::open(&state.nvim, file.into(), nvim_opts)
+                            state
+                                .nvim
+                                .open(file.into(), nvim_opts)
                                 .await
                                 .map_err(|e| e.to_string())?;
                         }
@@ -224,7 +230,9 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            nvim::open(&state.nvim, file.into(), nvim_opts)
+                            state
+                                .nvim
+                                .open(file.into(), nvim_opts)
                                 .await
                                 .map_err(|e| e.to_string())?;
                         }
@@ -275,7 +283,7 @@ impl ModeDef for GitDiff {
                     }
                 }
                 ExecOpts::Commit => {
-                    let _ = nvim::hide_floaterm(&state.nvim).await;
+                    let _ = state.nvim.hide_floaterm().await;
                     let nvim = state.nvim.clone();
                     tokio::spawn(async move {
                         let commit = Command::new("git")
@@ -288,12 +296,14 @@ impl ModeDef for GitDiff {
                             .map_err(|e| e.to_string());
                         match commit {
                             Ok(output) => {
-                                let _ = nvim::notify_command_result(&nvim, "git commit", output)
+                                let _ = nvim
+                                    .notify_command_result("git commit", output)
                                     .await
                                     .map_err(|e| e.to_string());
                             }
                             Err(e) => {
-                                let _ = nvim::notify_error(&nvim, &e.to_string())
+                                let _ = nvim
+                                    .notify_error(&e.to_string())
                                     .await
                                     .map_err(|e| e.to_string());
                             }
@@ -310,7 +320,9 @@ impl ModeDef for GitDiff {
                         .output()
                         .await
                         .map_err(|e| e.to_string())?;
-                    nvim::notify_command_result(&state.nvim, "git commit", output)
+                    state
+                        .nvim
+                        .notify_command_result("git commit", output)
                         .await
                         .map_err(|e| e.to_string())?;
                 }
@@ -324,7 +336,9 @@ impl ModeDef for GitDiff {
                         .output()
                         .await
                         .map_err(|e| e.to_string())?;
-                    nvim::notify_command_result(&state.nvim, "git commit", output)
+                    state
+                        .nvim
+                        .notify_command_result("git commit", output)
                         .await
                         .map_err(|e| e.to_string())?;
                     let output = Command::new("git")
@@ -344,7 +358,9 @@ impl ModeDef for GitDiff {
                         "git rebase --update-refs --autosquash --autostash -i {}^",
                         commit
                     );
-                    nvim::notify_command_result(&state.nvim, "git rebase", output)
+                    state
+                        .nvim
+                        .notify_command_result("git rebase", output)
                         .await
                         .map_err(|e| e.to_string())?;
                 }
@@ -570,7 +586,7 @@ async fn git_add(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
         .output()
         .await
         .map_err(|e| e.to_string())?;
-    nvim::notify_command_result_if_error(nvim, "git add", output)
+    nvim.notify_command_result_if_error("git add", output)
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
@@ -585,7 +601,7 @@ async fn git_apply(nvim: &Neovim, patch: String, args: Vec<&str>) -> Result<(), 
         .output()
         .await
         .map_err(|e| e.to_string())?;
-    nvim::notify_command_result_if_error(nvim, "git apply", output)
+    nvim.notify_command_result_if_error("git apply", output)
         .await
         .map_err(|e| e.to_string())?;
     Ok(())

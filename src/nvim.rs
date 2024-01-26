@@ -2,7 +2,6 @@ use std::error::Error;
 use std::process::Output;
 
 use ansi_term::ANSIGenericString;
-use futures::future::BoxFuture;
 // Neovim
 use nvim_rs::compat::tokio::Compat as TokioCompat;
 use nvim_rs::create::tokio as nvim_tokio;
@@ -31,207 +30,334 @@ pub async fn start_nvim(nvim_listen_address: &str) -> Result<Neovim, Box<dyn Err
     let (nvim, _io_handler) = nvim_tokio::new_path(nvim_listen_address, handler)
         .await
         .expect("Connect to nvim failed");
-    setup_nvim_config(&nvim).await?;
+    nvim.setup_nvim_config().await?;
     trace!("nvim started");
     Ok(nvim)
 }
 
 pub type Neovim = nvim_rs::Neovim<TokioCompat<WriteHalf<Connection>>>;
 
-////////////////////////////////////////////////////////////////////////////////
-// Utils
-////////////////////////////////////////////////////////////////////////////////
+pub trait NeovimExt {
+    async fn setup_nvim_config(&self) -> Result<(), Box<dyn Error>>;
 
-#[allow(dead_code)]
-pub async fn move_to_last_win(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    // 何故かコマンドを経由しないと動かなかった
-    nvim.command("FzfwMoveToLastWin").await?;
-    Ok(())
+    async fn start_insert(&self) -> Result<(), Box<dyn Error>>;
+
+    async fn stop_insert(&self) -> Result<(), Box<dyn Error>>;
+
+    async fn move_to_last_win(&self) -> Result<(), Box<dyn Error>>;
+
+    async fn move_to_last_tab(&self) -> Result<(), Box<dyn Error>>;
+
+    async fn last_opened_file(&self) -> Result<String, Box<dyn Error>>;
+
+    async fn hide_floaterm(&self) -> Result<(), Box<dyn Error>>;
+
+    async fn open(&self, target: OpenTarget, opts: OpenOpts) -> Result<(), Box<dyn Error>>;
+
+    async fn notify_info(&self, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>>;
+
+    async fn notify_warn(&self, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>>;
+
+    async fn notify_error(&self, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>>;
+
+    async fn notify_command_result(
+        &self,
+        command: impl AsRef<str>,
+        output: Output,
+    ) -> Result<(), Box<dyn Error>>;
+
+    async fn notify_command_result_if_error(
+        &self,
+        command: impl AsRef<str>,
+        output: Output,
+    ) -> Result<(), Box<dyn Error>>;
+
+    async fn delete_buffer(&self, bufnr: usize, force: bool) -> Result<(), Box<dyn Error>>;
+
+    async fn register_autocommands(&self, autcmds: Vec<(&str, &str)>)
+        -> Result<(), Box<dyn Error>>;
+
+    async fn register_command(&self, name: &str, command: &str) -> Result<(), Box<dyn Error>>;
+
+    async fn eval_lua(&self, expr: impl AsRef<str>) -> Result<rmpv::Value, Box<dyn Error>>;
+
+    async fn eval_lua_with_args(
+        &self,
+        expr: impl AsRef<str>,
+        args: Vec<rmpv::Value>,
+    ) -> Result<rmpv::Value, Box<dyn Error>>;
+
+    async fn get_all_diagnostics(&self) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>>;
+
+    async fn get_buf_name(&self, bufnr: usize) -> Result<String, Box<dyn Error>>;
 }
 
-#[allow(dead_code)]
-pub async fn move_to_last_tab(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    nvim.command("FzfwMoveToLastTab").await?;
-    Ok(())
-}
+impl NeovimExt for nvim_rs::Neovim<TokioCompat<WriteHalf<Connection>>> {
+    async fn setup_nvim_config(&self) -> Result<(), Box<dyn Error>> {
+        // 変数の初期化
+        self.exec(
+            r#"let g:fzfw_last_win    = 1
+           let g:fzfw_last_file   = "."
+           let g:fzfw_last_tab    = 1
+           let g:fzfw_current_buf = 1"#,
+            false,
+        )
+        .await?;
 
-#[allow(dead_code)]
-pub async fn start_insert(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    nvim.command("startinsert").await?;
-    Ok(())
-}
+        // autocommandの初期化
+        let _ = self
+            .call(
+                "nvim_create_augroup",
+                call_args!["fzfw", to_value(json!({ "clear": true, }))?],
+            )
+            .await?
+            .map_err(|e| e.to_string())?;
 
-#[allow(dead_code)]
-pub async fn stop_insert(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    nvim.command("stopinsert").await?;
-    Ok(())
-}
+        // autocommandの登録
+        self.register_autocommands(vec![
+            ("WinLeave", r#"let g:fzfw_last_win = winnr()"#),
+            ("WinLeave", r#"let g:fzfw_last_file = expand("%:p")"#),
+            ("TabLeave", r#"let g:fzfw_last_tab = tabpagenr()"#),
+            (
+                "BufLeave",
+                &[
+                    r#"let g:fzfw_last_buf = g:fzfw_current_buf"#,
+                    r#"let g:fzfw_current_buf = bufnr('%')"#,
+                ]
+                .join("|"),
+            ),
+        ])
+        .await?;
 
-#[allow(dead_code)]
-pub async fn leaving_insert_mode<T>(
-    nvim: &Neovim,
-    callback: impl Fn() -> BoxFuture<'static, Result<T, Box<dyn Error>>>,
-) -> Result<T, Box<dyn Error>> {
-    stop_insert(nvim).await?;
-    let r = callback().await?;
-    start_insert(nvim).await?;
-    Ok(r)
-}
+        // commandの登録
+        self.register_command(
+            "FzfwMoveToLastWin",
+            r#"execute "normal! ".g:fzfw_last_win."<C-w><C-w>""#,
+        )
+        .await?;
+        self.register_command("FzfwMoveToLastTab", r#"execute "tabnext ".g:fzfw_last_tab"#)
+            .await?;
 
-#[allow(dead_code)]
-pub async fn focusing_last_win<T>(
-    nvim: &Neovim,
-    callback: impl Fn() -> BoxFuture<'static, Result<T, Box<dyn Error>>>,
-) -> Result<T, Box<dyn Error>> {
-    move_to_last_win(nvim).await?;
-    let r = callback().await?;
-    move_to_last_win(nvim).await?;
-    Ok(r)
-}
-
-#[allow(dead_code)]
-pub async fn focusing_last_tab<T>(
-    nvim: &Neovim,
-    callback: impl Fn() -> BoxFuture<'static, Result<T, Box<dyn Error>>>,
-) -> Result<T, Box<dyn Error>> {
-    move_to_last_tab(nvim).await?;
-    let r = callback().await?;
-    move_to_last_tab(nvim).await?;
-    Ok(r)
-}
-
-#[allow(dead_code)]
-pub async fn last_opened_file(nvim: &Neovim) -> Result<String, Box<dyn Error>> {
-    let r = nvim.eval("g:fzfw_last_file").await?;
-    match r {
-        nvim_rs::Value::String(s) => Ok(s.into_str().unwrap()),
-        _ => Err("g:fzfw_last_file is not string".into()),
+        Ok(())
     }
-}
 
-#[allow(dead_code)]
-pub async fn hide_floaterm(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    nvim.command("FloatermHide! fzf").await?;
-    Ok(())
-}
+    async fn move_to_last_win(self: &Neovim) -> Result<(), Box<dyn Error>> {
+        // 何故かコマンドを経由しないと動かなかった
+        self.command("FzfwMoveToLastWin").await?;
+        Ok(())
+    }
 
-#[allow(dead_code)]
-pub async fn open(nvim: &Neovim, target: OpenTarget, opts: OpenOpts) -> Result<(), Box<dyn Error>> {
-    let line_opt = match opts.line {
-        Some(line) => format!("+{line}"),
-        None => "".to_string(),
-    };
-    match target {
-        OpenTarget::File(file) => {
-            let file = std::fs::canonicalize(file).map_err(|e| e.to_string())?;
-            let file = file.to_string_lossy();
-            if opts.tabedit {
-                let cmd = format!("execute 'tabedit {line_opt} '.fnameescape('{file}')",);
-                nvim.command(&cmd).await.map_err(|e| e.to_string())?;
-                move_to_last_tab(nvim).await?;
-                Ok(())
-            } else {
-                stop_insert(nvim).await?;
-                hide_floaterm(nvim).await?;
-                let cmd = format!("execute 'edit {line_opt} '.fnameescape('{file}')");
-                nvim.command(&cmd).await.map_err(|e| e.to_string())?;
-                Ok(())
+    async fn move_to_last_tab(self: &Neovim) -> Result<(), Box<dyn Error>> {
+        self.command("FzfwMoveToLastTab").await?;
+        Ok(())
+    }
+
+    async fn start_insert(&self) -> Result<(), Box<dyn Error>> {
+        self.command("startinsert").await?;
+        Ok(())
+    }
+
+    async fn stop_insert(&self) -> Result<(), Box<dyn Error>> {
+        self.command("stopinsert").await?;
+        Ok(())
+    }
+
+    async fn last_opened_file(&self) -> Result<String, Box<dyn Error>> {
+        let r = self.eval("g:fzfw_last_file").await?;
+        match r {
+            nvim_rs::Value::String(s) => Ok(s.into_str().unwrap()),
+            _ => Err("g:fzfw_last_file is not string".into()),
+        }
+    }
+
+    async fn hide_floaterm(&self) -> Result<(), Box<dyn Error>> {
+        self.command("FloatermHide! fzf").await?;
+        Ok(())
+    }
+
+    async fn open(&self, target: OpenTarget, opts: OpenOpts) -> Result<(), Box<dyn Error>> {
+        let line_opt = match opts.line {
+            Some(line) => format!("+{line}"),
+            None => "".to_string(),
+        };
+        match target {
+            OpenTarget::File(file) => {
+                let file = std::fs::canonicalize(file).map_err(|e| e.to_string())?;
+                let file = file.to_string_lossy();
+                if opts.tabedit {
+                    let cmd = format!("execute 'tabedit {line_opt} '.fnameescape('{file}')",);
+                    self.command(&cmd).await.map_err(|e| e.to_string())?;
+                    self.move_to_last_tab().await?;
+                    Ok(())
+                } else {
+                    self.stop_insert().await?;
+                    self.hide_floaterm().await?;
+                    let cmd = format!("execute 'edit {line_opt} '.fnameescape('{file}')");
+                    self.command(&cmd).await.map_err(|e| e.to_string())?;
+                    Ok(())
+                }
+            }
+            OpenTarget::Buffer(bufnr) => {
+                let cmd = format!("buffer {line_opt} {bufnr}");
+                if opts.tabedit {
+                    self.command("tabnew").await.map_err(|e| e.to_string())?;
+                    self.command(&cmd).await.map_err(|e| e.to_string())?;
+                    self.move_to_last_tab().await?;
+                    Ok(())
+                } else {
+                    self.stop_insert().await?;
+                    self.hide_floaterm().await?;
+                    self.command(&cmd).await.map_err(|e| e.to_string())?;
+                    Ok(())
+                }
             }
         }
-        OpenTarget::Buffer(bufnr) => {
-            let cmd = format!("buffer {line_opt} {bufnr}");
-            if opts.tabedit {
-                nvim.command("tabnew").await.map_err(|e| e.to_string())?;
-                nvim.command(&cmd).await.map_err(|e| e.to_string())?;
-                move_to_last_tab(nvim).await?;
-                Ok(())
-            } else {
-                stop_insert(nvim).await?;
-                hide_floaterm(nvim).await?;
-                nvim.command(&cmd).await.map_err(|e| e.to_string())?;
-                Ok(())
-            }
-        }
     }
-}
 
-async fn notify(nvim: &Neovim, msg: impl AsRef<str>, level: i64) -> Result<(), Box<dyn Error>> {
-    eval_lua_with_args(nvim, r#"vim.notify(...)"#, call_args![msg.as_ref(), level]).await?;
-    Ok(())
-}
+    async fn notify_info(&self, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>> {
+        self.notify(msg.as_ref(), 2, vec![]).await?;
+        Ok(())
+    }
 
-#[allow(dead_code)]
-pub async fn notify_info(nvim: &Neovim, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>> {
-    notify(nvim, msg, 2).await?;
-    Ok(())
-}
+    async fn notify_warn(&self, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>> {
+        self.notify(msg.as_ref(), 3, vec![]).await?;
+        Ok(())
+    }
 
-#[allow(dead_code)]
-pub async fn notify_warn(nvim: &Neovim, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>> {
-    notify(nvim, msg, 3).await?;
-    Ok(())
-}
+    async fn notify_error(&self, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>> {
+        self.notify(msg.as_ref(), 4, vec![]).await?;
+        Ok(())
+    }
 
-#[allow(dead_code)]
-pub async fn notify_error(nvim: &Neovim, msg: impl AsRef<str>) -> Result<(), Box<dyn Error>> {
-    notify(nvim, msg, 4).await?;
-    Ok(())
-}
-
-pub async fn notify_command_result(
-    nvim: &Neovim,
-    command: impl AsRef<str>,
-    output: Output,
-) -> Result<(), Box<dyn Error>> {
-    if output.status.success() {
-        notify_info(
-            nvim,
-            format!(
+    async fn notify_command_result(
+        &self,
+        command: impl AsRef<str>,
+        output: Output,
+    ) -> Result<(), Box<dyn Error>> {
+        if output.status.success() {
+            self.notify_info(format!(
                 "{} succeeded\n{}",
                 command.as_ref(),
                 String::from_utf8_lossy(output.stdout.as_slice())
-            ),
-        )
-        .await
-    } else {
-        notify_error(
-            nvim,
-            format!(
+            ))
+            .await
+        } else {
+            self.notify_error(format!(
                 "{} failed\n{}",
                 command.as_ref(),
                 String::from_utf8_lossy(output.stderr.as_slice())
-            ),
-        )
-        .await
+            ))
+            .await
+        }
     }
-}
 
-pub async fn notify_command_result_if_error(
-    nvim: &Neovim,
-    command: impl AsRef<str>,
-    output: Output,
-) -> Result<(), Box<dyn Error>> {
-    if !output.status.success() {
-        notify_error(
-            nvim,
-            format!(
+    async fn notify_command_result_if_error(
+        &self,
+        command: impl AsRef<str>,
+        output: Output,
+    ) -> Result<(), Box<dyn Error>> {
+        if !output.status.success() {
+            self.notify_error(format!(
                 "{} failed\n{}",
                 command.as_ref(),
                 String::from_utf8_lossy(output.stderr.as_slice())
-            ),
-        )
-        .await
-    } else {
+            ))
+            .await
+        } else {
+            Ok(())
+        }
+    }
+
+    async fn delete_buffer(&self, bufnr: usize, force: bool) -> Result<(), Box<dyn Error>> {
+        let cmd = format!("bdelete{} {}", if force { "!" } else { "" }, bufnr);
+        info!("delete_buffer: {}", cmd);
+        self.exec(&cmd, false).await?;
         Ok(())
     }
-}
 
-#[allow(dead_code)]
-pub async fn delete_buffer(nvim: &Neovim, bufnr: usize, force: bool) -> Result<(), Box<dyn Error>> {
-    let cmd = format!("bdelete{} {}", if force { "!" } else { "" }, bufnr);
-    info!("delete_buffer: {}", cmd);
-    nvim.exec(&cmd, false).await?;
-    Ok(())
+    async fn register_autocommands(
+        &self,
+        autcmds: Vec<(&str, &str)>,
+    ) -> Result<(), Box<dyn Error>> {
+        let _ = self
+            .call(
+                "nvim_create_augroup",
+                call_args![FZFW_AUTOCMD_GROUP, to_value(json!({ "clear": true, }))?],
+            )
+            .await?
+            .map_err(|e| e.to_string())?;
+        for (event, command) in autcmds.iter() {
+            let _ = self
+                .call(
+                    "nvim_create_autocmd",
+                    call_args![
+                        event,
+                        to_value(json!({
+                            "group": FZFW_AUTOCMD_GROUP,
+                            "command": command
+                        }))?
+                    ],
+                )
+                .await?
+                .map_err(|e| e.to_string())?;
+        }
+        Ok(())
+    }
+
+    async fn register_command(&self, name: &str, command: &str) -> Result<(), Box<dyn Error>> {
+        let _ = self
+            .call(
+                "nvim_create_user_command",
+                call_args![
+                    name,
+                    command,
+                    to_value(json!({
+                        "force": true,
+                    }))?
+                ],
+            )
+            .await?
+            .map_err(|e| e.to_string())?;
+        Ok(())
+    }
+
+    async fn eval_lua(&self, expr: impl AsRef<str>) -> Result<rmpv::Value, Box<dyn Error>> {
+        self.eval_lua_with_args(expr, vec![]).await
+    }
+
+    async fn eval_lua_with_args(
+        &self,
+        expr: impl AsRef<str>,
+        args: Vec<rmpv::Value>,
+    ) -> Result<rmpv::Value, Box<dyn Error>> {
+        let v = self
+            .call("nvim_exec_lua", call_args![expr.as_ref(), args])
+            .await?
+            .map_err(|e| e.to_string())?;
+        Ok(v)
+    }
+
+    async fn get_all_diagnostics(&self) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
+        Ok(from_value(
+            self.eval_lua(
+                r#"
+                    local ds = vim.diagnostic.get()
+                    for _, d in ipairs(ds) do
+                      d.file = vim.api.nvim_buf_get_name(d.bufnr)
+                    end
+                    return ds
+                "#,
+            )
+            .await?,
+        )?)
+    }
+
+    async fn get_buf_name(&self, bufnr: usize) -> Result<String, Box<dyn Error>> {
+        Ok(from_value(
+            self.eval_lua(&format!("return vim.api.nvim_buf_get_name({bufnr})"))
+                .await?,
+        )?)
+    }
 }
 
 pub struct OpenOpts {
@@ -254,30 +380,6 @@ impl From<usize> for OpenTarget {
     fn from(val: usize) -> Self {
         OpenTarget::Buffer(val)
     }
-}
-
-#[allow(dead_code)]
-pub async fn get_all_diagnostics(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
-    Ok(from_value(
-        eval_lua(
-            nvim,
-            r#"
-            local ds = vim.diagnostic.get()
-            for _, d in ipairs(ds) do
-              d.file = vim.api.nvim_buf_get_name(d.bufnr)
-            end
-            return ds
-            "#,
-        )
-        .await?,
-    )?)
-}
-
-#[allow(dead_code)]
-pub async fn get_buf_name(nvim: &Neovim, bufnr: usize) -> Result<String, Box<dyn Error>> {
-    Ok(from_value(
-        eval_lua(nvim, &format!("return vim.api.nvim_buf_get_name({bufnr})")).await?,
-    )?)
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -312,128 +414,6 @@ impl Severity {
             _ => panic!("unknown severity {}", self.0),
         }
     }
-}
-
-////////////////////////////////////////////////////////////////////////////////
-// Impl
-////////////////////////////////////////////////////////////////////////////////
-
-async fn setup_nvim_config(nvim: &Neovim) -> Result<(), Box<dyn Error>> {
-    // 変数の初期化
-    nvim.exec(
-        r#"let g:fzfw_last_win    = 1
-           let g:fzfw_last_file   = "."
-           let g:fzfw_last_tab    = 1
-           let g:fzfw_current_buf = 1"#,
-        false,
-    )
-    .await?;
-
-    // autocommandの初期化
-    let _ = nvim
-        .call(
-            "nvim_create_augroup",
-            call_args!["fzfw", to_value(json!({ "clear": true, }))?],
-        )
-        .await?
-        .map_err(|e| e.to_string())?;
-
-    // autocommandの登録
-    register_autocmds(
-        nvim,
-        vec![
-            ("WinLeave", r#"let g:fzfw_last_win = winnr()"#),
-            ("WinLeave", r#"let g:fzfw_last_file = expand("%:p")"#),
-            ("TabLeave", r#"let g:fzfw_last_tab = tabpagenr()"#),
-            (
-                "BufLeave",
-                &[
-                    r#"let g:fzfw_last_buf = g:fzfw_current_buf"#,
-                    r#"let g:fzfw_current_buf = bufnr('%')"#,
-                ]
-                .join("|"),
-            ),
-        ],
-    )
-    .await?;
-
-    // commandの登録
-    register_command(
-        nvim,
-        "FzfwMoveToLastWin",
-        r#"execute "normal! ".g:fzfw_last_win."<C-w><C-w>""#,
-    )
-    .await?;
-    register_command(
-        nvim,
-        "FzfwMoveToLastTab",
-        r#"execute "tabnext ".g:fzfw_last_tab"#,
-    )
-    .await?;
-
-    Ok(())
-}
-
-async fn register_autocmds(
-    nvim: &Neovim,
-    autcmds: Vec<(&str, &str)>,
-) -> Result<(), Box<dyn Error>> {
-    let _ = nvim
-        .call(
-            "nvim_create_augroup",
-            call_args![FZFW_AUTOCMD_GROUP, to_value(json!({ "clear": true, }))?],
-        )
-        .await?
-        .map_err(|e| e.to_string())?;
-    for (event, command) in autcmds.iter() {
-        let _ = nvim
-            .call(
-                "nvim_create_autocmd",
-                call_args![
-                    event,
-                    to_value(json!({
-                        "group": FZFW_AUTOCMD_GROUP,
-                        "command": command
-                    }))?
-                ],
-            )
-            .await?
-            .map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-async fn register_command(nvim: &Neovim, name: &str, command: &str) -> Result<(), Box<dyn Error>> {
-    let _ = nvim
-        .call(
-            "nvim_create_user_command",
-            call_args![
-                name,
-                command,
-                to_value(json!({
-                    "force": true,
-                }))?
-            ],
-        )
-        .await?
-        .map_err(|e| e.to_string())?;
-    Ok(())
-}
-
-pub async fn eval_lua(nvim: &Neovim, expr: impl AsRef<str>) -> Result<rmpv::Value, Box<dyn Error>> {
-    eval_lua_with_args(nvim, expr, vec![]).await
-}
-
-pub async fn eval_lua_with_args(
-    nvim: &Neovim,
-    expr: impl AsRef<str>,
-    args: Vec<rmpv::Value>,
-) -> Result<rmpv::Value, Box<dyn Error>> {
-    let v = nvim
-        .call("nvim_exec_lua", call_args![expr.as_ref(), args])
-        .await?
-        .map_err(|e| e.to_string())?;
-    Ok(v)
 }
 
 const FZFW_AUTOCMD_GROUP: &str = "fzfw";

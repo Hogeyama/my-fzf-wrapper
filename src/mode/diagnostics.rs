@@ -3,7 +3,7 @@ use crate::{
     external_command::{bat, fzf, glow},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim::{self, DiagnosticsItem},
+    nvim::{self, DiagnosticsItem, NeovimExt},
     state::State,
 };
 
@@ -30,7 +30,8 @@ impl ModeDef for Diagnostics {
     ) -> BoxFuture<'a, Result<LoadResp, String>> {
         let nvim = state.nvim.clone();
         async move {
-            let mut diagnostics = nvim::get_all_diagnostics(&nvim)
+            let mut diagnostics = nvim
+                .get_all_diagnostics()
                 .await
                 .map_err(|e| e.to_string())?;
             diagnostics.sort_by(|a, b| a.severity.0.cmp(&b.severity.0));
@@ -58,7 +59,8 @@ impl ModeDef for Diagnostics {
             }
         };
         async move {
-            let file = nvim::get_buf_name(&nvim, diagnostics_item.bufnr as usize)
+            let file = nvim
+                .get_buf_name(diagnostics_item.bufnr as usize)
                 .await
                 .map_err(|e| e.to_string());
             match file {
@@ -159,7 +161,8 @@ struct OpenOpts {
 async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), String> {
     let nvim = state.nvim.clone();
     let diagnostics_item = get_diagnostic_item(state, item.clone()).map_err(|e| e.to_string())?;
-    let file = nvim::get_buf_name(&nvim, diagnostics_item.bufnr as usize)
+    let file = nvim
+        .get_buf_name(diagnostics_item.bufnr as usize)
         .await
         .map_err(|e| e.to_string())?;
     let opts = nvim::OpenOpts {
@@ -167,7 +170,7 @@ async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), Str
         tabedit: opts.tabedit,
     };
     let _ = tokio::spawn(async move {
-        let r = nvim::open(&nvim, file.into(), opts).await;
+        let r = nvim.open(file.into(), opts).await;
         if let Err(e) = r {
             error!("diagnostics: run: nvim_open failed"; "error" => e.to_string());
         }

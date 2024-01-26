@@ -6,7 +6,7 @@ use crate::{
     logger::Serde,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim::{self, Neovim},
+    nvim::{self, Neovim, NeovimExt},
     state::State,
 };
 
@@ -139,7 +139,7 @@ async fn exec(mark: MarkItem, state: &mut State, opts: ExecOpts) -> Result<(), S
                 tabedit,
             };
             let file = shellexpand::tilde(&mark.file).to_string();
-            let r = nvim::open(&nvim, file.into(), nvim_opts).await;
+            let r = nvim.open(file.into(), nvim_opts).await;
             if let Err(e) = r {
                 error!("buffer: run: nvim_open failed"; "error" => e.to_string());
             }

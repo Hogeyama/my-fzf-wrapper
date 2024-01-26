@@ -3,7 +3,7 @@ use crate::{
     external_command::{bat, fd, fzf, gh, xsel},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim,
+    nvim::{self, NeovimExt},
     state::State,
 };
 
@@ -110,7 +110,7 @@ async fn open(state: &mut State, file: String, opts: OpenOpts) -> Result<(), Str
                 line: None,
                 tabedit,
             };
-            nvim::open(&nvim, file.into(), nvim_opts)
+            nvim.open(file.into(), nvim_opts)
                 .await
                 .map_err(|e| e.to_string())?;
         }

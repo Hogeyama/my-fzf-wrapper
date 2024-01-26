@@ -8,7 +8,7 @@ use crate::{
     external_command::fzf,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim::{self, Neovim},
+    nvim::{Neovim, NeovimExt},
     state::State,
 };
 
@@ -73,27 +73,23 @@ impl ModeDef for NeovimSession {
 }
 
 async fn session_command(nvim: &Neovim, action: &str, session: String) {
-    let _ = nvim::hide_floaterm(nvim).await;
-    let r = nvim::eval_lua(
-        nvim,
-        format!("require(\"mini.sessions\").{action}(\"{session}\")"),
-    )
-    .await
-    .map_err(|e| e.to_string());
+    let _ = nvim.hide_floaterm().await;
+    let r = nvim
+        .eval_lua(format!(
+            "require(\"mini.sessions\").{action}(\"{session}\")"
+        ))
+        .await
+        .map_err(|e| e.to_string());
     match r {
         Ok(_) => {
-            let _ = nvim::notify_info(
-                nvim,
-                format!("mini.sessions.{action}(\"{session}\") succeeded"),
-            )
-            .await;
+            let _ = nvim
+                .notify_info(format!("mini.sessions.{action}(\"{session}\") succeeded"))
+                .await;
         }
         Err(e) => {
-            let _ = nvim::notify_error(
-                nvim,
-                format!("mini.sessions.{action}(\"{session}\") failed: {e}"),
-            )
-            .await;
+            let _ = nvim
+                .notify_error(format!("mini.sessions.{action}(\"{session}\") failed: {e}"))
+                .await;
         }
     }
 }

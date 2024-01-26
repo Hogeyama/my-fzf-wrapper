@@ -6,7 +6,7 @@ use crate::{
     logger::Serde,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim::{self, Neovim},
+    nvim::{self, Neovim, NeovimExt},
     state::State,
 };
 
@@ -152,14 +152,14 @@ async fn exec(state: &mut State, item: String, opts: ExecOpts) -> Result<(), Str
                 line: None,
                 tabedit,
             };
-            let r = nvim::open(&nvim, bufnr.into(), nvim_opts).await;
+            let r = nvim.open(bufnr.into(), nvim_opts).await;
             if let Err(e) = r {
                 error!("buffer: run: nvim_open failed"; "error" => e.to_string());
             }
         }
         ExecOpts::Delete { force } => {
             let nvim = state.nvim.clone();
-            let r = nvim::delete_buffer(&nvim, bufnr, force).await;
+            let r = nvim.delete_buffer(bufnr, force).await;
             if let Err(e) = r {
                 error!("buffer: run: nvim_delete_buffer failed"; "error" => e.to_string());
             }

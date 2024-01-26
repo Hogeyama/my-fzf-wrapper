@@ -7,7 +7,7 @@ use crate::{
     external_command::{fzf, git, xsel},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim,
+    nvim::NeovimExt,
     state::State,
 };
 
@@ -106,13 +106,13 @@ impl ModeDef for GitLog {
             "enter" => [
                 select_and_execute!{b, |_mode,_config,state,_query,item|
                     "diffview" => {
-                        let _ = nvim::hide_floaterm(&state.nvim).await;
+                        let _ = state.nvim.hide_floaterm().await;
                         state.nvim.command(&format!("DiffviewOpen {}^!", commit_of(&item)?))
                             .await
                             .map_err(|e| e.to_string())
                     },
                     "interactive rebase" => {
-                        let _ = nvim::hide_floaterm(&state.nvim).await;
+                        let _ = state.nvim.hide_floaterm().await;
                         let commit = commit_of(&item)?;
                         let output = Command::new("git")
                             .arg("rebase")
@@ -123,7 +123,7 @@ impl ModeDef for GitLog {
                             .output()
                             .await
                             .map_err(|e| e.to_string())?;
-                        nvim::notify_command_result(&state.nvim, "git rebase", output)
+                        state.nvim.notify_command_result("git rebase", output)
                             .await
                             .map_err(|e| e.to_string())
                     },
@@ -134,7 +134,7 @@ impl ModeDef for GitLog {
                             .output()
                             .await
                             .map_err(|e| e.to_string())?;
-                        nvim::notify_command_result(&state.nvim, "git reset", output)
+                        state.nvim.notify_command_result("git reset", output)
                             .await
                             .map_err(|e| e.to_string())
                     },
@@ -146,7 +146,7 @@ impl ModeDef for GitLog {
                             .output()
                             .await
                             .map_err(|e| e.to_string())?;
-                        nvim::notify_command_result(&state.nvim, "git reset", output)
+                        state.nvim.notify_command_result("git reset", output)
                             .await
                             .map_err(|e| e.to_string())
                     },
@@ -159,7 +159,7 @@ impl ModeDef for GitLog {
                             .output()
                             .await
                             .map_err(|e| e.to_string())?;
-                        nvim::notify_command_result(&state.nvim, "git branch", output)
+                        state.nvim.notify_command_result("git branch", output)
                             .await
                             .map_err(|e| e.to_string())
                     }

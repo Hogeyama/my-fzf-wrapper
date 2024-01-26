@@ -30,7 +30,7 @@ use crate::method::Method;
 use crate::method::PreviewResp;
 use crate::mode;
 use crate::mode::Mode;
-use crate::nvim;
+use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::Config;
 
@@ -277,17 +277,18 @@ async fn handle_one_client(
                         dir.pop();
                         Ok(dir)
                     }
-                    method::ChangeDirectoryParam::ToLastFileDir => {
-                        nvim::last_opened_file(&s.state.nvim)
-                            .await
-                            .map_err(|e| e.to_string())
-                            .and_then(|path| {
-                                let path = std::fs::canonicalize(path).unwrap();
-                                path.parent()
-                                    .ok_or("no parent dir".to_string())
-                                    .map(|p| p.to_owned())
-                            })
-                    }
+                    method::ChangeDirectoryParam::ToLastFileDir => s
+                        .state
+                        .nvim
+                        .last_opened_file()
+                        .await
+                        .map_err(|e| e.to_string())
+                        .and_then(|path| {
+                            let path = std::fs::canonicalize(path).unwrap();
+                            path.parent()
+                                .ok_or("no parent dir".to_string())
+                                .map(|p| p.to_owned())
+                        }),
                     method::ChangeDirectoryParam::To(path) => std::fs::canonicalize(path)
                         .map_err(|e| e.to_string())
                         .and_then(|path| match std::fs::metadata(&path) {

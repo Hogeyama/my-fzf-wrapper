@@ -7,7 +7,7 @@ use crate::{
     external_command::{fzf, git, xsel},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim::{self, Neovim},
+    nvim::{Neovim, NeovimExt},
     state::State,
 };
 
@@ -95,8 +95,7 @@ impl ModeDef for GitBranch {
                             .output()
                             .await
                             .map_err(|e| e.to_string())?;
-                        nvim::notify_command_result(
-                            &state.nvim,
+                        state.nvim.notify_command_result(
                             format!("git branch {branch} {commit}"),
                             output,
                         )
@@ -173,7 +172,7 @@ async fn push_branch_to_remote(nvim: &Neovim, branch: String, force: bool) -> Re
         .output()
         .await
         .map_err(|e| e.to_string())?;
-    nvim::notify_command_result(nvim, "git push", output)
+    nvim.notify_command_result("git push", output)
         .await
         .map_err(|e| e.to_string())
 }
@@ -187,7 +186,7 @@ async fn delete_branch(nvim: &Neovim, branch: String, force: bool) -> Result<(),
         .output()
         .await
         .map_err(|e| e.to_string())?;
-    nvim::notify_command_result(nvim, format!("git branch {opt}"), output)
+    nvim.notify_command_result(format!("git branch {opt}"), output)
         .await
         .map_err(|e| e.to_string())
 }

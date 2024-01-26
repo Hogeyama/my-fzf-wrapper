@@ -6,7 +6,7 @@ use crate::{
     logger::Serde,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim::{self, Neovim},
+    nvim::{self, Neovim, NeovimExt},
     state::State,
 };
 
@@ -138,7 +138,7 @@ async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), Str
         line: None,
         tabedit,
     };
-    nvim::open(&nvim, bufnr.into(), nvim_opts)
+    nvim.open(bufnr.into(), nvim_opts)
         .await
         .map_err(|e| e.to_string())?;
     Ok(())

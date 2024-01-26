@@ -7,7 +7,7 @@ use crate::{
     external_command::{fzf, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim,
+    nvim::NeovimExt,
     state::State,
 };
 
@@ -60,7 +60,7 @@ impl ModeDef for GitReflog {
             "enter" => [
                 select_and_execute!{b, |_mode,_config,state,_query,item|
                     "diffview" => {
-                        let _ = nvim::hide_floaterm(&state.nvim).await;
+                        let _ = state.nvim.hide_floaterm().await;
                         state.nvim.command(&format!("DiffviewOpen {}^!", commit_of(&item)?))
                             .await
                             .map_err(|e| e.to_string())
@@ -72,7 +72,7 @@ impl ModeDef for GitReflog {
                             .output()
                             .await
                             .map_err(|e| e.to_string())?;
-                        nvim::notify_command_result(&state.nvim, "git cherry-pick", output)
+                        state.nvim.notify_command_result("git cherry-pick", output)
                             .await
                             .map_err(|e| e.to_string())
                     },
