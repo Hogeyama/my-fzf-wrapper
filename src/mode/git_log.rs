@@ -6,7 +6,7 @@ use crate::{
     external_command::{fzf, git, xsel},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim::NeovimExt,
+    nvim::{Neovim, NeovimExt},
     state::State,
 };
 
@@ -149,6 +149,12 @@ impl ModeDef for GitLog {
                             .await
                             .map_err(|e| e.to_string())
                     },
+                    "push to remote" => {
+                        push_to_remote(&state.nvim, &item, false).await
+                    },
+                    "push to remote (force)" => {
+                        push_to_remote(&state.nvim, &item, true).await
+                    },
                     "new branch" => {
                         let branch = fzf::input("Enter branch name").await?;
                         let output = Command::new("git")
@@ -167,6 +173,30 @@ impl ModeDef for GitLog {
             ],
         }
     }
+}
+
+async fn push_to_remote(nvim: &Neovim, item: &String, force: bool) -> Result<(), String> {
+    let commit = git::parse_short_commit(item)?;
+    let all_remote_branches = git::remote_branches()?;
+    let preferred_branches = branches_of(item)?
+        .into_iter()
+        .filter(|b| all_remote_branches.contains(b)) // remove local branch
+        .collect::<Vec<_>>();
+    let branches = preferred_branches
+        .iter()
+        .chain(
+            all_remote_branches
+                .iter()
+                .filter(|b| !preferred_branches.contains(b)),
+        )
+        .map(|b| b.as_str())
+        .collect::<Vec<_>>();
+    let selected_branch = fzf::select_with_header("branch to push to", branches).await?;
+    let (remote, selected_branch) = selected_branch.split_once('/').ok_or("No remote found")?;
+    let output = git::push(remote, commit, selected_branch, force).await?;
+    nvim.notify_command_result("git push", output)
+        .await
+        .map_err(|e| e.to_string())
 }
 
 fn branches_of(item: &str) -> Result<Vec<String>, String> {
