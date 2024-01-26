@@ -62,7 +62,7 @@ impl ModeDef for GitLog {
             b <= default_bindings(),
             "ctrl-l" => [
                 execute_silent!{b, |_mode,config,_state,_query,item| {
-                    let query = match branches_of(&item) {
+                    let query = match branches_of(&item)? {
                         branches if branches.is_empty() => {
                             "".to_string()
                         }
@@ -169,10 +169,11 @@ impl ModeDef for GitLog {
     }
 }
 
-fn branches_of(item: &str) -> Vec<String> {
+fn branches_of(item: &str) -> Result<Vec<String>, String> {
     let branches = git::parse_branches_of_log(item);
-    branches
+    let remotes = git::remotes()?;
+    Ok(branches
         .into_iter()
-        .filter(|s| !s.starts_with("origin/")) // FIXME ad-hoc
-        .collect::<Vec<_>>()
+        .filter(|s| remotes.iter().all(|r| !s.starts_with(&format!("{}/", r))))
+        .collect::<Vec<_>>())
 }
