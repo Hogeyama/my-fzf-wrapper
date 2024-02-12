@@ -27,7 +27,7 @@ impl LiveGrep {
     pub fn new() -> Self {
         Self {
             name: "livegrep",
-            rg_opts: vec![],
+            rg_opts: vec!["--glob".to_string(), "!.git".to_string()],
         }
     }
     pub fn new_no_ignore() -> Self {
