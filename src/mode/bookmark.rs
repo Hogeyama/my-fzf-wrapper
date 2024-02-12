@@ -6,6 +6,7 @@ use crate::{
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim, NeovimExt},
+    path::to_relpath,
     state::State,
 };
 
@@ -106,12 +107,6 @@ async fn get_bookmarks(nvim: &Neovim) -> Result<Vec<BookmarkItem>, Box<dyn Error
         })
         .collect::<Vec<_>>();
     Ok(bookmarks)
-}
-
-fn to_relpath(path: impl AsRef<str>) -> String {
-    let pwd = std::env::current_dir().unwrap();
-    let pwd = pwd.to_str().unwrap();
-    path.as_ref().replace(&format!("{pwd}/"), "")
 }
 
 enum ExecOpts {

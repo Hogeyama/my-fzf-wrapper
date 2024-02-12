@@ -4,6 +4,7 @@ use crate::{
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim::{self, DiagnosticsItem, NeovimExt},
+    path::to_relpath,
     state::State,
 };
 
@@ -112,13 +113,10 @@ static KEY_DIAGNOSTICS: &str = "diagnostics_diagnostics";
 static ITEM_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r".*\s{200}(?P<num>\d+)$").unwrap());
 
 fn to_item(_num_max_digits: usize, num: usize, d: DiagnosticsItem) -> String {
-    let pwd = std::env::current_dir().unwrap();
-    let pwd = pwd.to_str().unwrap();
-    let relpath = d.file.as_str().replace(&format!("{pwd}/"), "");
     format!(
         "{} {}|{}{}{}",
         d.severity.mark(),
-        relpath,
+        to_relpath(d.file),
         d.message.replace('\n', ". "),
         " ".repeat(200), // numが表示から外れるように適当に長めに空白を入れる
         num,
