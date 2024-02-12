@@ -405,7 +405,7 @@ pub mod config_builder {
                 b.change_mode(super::buffer::Buffer.name(), false),
             ],
             "ctrl-d" => [
-                b.change_mode(super::mark::Mark::new().name(), false),
+                b.change_mode(super::bookmark::Bookmark.name(), false),
             ],
             "ctrl-h" => [
                 b.change_mode(super::mru::Mru.name(), false),
