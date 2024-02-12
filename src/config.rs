@@ -43,6 +43,7 @@ pub fn new(myself: String, socket: String, log_file: String) -> Config {
         Box::pin(|| f(Box::new(mode::menu::Menu))),
         Box::pin(|| f(Box::new(mode::fd::Fd))),
         Box::pin(|| f(Box::new(mode::buffer::Buffer))),
+        Box::pin(|| f(Box::new(mode::bookmark::Bookmark::new()))),
         Box::pin(|| f(Box::new(mode::mark::Mark::new()))),
         Box::pin(|| f(Box::new(mode::zoxide::Zoxide))),
         Box::pin(|| f(Box::new(mode::mru::Mru))),
