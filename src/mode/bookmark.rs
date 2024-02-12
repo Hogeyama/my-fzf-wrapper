@@ -90,7 +90,6 @@ impl ModeDef for Bookmark {
 // Util
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-// TODO PWDからの相対パスにする
 async fn get_bookmarks(nvim: &Neovim) -> Result<Vec<BookmarkItem>, Box<dyn Error>> {
     // Example:
     // [ "/home/hogeyama/code/my-fzf-wrapper/src/mode/bookmark.rs:23:pub struct Bookmark {"
@@ -101,12 +100,18 @@ async fn get_bookmarks(nvim: &Neovim) -> Result<Vec<BookmarkItem>, Box<dyn Error
         .iter()
         .map(|b| {
             let mut parts = b.split(':');
-            let file = parts.next().unwrap().to_string();
+            let file = to_relpath(parts.next().unwrap().to_string());
             let line = parts.next().unwrap().parse().unwrap();
             BookmarkItem { file, line }
         })
         .collect::<Vec<_>>();
     Ok(bookmarks)
+}
+
+fn to_relpath(path: impl AsRef<str>) -> String {
+    let pwd = std::env::current_dir().unwrap();
+    let pwd = pwd.to_str().unwrap();
+    path.as_ref().replace(&format!("{pwd}/"), "")
 }
 
 enum ExecOpts {
