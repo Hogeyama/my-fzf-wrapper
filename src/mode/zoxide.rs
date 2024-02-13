@@ -40,7 +40,7 @@ impl ModeDef for Zoxide {
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {
-            let output = Command::new("exa")
+            let output = Command::new("eza")
                 .args(vec!["--color", "always"])
                 .args(vec!["--all"])
                 .args(vec!["--sort", "name"])
