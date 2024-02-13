@@ -78,11 +78,11 @@ impl GitDiff {
             for hunk in patched_file {
                 let target_start = hunk.target_start;
                 let item = match kind {
-                    HunkKind::Staged => Item::Staged {
+                    HunkKind::Staged => Item::StagedHunk {
                         file: file.clone(),
                         target_start,
                     },
-                    HunkKind::Unstaged => Item::Unstaged {
+                    HunkKind::Unstaged => Item::UnstagedHunk {
                         file: file.clone(),
                         target_start,
                     },
@@ -117,11 +117,11 @@ impl ModeDef for GitDiff {
                 .for_each(|item| items.push(item.render()));
             git::untracked_files()?
                 .into_iter()
-                .map(|s| Item::Untracked { file: s })
+                .map(|s| Item::UntrackedFile { file: s })
                 .for_each(|item| items.push(item.render()));
             git::conflicted_files()?
                 .into_iter()
-                .map(|s| Item::Conflicted { file: s })
+                .map(|s| Item::ConflictedFile { file: s })
                 .for_each(|item| items.push(item.render()));
             Ok(LoadResp::new_with_default_header(items))
         }
@@ -136,23 +136,23 @@ impl ModeDef for GitDiff {
         async move {
             let item = Item::parse(&item)?;
             match item {
-                Item::Staged { .. } => {
+                Item::StagedHunk { .. } => {
                     let hunk = self.hunk_of_item(&item)?;
                     let message = hunk.colorize();
                     Ok(PreviewResp { message })
                 }
-                Item::Unstaged { .. } => {
+                Item::UnstagedHunk { .. } => {
                     let hunk = self.hunk_of_item(&item)?;
                     let message = hunk.colorize();
                     Ok(PreviewResp { message })
                 }
-                Item::Untracked { file } => {
+                Item::UntrackedFile { file } => {
                     let file = format!("{}{}", git::workdir()?, file);
                     let message = bat::render_file(&file).await?;
                     Ok(PreviewResp { message })
                 }
-                Item::Conflicted { file } => {
-                    info!("conflicted file: {}", file);
+                Item::ConflictedFile { file } => {
+                    info!("ConflictedFile file: {}", file);
                     let message = bat::render_file(&file).await?;
                     Ok(PreviewResp { message })
                 }
@@ -179,7 +179,7 @@ impl ModeDef for GitDiff {
                         .map_err(|_| "wow")?;
                     let item = Item::parse(&item)?;
                     match item {
-                        Item::Staged { file, target_start } => {
+                        Item::StagedHunk { file, target_start } => {
                             let file = format!("{root}/{file}");
                             let nvim_opts = nvim::OpenOpts {
                                 line: Some(target_start),
@@ -191,7 +191,7 @@ impl ModeDef for GitDiff {
                                 .await
                                 .map_err(|e| e.to_string())?;
                         }
-                        Item::Unstaged { file, target_start } => {
+                        Item::UnstagedHunk { file, target_start } => {
                             let file = format!("{root}/{file}");
                             let nvim_opts = nvim::OpenOpts {
                                 line: Some(target_start),
@@ -203,7 +203,7 @@ impl ModeDef for GitDiff {
                                 .await
                                 .map_err(|e| e.to_string())?;
                         }
-                        Item::Untracked { file } => {
+                        Item::UntrackedFile { file } => {
                             let file = format!("{root}/{file}");
                             let nvim_opts = nvim::OpenOpts {
                                 line: None,
@@ -215,7 +215,7 @@ impl ModeDef for GitDiff {
                                 .await
                                 .map_err(|e| e.to_string())?;
                         }
-                        Item::Conflicted { file } => {
+                        Item::ConflictedFile { file } => {
                             let file = format!("{root}/{file}");
                             let nvim_opts = nvim::OpenOpts {
                                 line: None,
@@ -232,24 +232,24 @@ impl ModeDef for GitDiff {
                 ExecOpts::Stage => {
                     let item = Item::parse(&item)?;
                     match item {
-                        Item::Staged { .. } => {
+                        Item::StagedHunk { .. } => {
                             // already staged
                         }
-                        Item::Unstaged { .. } => {
+                        Item::UnstagedHunk { .. } => {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--cached"]).await?;
                         }
-                        Item::Untracked { file } => {
+                        Item::UntrackedFile { file } => {
                             git_stage_file(&state.nvim, file).await?;
                         }
-                        Item::Conflicted { .. } => {
+                        Item::ConflictedFile { .. } => {
                             // conflicted file cannot be staged
                         }
                     }
                 }
                 ExecOpts::Unstage => {
                     let item = Item::parse(&item)?;
-                    if let Item::Staged { .. } = item {
+                    if let Item::StagedHunk { .. } = item {
                         let (_temp, patch) = self.save_patch_to_temp(&item)?;
                         git_apply(&state.nvim, patch, vec!["--reverse", "--cached"]).await?;
                     }
@@ -257,38 +257,38 @@ impl ModeDef for GitDiff {
                 ExecOpts::StageFile => {
                     let item = Item::parse(&item)?;
                     let file = match item {
-                        Item::Staged { file, .. } => file,
-                        Item::Unstaged { file, .. } => file,
-                        Item::Untracked { file } => file,
-                        Item::Conflicted { file } => file,
+                        Item::StagedHunk { file, .. } => file,
+                        Item::UnstagedHunk { file, .. } => file,
+                        Item::UntrackedFile { file } => file,
+                        Item::ConflictedFile { file } => file,
                     };
                     git_stage_file(&state.nvim, file).await?;
                 }
                 ExecOpts::UnstageFile => {
                     let item = Item::parse(&item)?;
                     let file = match item {
-                        Item::Staged { file, .. } => file,
-                        Item::Unstaged { file, .. } => file,
-                        Item::Untracked { file } => file,
-                        Item::Conflicted { file } => file,
+                        Item::StagedHunk { file, .. } => file,
+                        Item::UnstagedHunk { file, .. } => file,
+                        Item::UntrackedFile { file } => file,
+                        Item::ConflictedFile { file } => file,
                     };
                     git_unstage_file(&state.nvim, file).await?;
                 }
                 ExecOpts::Discard => {
                     let item = Item::parse(&item)?;
                     match item {
-                        Item::Staged { .. } => {
+                        Item::StagedHunk { .. } => {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--reverse", "--index"]).await?;
                         }
-                        Item::Unstaged { .. } => {
+                        Item::UnstagedHunk { .. } => {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--reverse"]).await?;
                         }
-                        Item::Untracked { .. } => {
+                        Item::UntrackedFile { .. } => {
                             // untracked file cannot be discarded
                         }
-                        Item::Conflicted { .. } => {
+                        Item::ConflictedFile { .. } => {
                             // conflicted file cannot be discarded
                         }
                     }
@@ -500,40 +500,40 @@ impl ExecOpts {
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 enum Item {
-    Staged { file: String, target_start: usize },
-    Unstaged { file: String, target_start: usize },
-    Untracked { file: String },
-    Conflicted { file: String },
+    StagedHunk { file: String, target_start: usize },
+    UnstagedHunk { file: String, target_start: usize },
+    UntrackedFile { file: String },
+    ConflictedFile { file: String },
 }
 
 impl Item {
     fn file(&self) -> &str {
         match self {
-            Item::Staged { file, .. } => file,
-            Item::Unstaged { file, .. } => file,
-            Item::Untracked { file } => file,
-            Item::Conflicted { file } => file,
+            Item::StagedHunk { file, .. } => file,
+            Item::UnstagedHunk { file, .. } => file,
+            Item::UntrackedFile { file } => file,
+            Item::ConflictedFile { file } => file,
         }
     }
 
     fn render(&self) -> String {
         match self {
-            Item::Staged { file, target_start } => format!(
+            Item::StagedHunk { file, target_start } => format!(
                 "{} {}:{}",
                 ansi_term::Colour::Green.bold().paint("S"),
                 file,
                 target_start
             ),
-            Item::Unstaged { file, target_start } => format!(
+            Item::UnstagedHunk { file, target_start } => format!(
                 "{} {}:{}",
                 ansi_term::Colour::Blue.bold().paint("U"),
                 file,
                 target_start
             ),
-            Item::Untracked { file } => {
+            Item::UntrackedFile { file } => {
                 format!("{} {}:0", ansi_term::Colour::Red.bold().paint("A"), file)
             }
-            Item::Conflicted { file } => {
+            Item::ConflictedFile { file } => {
                 format!("{} {}:0", ansi_term::Colour::Red.bold().paint("C"), file)
             }
         }
@@ -547,18 +547,18 @@ impl Item {
             .split_once(':')
             .ok_or("")?;
         match item.chars().next().ok_or("")? {
-            'S' => Ok(Item::Staged {
+            'S' => Ok(Item::StagedHunk {
                 file: file.to_string(),
                 target_start: target.parse::<usize>().map_err(|e| e.to_string())?,
             }),
-            'U' => Ok(Item::Unstaged {
+            'U' => Ok(Item::UnstagedHunk {
                 file: file.to_string(),
                 target_start: target.parse::<usize>().map_err(|e| e.to_string())?,
             }),
-            'A' => Ok(Item::Untracked {
+            'A' => Ok(Item::UntrackedFile {
                 file: file.to_string(),
             }),
-            'C' => Ok(Item::Untracked {
+            'C' => Ok(Item::UntrackedFile {
                 file: file.to_string(),
             }),
             _ => Err("parse error".to_string()),
