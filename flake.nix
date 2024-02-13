@@ -59,8 +59,17 @@
             mkdir -p $out/bin
             cp ${fzfw-unwrapped}/bin/fzfw $out/bin/fzfw
             wrapProgram $out/bin/fzfw \
+              --prefix PATH : ${pkgs-for-bin.bat}/bin \
+              --prefix PATH : ${pkgs-for-bin.eza}/bin \
+              --prefix PATH : ${pkgs-for-bin.fd}/bin \
               --prefix PATH : ${pkgs-for-bin.fzf}/bin \
+              --prefix PATH : ${pkgs-for-bin.gh}/bin \
+              --prefix PATH : ${pkgs-for-bin.git}/bin \
+              --prefix PATH : ${pkgs-for-bin.glow}/bin \
+              --prefix PATH : ${pkgs-for-bin.lazygit}/bin \
               --prefix PATH : ${pkgs-for-bin.ripgrep}/bin \
+              --prefix PATH : ${pkgs-for-bin.vifm}/bin \
+              --prefix PATH : ${pkgs-for-bin.xsel}/bin \
           '';
       in
       {
