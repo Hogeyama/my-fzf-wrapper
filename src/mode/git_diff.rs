@@ -111,26 +111,18 @@ impl ModeDef for GitDiff {
             self.clear();
             self.parse_diff(HunkKind::Unstaged, git::diff().await?)?
                 .iter()
-                .for_each(|item| {
-                    items.push(item.render());
-                });
+                .for_each(|item| items.push(item.render()));
             self.parse_diff(HunkKind::Staged, git::diff_cached().await?)?
                 .iter()
-                .for_each(|item| {
-                    items.push(item.render());
-                });
+                .for_each(|item| items.push(item.render()));
             git::untracked_files()?
                 .into_iter()
                 .map(|s| Item::Untracked { file: s })
-                .for_each(|item| {
-                    items.push(item.render());
-                });
+                .for_each(|item| items.push(item.render()));
             git::conflicted_files()?
                 .into_iter()
                 .map(|s| Item::Conflicted { file: s })
-                .for_each(|item| {
-                    items.push(item.render());
-                });
+                .for_each(|item| items.push(item.render()));
             Ok(LoadResp::new_with_default_header(items))
         }
         .boxed()
