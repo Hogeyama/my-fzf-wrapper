@@ -115,6 +115,16 @@ impl ModeDef for GitDiff {
             self.parse_diff(HunkKind::Staged, git::diff_cached().await?)?
                 .iter()
                 .for_each(|item| items.push(item.render()));
+            git::workingtree_modified_files()?
+                .into_iter()
+                .filter(|s| !self.files.contains_key(s))
+                .map(|s| Item::UnstagedBinayChange { file: s })
+                .for_each(|item| items.push(item.render()));
+            git::index_modified_files()?
+                .into_iter()
+                .filter(|s| !self.files.contains_key(s))
+                .map(|s| Item::StagedBinayChange { file: s })
+                .for_each(|item| items.push(item.render()));
             git::workingtree_deleted_files()?
                 .into_iter()
                 .map(|s| Item::UnstagedFileDeletion { file: s })
@@ -122,6 +132,11 @@ impl ModeDef for GitDiff {
             git::index_deleted_files()?
                 .into_iter()
                 .map(|s| Item::StagedFileDeletion { file: s })
+                .for_each(|item| items.push(item.render()));
+            git::index_new_files()?
+                .into_iter()
+                .filter(|s| !self.files.contains_key(s))
+                .map(|s| Item::AddedBinaryFile { file: s })
                 .for_each(|item| items.push(item.render()));
             git::untracked_files()?
                 .into_iter()
@@ -154,12 +169,24 @@ impl ModeDef for GitDiff {
                     let message = hunk.colorize();
                     Ok(PreviewResp { message })
                 }
+                Item::StagedBinayChange { .. } => {
+                    let message = "binary file".to_string();
+                    Ok(PreviewResp { message })
+                }
+                Item::UnstagedBinayChange { .. } => {
+                    let message = "binary file".to_string();
+                    Ok(PreviewResp { message })
+                }
                 Item::StagedFileDeletion { .. } => {
                     let message = "deleted (staged)".to_string();
                     Ok(PreviewResp { message })
                 }
                 Item::UnstagedFileDeletion { .. } => {
                     let message = "deleted (unstaged)".to_string();
+                    Ok(PreviewResp { message })
+                }
+                Item::AddedBinaryFile { .. } => {
+                    let message = "binary file".to_string();
                     Ok(PreviewResp { message })
                 }
                 Item::UntrackedFile { file } => {
@@ -219,11 +246,20 @@ impl ModeDef for GitDiff {
                                 .await
                                 .map_err(|e| e.to_string())?;
                         }
+                        Item::StagedBinayChange { .. } => {
+                            // can't open binary file
+                        }
+                        Item::UnstagedBinayChange { .. } => {
+                            // can't open binary file
+                        }
                         Item::StagedFileDeletion { .. } => {
                             // can't open deleted file
                         }
                         Item::UnstagedFileDeletion { .. } => {
                             // can't open deleted file
+                        }
+                        Item::AddedBinaryFile { .. } => {
+                            // can't open binary file
                         }
                         Item::UntrackedFile { file } => {
                             let file = format!("{root}/{file}");
@@ -257,12 +293,21 @@ impl ModeDef for GitDiff {
                         Item::StagedHunk { .. } => {
                             // already staged
                         }
+                        Item::StagedBinayChange { .. } => {
+                            // already staged
+                        }
+                        Item::StagedFileDeletion { .. } => {
+                            // already staged
+                        }
+                        Item::AddedBinaryFile { .. } => {
+                            // already staged
+                        }
                         Item::UnstagedHunk { .. } => {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--cached"]).await?;
                         }
-                        Item::StagedFileDeletion { .. } => {
-                            // already staged
+                        Item::UnstagedBinayChange { file } => {
+                            git_stage_file(&state.nvim, file).await?;
                         }
                         Item::UnstagedFileDeletion { file } => {
                             git_stage_file(&state.nvim, file).await?;
@@ -271,7 +316,7 @@ impl ModeDef for GitDiff {
                             git_stage_file(&state.nvim, file).await?;
                         }
                         Item::ConflictedFile { .. } => {
-                            // conflicted file cannot be staged
+                            // cannot be staged
                         }
                     }
                 }
@@ -282,10 +327,30 @@ impl ModeDef for GitDiff {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--reverse", "--cached"]).await?;
                         }
+                        Item::StagedBinayChange { file } => {
+                            git_unstage_file(&state.nvim, file).await?;
+                        }
                         Item::StagedFileDeletion { file } => {
                             git_unstage_file(&state.nvim, file).await?;
                         }
-                        _ => {}
+                        Item::AddedBinaryFile { file } => {
+                            git_unstage_file(&state.nvim, file).await?;
+                        }
+                        Item::UnstagedHunk { .. } => {
+                            // already unstaged
+                        }
+                        Item::UnstagedBinayChange { .. } => {
+                            // already unstaged
+                        }
+                        Item::UnstagedFileDeletion { .. } => {
+                            // already unstaged
+                        }
+                        Item::UntrackedFile { .. } => {
+                            // already unstaged
+                        }
+                        Item::ConflictedFile { .. } => {
+                            // cannot be unstaged
+                        }
                     }
                 }
                 ExecOpts::StageFile => {
@@ -309,11 +374,20 @@ impl ModeDef for GitDiff {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--reverse"]).await?;
                         }
+                        Item::StagedBinayChange { .. } => {
+                            git_restore_file(&state.nvim, item.file(), Some("HEAD")).await?;
+                        }
+                        Item::UnstagedBinayChange { .. } => {
+                            git_restore_file(&state.nvim, item.file(), None::<&str>).await?;
+                        }
                         Item::StagedFileDeletion { .. } => {
                             git_restore_file(&state.nvim, item.file(), Some("HEAD")).await?;
                         }
                         Item::UnstagedFileDeletion { .. } => {
                             git_restore_file(&state.nvim, item.file(), None::<&str>).await?;
+                        }
+                        Item::AddedBinaryFile { .. } => {
+                            // TODO git rm?
                         }
                         Item::UntrackedFile { .. } => {
                             // untracked file cannot be discarded
@@ -532,10 +606,14 @@ impl ExecOpts {
 enum Item {
     StagedHunk { file: String, target_start: usize },
     UnstagedHunk { file: String, target_start: usize },
-    // StagedBinayChange { file: String },
-    // UnstagedBinayChange { file: String },
+    StagedBinayChange { file: String },
+    UnstagedBinayChange { file: String },
     StagedFileDeletion { file: String },
     UnstagedFileDeletion { file: String },
+    // TODO
+    // StagedRename { old: String, new: String },
+    // UnstagedRename { old: String, new: String },
+    AddedBinaryFile { file: String }, // BinaryじゃないのはStagedHunkに入る
     UntrackedFile { file: String },
     ConflictedFile { file: String },
 }
@@ -545,9 +623,12 @@ impl Item {
         match self {
             Item::StagedHunk { file, .. } => file,
             Item::UnstagedHunk { file, .. } => file,
-            Item::UntrackedFile { file } => file,
+            Item::StagedBinayChange { file } => file,
+            Item::UnstagedBinayChange { file } => file,
             Item::StagedFileDeletion { file } => file,
             Item::UnstagedFileDeletion { file } => file,
+            Item::AddedBinaryFile { file } => file,
+            Item::UntrackedFile { file } => file,
             Item::ConflictedFile { file } => file,
         }
     }
@@ -566,14 +647,23 @@ impl Item {
                 file,
                 target_start
             ),
-            Item::UntrackedFile { file } => {
-                format!("{} {}:0", ansi_term::Colour::Red.bold().paint("A"), file)
+            Item::StagedBinayChange { file } => {
+                format!("{} {}:0", ansi_term::Colour::Green.bold().paint("S"), file)
+            }
+            Item::UnstagedBinayChange { file } => {
+                format!("{} {}:0", ansi_term::Colour::Blue.bold().paint("U"), file)
             }
             Item::StagedFileDeletion { file } => {
                 format!("{} {}:0", ansi_term::Colour::Green.bold().paint("D"), file)
             }
             Item::UnstagedFileDeletion { file } => {
                 format!("{} {}:0", ansi_term::Colour::Red.bold().paint("d"), file)
+            }
+            Item::AddedBinaryFile { file } => {
+                format!("{} {}:0", ansi_term::Colour::Green.bold().paint("A"), file)
+            }
+            Item::UntrackedFile { file } => {
+                format!("{} {}:0", ansi_term::Colour::Red.bold().paint("a"), file)
             }
             Item::ConflictedFile { file } => {
                 format!("{} {}:0", ansi_term::Colour::Yellow.bold().paint("C"), file)
@@ -589,15 +679,28 @@ impl Item {
             .split_once(':')
             .ok_or("")?;
         match item.chars().next().ok_or("")? {
-            'S' => Ok(Item::StagedHunk {
-                file: file.to_string(),
-                target_start: target.parse::<usize>().map_err(|e| e.to_string())?,
+            'S' => Ok(match target.parse::<usize>().map_err(|e| e.to_string())? {
+                0 => Item::StagedBinayChange {
+                    file: file.to_string(),
+                },
+                n => Item::StagedHunk {
+                    file: file.to_string(),
+                    target_start: n,
+                },
             }),
-            'U' => Ok(Item::UnstagedHunk {
-                file: file.to_string(),
-                target_start: target.parse::<usize>().map_err(|e| e.to_string())?,
+            'U' => Ok(match target.parse::<usize>().map_err(|e| e.to_string())? {
+                0 => Item::UnstagedBinayChange {
+                    file: file.to_string(),
+                },
+                n => Item::UnstagedHunk {
+                    file: file.to_string(),
+                    target_start: n,
+                },
             }),
-            'A' => Ok(Item::UntrackedFile {
+            'A' => Ok(Item::AddedBinaryFile {
+                file: file.to_string(),
+            }),
+            'a' => Ok(Item::UntrackedFile {
                 file: file.to_string(),
             }),
             'D' => Ok(Item::StagedFileDeletion {

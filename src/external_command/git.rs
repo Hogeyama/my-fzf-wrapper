@@ -183,6 +183,18 @@ pub fn untracked_files() -> Result<Vec<String>, String> {
     files_with_status([Status::WT_NEW])
 }
 
+pub fn index_new_files() -> Result<Vec<String>, String> {
+    files_with_status([Status::INDEX_NEW])
+}
+
+pub fn workingtree_modified_files() -> Result<Vec<String>, String> {
+    files_with_status([Status::WT_MODIFIED])
+}
+
+pub fn index_modified_files() -> Result<Vec<String>, String> {
+    files_with_status([Status::INDEX_MODIFIED])
+}
+
 pub fn workingtree_deleted_files() -> Result<Vec<String>, String> {
     files_with_status([Status::WT_DELETED])
 }
