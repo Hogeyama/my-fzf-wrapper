@@ -115,6 +115,14 @@ impl ModeDef for GitDiff {
             self.parse_diff(HunkKind::Staged, git::diff_cached().await?)?
                 .iter()
                 .for_each(|item| items.push(item.render()));
+            git::workingtree_deleted_files()?
+                .into_iter()
+                .map(|s| Item::UnstagedFileDeletion { file: s })
+                .for_each(|item| items.push(item.render()));
+            git::index_deleted_files()?
+                .into_iter()
+                .map(|s| Item::StagedFileDeletion { file: s })
+                .for_each(|item| items.push(item.render()));
             git::untracked_files()?
                 .into_iter()
                 .map(|s| Item::UntrackedFile { file: s })
@@ -144,6 +152,14 @@ impl ModeDef for GitDiff {
                 Item::UnstagedHunk { .. } => {
                     let hunk = self.hunk_of_item(&item)?;
                     let message = hunk.colorize();
+                    Ok(PreviewResp { message })
+                }
+                Item::StagedFileDeletion { .. } => {
+                    let message = "deleted (staged)".to_string();
+                    Ok(PreviewResp { message })
+                }
+                Item::UnstagedFileDeletion { .. } => {
+                    let message = "deleted (unstaged)".to_string();
                     Ok(PreviewResp { message })
                 }
                 Item::UntrackedFile { file } => {
@@ -203,6 +219,12 @@ impl ModeDef for GitDiff {
                                 .await
                                 .map_err(|e| e.to_string())?;
                         }
+                        Item::StagedFileDeletion { .. } => {
+                            // can't open deleted file
+                        }
+                        Item::UnstagedFileDeletion { .. } => {
+                            // can't open deleted file
+                        }
                         Item::UntrackedFile { file } => {
                             let file = format!("{root}/{file}");
                             let nvim_opts = nvim::OpenOpts {
@@ -239,6 +261,12 @@ impl ModeDef for GitDiff {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--cached"]).await?;
                         }
+                        Item::StagedFileDeletion { .. } => {
+                            // already staged
+                        }
+                        Item::UnstagedFileDeletion { file } => {
+                            git_stage_file(&state.nvim, file).await?;
+                        }
                         Item::UntrackedFile { file } => {
                             git_stage_file(&state.nvim, file).await?;
                         }
@@ -249,29 +277,25 @@ impl ModeDef for GitDiff {
                 }
                 ExecOpts::Unstage => {
                     let item = Item::parse(&item)?;
-                    if let Item::StagedHunk { .. } = item {
-                        let (_temp, patch) = self.save_patch_to_temp(&item)?;
-                        git_apply(&state.nvim, patch, vec!["--reverse", "--cached"]).await?;
+                    match item {
+                        Item::StagedHunk { .. } => {
+                            let (_temp, patch) = self.save_patch_to_temp(&item)?;
+                            git_apply(&state.nvim, patch, vec!["--reverse", "--cached"]).await?;
+                        }
+                        Item::StagedFileDeletion { file } => {
+                            git_unstage_file(&state.nvim, file).await?;
+                        }
+                        _ => {}
                     }
                 }
                 ExecOpts::StageFile => {
                     let item = Item::parse(&item)?;
-                    let file = match item {
-                        Item::StagedHunk { file, .. } => file,
-                        Item::UnstagedHunk { file, .. } => file,
-                        Item::UntrackedFile { file } => file,
-                        Item::ConflictedFile { file } => file,
-                    };
+                    let file = item.file();
                     git_stage_file(&state.nvim, file).await?;
                 }
                 ExecOpts::UnstageFile => {
                     let item = Item::parse(&item)?;
-                    let file = match item {
-                        Item::StagedHunk { file, .. } => file,
-                        Item::UnstagedHunk { file, .. } => file,
-                        Item::UntrackedFile { file } => file,
-                        Item::ConflictedFile { file } => file,
-                    };
+                    let file = item.file();
                     git_unstage_file(&state.nvim, file).await?;
                 }
                 ExecOpts::Discard => {
@@ -284,6 +308,12 @@ impl ModeDef for GitDiff {
                         Item::UnstagedHunk { .. } => {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
                             git_apply(&state.nvim, patch, vec!["--reverse"]).await?;
+                        }
+                        Item::StagedFileDeletion { .. } => {
+                            git_restore_file(&state.nvim, item.file(), Some("HEAD")).await?;
+                        }
+                        Item::UnstagedFileDeletion { .. } => {
+                            git_restore_file(&state.nvim, item.file(), None::<&str>).await?;
                         }
                         Item::UntrackedFile { .. } => {
                             // untracked file cannot be discarded
@@ -502,6 +532,10 @@ impl ExecOpts {
 enum Item {
     StagedHunk { file: String, target_start: usize },
     UnstagedHunk { file: String, target_start: usize },
+    // StagedBinayChange { file: String },
+    // UnstagedBinayChange { file: String },
+    StagedFileDeletion { file: String },
+    UnstagedFileDeletion { file: String },
     UntrackedFile { file: String },
     ConflictedFile { file: String },
 }
@@ -512,6 +546,8 @@ impl Item {
             Item::StagedHunk { file, .. } => file,
             Item::UnstagedHunk { file, .. } => file,
             Item::UntrackedFile { file } => file,
+            Item::StagedFileDeletion { file } => file,
+            Item::UnstagedFileDeletion { file } => file,
             Item::ConflictedFile { file } => file,
         }
     }
@@ -533,8 +569,14 @@ impl Item {
             Item::UntrackedFile { file } => {
                 format!("{} {}:0", ansi_term::Colour::Red.bold().paint("A"), file)
             }
+            Item::StagedFileDeletion { file } => {
+                format!("{} {}:0", ansi_term::Colour::Green.bold().paint("D"), file)
+            }
+            Item::UnstagedFileDeletion { file } => {
+                format!("{} {}:0", ansi_term::Colour::Red.bold().paint("d"), file)
+            }
             Item::ConflictedFile { file } => {
-                format!("{} {}:0", ansi_term::Colour::Red.bold().paint("C"), file)
+                format!("{} {}:0", ansi_term::Colour::Yellow.bold().paint("C"), file)
             }
         }
     }
@@ -556,6 +598,12 @@ impl Item {
                 target_start: target.parse::<usize>().map_err(|e| e.to_string())?,
             }),
             'A' => Ok(Item::UntrackedFile {
+                file: file.to_string(),
+            }),
+            'D' => Ok(Item::StagedFileDeletion {
+                file: file.to_string(),
+            }),
+            'd' => Ok(Item::UnstagedFileDeletion {
                 file: file.to_string(),
             }),
             'C' => Ok(Item::UntrackedFile {
@@ -594,14 +642,25 @@ impl HunkExt for Hunk {
 
 async fn git_stage_file(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
     let output = git::stage_file(file).await?;
-    nvim.notify_command_result_if_error("git add", output)
+    nvim.notify_command_result_if_error("git_stage_file", output)
         .await
         .map_err(|e| e.to_string())
 }
 
 async fn git_unstage_file(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
     let output = git::unstage_file(file).await?;
-    nvim.notify_command_result_if_error("git reset", output)
+    nvim.notify_command_result_if_error("git_unstage_file", output)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn git_restore_file(
+    nvim: &Neovim,
+    file: impl AsRef<str>,
+    source: Option<impl AsRef<str>>,
+) -> Result<(), String> {
+    let output = git::restore_file(file, source).await?;
+    nvim.notify_command_result_if_error("git_restore_file", output)
         .await
         .map_err(|e| e.to_string())
 }

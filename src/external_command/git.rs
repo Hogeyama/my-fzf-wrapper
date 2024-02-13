@@ -183,6 +183,14 @@ pub fn untracked_files() -> Result<Vec<String>, String> {
     files_with_status([Status::WT_NEW])
 }
 
+pub fn workingtree_deleted_files() -> Result<Vec<String>, String> {
+    files_with_status([Status::WT_DELETED])
+}
+
+pub fn index_deleted_files() -> Result<Vec<String>, String> {
+    files_with_status([Status::INDEX_DELETED])
+}
+
 pub fn conflicted_files() -> Result<Vec<String>, String> {
     files_with_status([Status::CONFLICTED])
 }
@@ -191,6 +199,7 @@ pub async fn stage_file(file: impl AsRef<str>) -> Result<Output, String> {
     let output = Command::new("git")
         .current_dir(workdir()?)
         .arg("add")
+        .arg("--")
         .arg(file.as_ref())
         .output()
         .await
@@ -202,10 +211,25 @@ pub async fn unstage_file(file: impl AsRef<str>) -> Result<Output, String> {
     let output = Command::new("git")
         .current_dir(workdir()?)
         .arg("reset")
+        .arg("--")
         .arg(file.as_ref())
         .output()
         .await
         .map_err(|e| e.to_string())?;
+    Ok(output)
+}
+
+pub async fn restore_file(
+    file: impl AsRef<str>,
+    source: Option<impl AsRef<str>>,
+) -> Result<Output, String> {
+    let mut cmd = Command::new("git");
+    cmd.current_dir(workdir()?).arg("restore");
+    if let Some(source) = source {
+        cmd.arg("--source").arg(source.as_ref());
+    }
+    cmd.arg(file.as_ref());
+    let output = cmd.output().await.map_err(|e| e.to_string())?;
     Ok(output)
 }
 
