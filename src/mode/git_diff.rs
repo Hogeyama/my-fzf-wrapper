@@ -240,7 +240,7 @@ impl ModeDef for GitDiff {
                             git_apply(&state.nvim, patch, vec!["--cached"]).await?;
                         }
                         Item::Untracked { file } => {
-                            git_add(&state.nvim, file).await?;
+                            git_stage_file(&state.nvim, file).await?;
                         }
                         Item::Conflicted { .. } => {
                             // conflicted file cannot be staged
@@ -253,6 +253,26 @@ impl ModeDef for GitDiff {
                         let (_temp, patch) = self.save_patch_to_temp(&item)?;
                         git_apply(&state.nvim, patch, vec!["--reverse", "--cached"]).await?;
                     }
+                }
+                ExecOpts::StageFile => {
+                    let item = Item::parse(&item)?;
+                    let file = match item {
+                        Item::Staged { file, .. } => file,
+                        Item::Unstaged { file, .. } => file,
+                        Item::Untracked { file } => file,
+                        Item::Conflicted { file } => file,
+                    };
+                    git_stage_file(&state.nvim, file).await?;
+                }
+                ExecOpts::UnstageFile => {
+                    let item = Item::parse(&item)?;
+                    let file = match item {
+                        Item::Staged { file, .. } => file,
+                        Item::Unstaged { file, .. } => file,
+                        Item::Untracked { file } => file,
+                        Item::Conflicted { file } => file,
+                    };
+                    git_unstage_file(&state.nvim, file).await?;
                 }
                 ExecOpts::Discard => {
                     let item = Item::parse(&item)?;
@@ -400,6 +420,20 @@ impl ModeDef for GitDiff {
                 }),
                 b.reload()
             ],
+            "alt-s" => [
+                execute_silent!(b, |mode,config,state,_query,item| {
+                    let opts = ExecOpts::StageFile.value();
+                    mode.execute(config, state, item, opts).await
+                }),
+                b.reload()
+            ],
+            "alt-u" => [
+                execute_silent!(b, |mode,config,state,_query,item| {
+                    let opts = ExecOpts::UnstageFile.value();
+                    mode.execute(config, state, item, opts).await
+                }),
+                b.reload()
+            ],
             "ctrl-x" => [
                 execute_silent!(b, |mode,config,state,_query,item| {
                     let opts = ExecOpts::Discard.value();
@@ -447,7 +481,9 @@ impl ModeDef for GitDiff {
 #[derive(Serialize, serde::Deserialize)]
 enum ExecOpts {
     Stage,
+    StageFile,
     Unstage,
+    UnstageFile,
     Discard,
     Commit,
     CommitFixup,
@@ -556,9 +592,16 @@ impl HunkExt for Hunk {
     }
 }
 
-async fn git_add(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
-    let output = git::add(file).await?;
+async fn git_stage_file(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
+    let output = git::stage_file(file).await?;
     nvim.notify_command_result_if_error("git add", output)
+        .await
+        .map_err(|e| e.to_string())
+}
+
+async fn git_unstage_file(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
+    let output = git::unstage_file(file).await?;
+    nvim.notify_command_result_if_error("git reset", output)
         .await
         .map_err(|e| e.to_string())
 }

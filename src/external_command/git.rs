@@ -187,10 +187,21 @@ pub fn conflicted_files() -> Result<Vec<String>, String> {
     files_with_status([Status::CONFLICTED])
 }
 
-pub async fn add(file: impl AsRef<str>) -> Result<Output, String> {
+pub async fn stage_file(file: impl AsRef<str>) -> Result<Output, String> {
     let output = Command::new("git")
         .current_dir(workdir()?)
         .arg("add")
+        .arg(file.as_ref())
+        .output()
+        .await
+        .map_err(|e| e.to_string())?;
+    Ok(output)
+}
+
+pub async fn unstage_file(file: impl AsRef<str>) -> Result<Output, String> {
+    let output = Command::new("git")
+        .current_dir(workdir()?)
+        .arg("reset")
         .arg(file.as_ref())
         .output()
         .await
