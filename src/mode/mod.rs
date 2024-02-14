@@ -15,6 +15,8 @@ pub mod mru;
 pub mod nvim_session;
 pub mod zoxide;
 
+use std::pin::Pin;
+
 use crate::{
     config::Config,
     external_command::fzf,
@@ -23,6 +25,41 @@ use crate::{
 };
 
 use futures::{future::BoxFuture, FutureExt};
+
+pub type MkMode = Pin<Box<dyn (Fn() -> Mode) + Send + Sync>>;
+
+pub fn all_modes() -> Vec<(String, MkMode)> {
+    fn f(mode_def: impl ModeDef + Sync + Send + 'static) -> Mode {
+        Mode {
+            mode_def: Box::new(mode_def),
+        }
+    }
+    let modes: Vec<MkMode> = vec![
+        Box::pin(|| f(menu::Menu)),
+        Box::pin(|| f(fd::Fd)),
+        Box::pin(|| f(buffer::Buffer)),
+        Box::pin(|| f(bookmark::Bookmark::new())),
+        Box::pin(|| f(mark::Mark::new())),
+        Box::pin(|| f(zoxide::Zoxide)),
+        Box::pin(|| f(mru::Mru)),
+        Box::pin(|| f(diagnostics::Diagnostics)),
+        Box::pin(|| f(browser_history::BrowserHistory)),
+        Box::pin(|| f(git_branch::GitBranch)),
+        Box::pin(|| f(git_log::GitLog::Head)),
+        Box::pin(|| f(git_log::GitLog::All)),
+        Box::pin(|| f(git_reflog::GitReflog)),
+        Box::pin(|| f(git_status::GitStatus)),
+        Box::pin(|| f(git_diff::GitDiff::new())),
+        Box::pin(|| f(nvim_session::NeovimSession)),
+        Box::pin(|| f(livegrep::LiveGrep::new())),
+        Box::pin(|| f(livegrep::LiveGrep::new_no_ignore())),
+        Box::pin(|| f(livegrep::LiveGrepF)),
+    ];
+    modes
+        .into_iter()
+        .map(|mk_mode| (mk_mode().name().to_string(), mk_mode))
+        .collect()
+}
 
 pub struct Mode {
     pub mode_def: Box<dyn ModeDef + Sync + Send>,
