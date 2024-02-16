@@ -1,7 +1,6 @@
 use std::error::Error;
 use std::process::Output;
 
-use ansi_term::ANSIGenericString;
 // Neovim
 use nvim_rs::compat::tokio::Compat as TokioCompat;
 use nvim_rs::create::tokio as nvim_tokio;
@@ -11,7 +10,6 @@ use nvim_rs::{call_args, Handler};
 // Tokio
 use parity_tokio_ipc::Connection;
 use rmpv::ext::{from_value, to_value};
-use serde::{Deserialize, Serialize};
 use tokio::io::WriteHalf;
 
 #[derive(Clone)]
@@ -87,9 +85,7 @@ pub trait NeovimExt {
         args: Vec<rmpv::Value>,
     ) -> Result<rmpv::Value, Box<dyn Error>>;
 
-    async fn get_all_diagnostics(&self) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>>;
-
-    async fn get_buf_name(&self, bufnr: usize) -> Result<String, Box<dyn Error>>;
+    async fn get_buf_name(&self, bufnr: usize) -> Result<String, String>;
 }
 
 impl NeovimExt for nvim_rs::Neovim<TokioCompat<WriteHalf<Connection>>> {
@@ -337,26 +333,13 @@ impl NeovimExt for nvim_rs::Neovim<TokioCompat<WriteHalf<Connection>>> {
         Ok(v)
     }
 
-    async fn get_all_diagnostics(&self) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
-        Ok(from_value(
-            self.eval_lua(
-                r#"
-                    local ds = vim.diagnostic.get()
-                    for _, d in ipairs(ds) do
-                      d.file = vim.api.nvim_buf_get_name(d.bufnr)
-                    end
-                    return ds
-                "#,
-            )
-            .await?,
-        )?)
-    }
-
-    async fn get_buf_name(&self, bufnr: usize) -> Result<String, Box<dyn Error>> {
+    async fn get_buf_name(&self, bufnr: usize) -> Result<String, String> {
         Ok(from_value(
             self.eval_lua(&format!("return vim.api.nvim_buf_get_name({bufnr})"))
-                .await?,
-        )?)
+                .await
+                .map_err(|e| e.to_string())?,
+        )
+        .map_err(|e| e.to_string())?)
     }
 }
 
@@ -379,40 +362,6 @@ impl From<String> for OpenTarget {
 impl From<usize> for OpenTarget {
     fn from(val: usize) -> Self {
         OpenTarget::Buffer(val)
-    }
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct DiagnosticsItem {
-    pub bufnr: u64,
-    pub file: String,
-    pub lnum: u64,
-    pub col: u64,
-    pub message: String,
-    pub severity: Severity,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct Severity(pub u64);
-
-impl Severity {
-    pub fn mark(&self) -> ANSIGenericString<'_, str> {
-        match self.0 {
-            1 => ansi_term::Colour::Red.bold().paint("E"),
-            2 => ansi_term::Colour::Yellow.bold().paint("W"),
-            3 => ansi_term::Colour::Blue.bold().paint("I"),
-            4 => ansi_term::Colour::White.normal().paint("H"),
-            _ => panic!("unknown severity {}", self.0),
-        }
-    }
-    pub fn render(&self) -> String {
-        match self.0 {
-            1 => "Error".to_string(),
-            2 => "Warning".to_string(),
-            3 => "Info".to_string(),
-            4 => "Hint".to_string(),
-            _ => panic!("unknown severity {}", self.0),
-        }
     }
 }
 

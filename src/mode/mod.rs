@@ -42,7 +42,7 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(mark::Mark::new())),
         Box::pin(|| f(zoxide::Zoxide)),
         Box::pin(|| f(mru::Mru)),
-        Box::pin(|| f(diagnostics::Diagnostics)),
+        Box::pin(|| f(diagnostics::Diagnostics::new())),
         Box::pin(|| f(browser_history::BrowserHistory)),
         Box::pin(|| f(git_branch::GitBranch)),
         Box::pin(|| f(git_log::GitLog::Head)),
@@ -463,7 +463,7 @@ pub mod config_builder {
                 b.change_mode(super::zoxide::Zoxide.name(), false),
             ],
             "alt-w" => [
-                b.change_mode(super::diagnostics::Diagnostics.name(), false),
+                b.change_mode(super::diagnostics::Diagnostics::new().name(), false),
             ],
             "ctrl-u" => [
                 b.execute_silent_raw("change-directory --to-parent"),

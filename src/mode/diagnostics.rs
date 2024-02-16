@@ -3,20 +3,34 @@ use crate::{
     external_command::{bat, fzf, glow},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
-    nvim::{self, DiagnosticsItem, NeovimExt},
+    nvim::{self, Neovim, NeovimExt},
     path::to_relpath,
     state::State,
 };
 
+use ansi_term::ANSIGenericString;
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use std::error::Error;
+use rmpv::ext::from_value;
+use serde::{Deserialize, Serialize};
+use std::{error::Error, sync::Arc};
+use tokio::sync::Mutex;
 
 use super::CallbackMap;
 
 #[derive(Clone)]
-pub struct Diagnostics;
+pub struct Diagnostics {
+    items: Arc<Mutex<Option<Vec<DiagnosticsItem>>>>,
+}
+
+impl Diagnostics {
+    pub fn new() -> Self {
+        Self {
+            items: Arc::new(Mutex::new(None)),
+        }
+    }
+}
 
 impl ModeDef for Diagnostics {
     fn name(&self) -> &'static str {
@@ -31,56 +45,36 @@ impl ModeDef for Diagnostics {
     ) -> BoxFuture<'a, Result<LoadResp, String>> {
         let nvim = state.nvim.clone();
         async move {
-            let mut diagnostics = nvim
-                .get_all_diagnostics()
+            let mut diagnostics = DiagnosticsItem::gather(&nvim)
                 .await
                 .map_err(|e| e.to_string())?;
             diagnostics.sort_by(|a, b| a.severity.0.cmp(&b.severity.0));
-            state.keymap.insert(
-                KEY_DIAGNOSTICS.to_string(), //
-                json!(diagnostics),
-            );
-            Ok(LoadResp::new_with_default_header(to_items(diagnostics)))
+            let items = DiagnosticsItem::render_list(&diagnostics);
+            self.items.lock().await.replace(diagnostics);
+            Ok(LoadResp::new_with_default_header(items))
         }
         .boxed()
     }
-    fn preview(
-        &self,
+    fn preview<'a>(
+        &'a self,
         _config: &Config,
         state: &mut State,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'a, Result<PreviewResp, String>> {
         let nvim = state.nvim.clone();
-        let diagnostics_item = match get_diagnostic_item(state, item.clone()) {
-            Ok(diagnostics_item) => diagnostics_item,
-            Err(e) => {
-                error!("diagnostics: preview: failed"; "error" => e.to_string());
-                let message = e.to_string();
-                return async move { Ok(PreviewResp { message }) }.boxed();
-            }
-        };
         async move {
-            let file = nvim
-                .get_buf_name(diagnostics_item.bufnr as usize)
-                .await
-                .map_err(|e| e.to_string());
-            match file {
-                Ok(file) => {
-                    let rendered_message = glow::render_markdown(format!(
-                        "### {}\n{}",
-                        diagnostics_item.severity.render(),
-                        diagnostics_item.message
-                    ))
+            let items = self.items.lock().await;
+            let items = items.as_ref().ok_or("diagnostics not loaded")?;
+            let item = DiagnosticsItem::lookup(items, item.clone())?;
+            let file = nvim.get_buf_name(item.bufnr as usize).await?;
+            let rendered_message =
+                glow::render_markdown(format!("### {}\n{}", item.severity.render(), item.message))
                     .await?;
-                    let rendered_file =
-                        // zero-indexed なので +1 する
-                        bat::render_file_with_highlight(&file, diagnostics_item.lnum as isize + 1)
-                            .await?;
-                    let message = format!("{}\n{}", rendered_message, rendered_file);
-                    Ok(PreviewResp { message })
-                }
-                Err(e) => Ok(PreviewResp { message: e }),
-            }
+            // zero-indexed なので +1 する
+            let rendered_file =
+                bat::render_file_with_highlight(&file, item.lnum as isize + 1).await?;
+            let message = format!("{}\n{}", rendered_message, rendered_file);
+            Ok(PreviewResp { message })
         }
         .boxed()
     }
@@ -88,18 +82,32 @@ impl ModeDef for Diagnostics {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [
-                execute!(b, |_mode,_config,state,_query,item| {
-                    let opts = OpenOpts { tabedit: false };
-                    open(state, item, opts).await
+            "enter" => [{
+                let self_ = self.clone();
+                b.execute(move |_mode,_config,state,_query,item| {
+                    let self_ = self_.clone();
+                    async move {
+                        let items = self_.items.lock().await;
+                        let items = items.as_ref().ok_or("diagnostics not loaded")?;
+                        let item = DiagnosticsItem::lookup(items, item.clone())?;
+                        let opts = OpenOpts { tabedit: false };
+                        open(state, item, opts).await
+                    }.boxed()
                 })
-            ],
-            "ctrl-t" => [
-                execute!(b, |_mode,_config,state,_query,item| {
-                    let opts = OpenOpts { tabedit: true };
-                    open(state, item, opts).await
+            }],
+            "ctrl-t" => [{
+                let self_ = self.clone();
+                b.execute(move |_mode,_config,state,_query,item| {
+                    let self_ = self_.clone();
+                    async move {
+                        let items = self_.items.lock().await;
+                        let items = items.as_ref().ok_or("diagnostics not loaded")?;
+                        let item = DiagnosticsItem::lookup(items, item.clone())?;
+                        let opts = OpenOpts { tabedit: true };
+                        open(state, item, opts).await
+                    }.boxed()
                 })
-            ],
+            }],
         }
     }
 }
@@ -108,63 +116,97 @@ impl ModeDef for Diagnostics {
 // Util
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-static KEY_DIAGNOSTICS: &str = "diagnostics_diagnostics";
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct DiagnosticsItem {
+    pub bufnr: u64,
+    pub file: String,
+    pub lnum: u64,
+    pub col: u64,
+    pub message: String,
+    pub severity: Severity,
+}
 
 static ITEM_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r".*\s{200}(?P<num>\d+)$").unwrap());
 
-fn to_item(_num_max_digits: usize, num: usize, d: DiagnosticsItem) -> String {
-    format!(
-        "{} {}|{}{}{}",
-        d.severity.mark(),
-        to_relpath(d.file),
-        d.message.replace('\n', ". "),
-        " ".repeat(200), // numが表示から外れるように適当に長めに空白を入れる
-        num,
-    )
+impl DiagnosticsItem {
+    async fn gather(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
+        Ok(from_value(
+            nvim.eval_lua(
+                r#"
+                    local ds = vim.diagnostic.get()
+                    for _, d in ipairs(ds) do
+                      d.file = vim.api.nvim_buf_get_name(d.bufnr)
+                    end
+                    return ds
+                "#,
+            )
+            .await?,
+        )?)
+    }
+
+    fn render(&self, num: usize) -> String {
+        format!(
+            "{} {}|{}{}{}",
+            self.severity.mark(),
+            to_relpath(&self.file),
+            self.message.replace('\n', ". "),
+            " ".repeat(200), // numが表示から外れるように適当に長めに空白を入れる
+            num,
+        )
+    }
+
+    fn render_list(items: &Vec<Self>) -> Vec<String> {
+        let num_digit = items.len().to_string().len();
+        items.into_iter().map(|d| d.render(num_digit)).collect()
+    }
+
+    fn lookup(items: &Vec<Self>, item: String) -> Result<Self, String> {
+        let ix = ITEM_PATTERN
+            .captures(&item)
+            .and_then(|c| c.name("num"))
+            .and_then(|n| n.as_str().parse::<usize>().ok())
+            .ok_or("モポ")?;
+        let item = items.get(ix).ok_or("モポ")?.clone();
+        Ok(item)
+    }
 }
 
-fn get_num_of_item(item: &str) -> Option<usize> {
-    ITEM_PATTERN
-        .captures(item)
-        .and_then(|c| c.name("num"))
-        .and_then(|n| n.as_str().parse::<usize>().ok())
-}
+#[derive(Debug, Clone, serde::Deserialize, Serialize)]
+pub struct Severity(pub u64);
 
-fn to_items(diagnostics: Vec<DiagnosticsItem>) -> Vec<String> {
-    let num_digit = diagnostics.len().to_string().len();
-    diagnostics
-        .into_iter()
-        .enumerate()
-        .map(|(i, d)| to_item(num_digit, i, d))
-        .collect()
-}
-
-fn get_diagnostic_item(state: &mut State, item: String) -> Result<DiagnosticsItem, Box<dyn Error>> {
-    let diagnostics: Vec<DiagnosticsItem> = serde_json::from_value(
-        state
-            .keymap
-            .get(KEY_DIAGNOSTICS)
-            .ok_or("No diagnostics yet".to_string())?
-            .clone(),
-    )?;
-    let item_num = get_num_of_item(&item).ok_or("モポ")?;
-    let diagnostics_item = diagnostics.get(item_num).ok_or("モポ")?.clone();
-    Ok(diagnostics_item)
+impl Severity {
+    pub fn mark(&self) -> ANSIGenericString<'_, str> {
+        match self.0 {
+            1 => ansi_term::Colour::Red.bold().paint("E"),
+            2 => ansi_term::Colour::Yellow.bold().paint("W"),
+            3 => ansi_term::Colour::Blue.bold().paint("I"),
+            4 => ansi_term::Colour::White.normal().paint("H"),
+            _ => panic!("unknown severity {}", self.0),
+        }
+    }
+    pub fn render(&self) -> String {
+        match self.0 {
+            1 => "Error".to_string(),
+            2 => "Warning".to_string(),
+            3 => "Info".to_string(),
+            4 => "Hint".to_string(),
+            _ => panic!("unknown severity {}", self.0),
+        }
+    }
 }
 
 struct OpenOpts {
     tabedit: bool,
 }
 
-async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), String> {
+async fn open(state: &State, item: DiagnosticsItem, opts: OpenOpts) -> Result<(), String> {
     let nvim = state.nvim.clone();
-    let diagnostics_item = get_diagnostic_item(state, item.clone()).map_err(|e| e.to_string())?;
     let file = nvim
-        .get_buf_name(diagnostics_item.bufnr as usize)
+        .get_buf_name(item.bufnr as usize)
         .await
         .map_err(|e| e.to_string())?;
     let opts = nvim::OpenOpts {
-        line: Some(diagnostics_item.lnum as usize + 1),
+        line: Some(item.lnum as usize + 1),
         tabedit: opts.tabedit,
     };
     let _ = tokio::spawn(async move {
