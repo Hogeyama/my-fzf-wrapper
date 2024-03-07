@@ -43,7 +43,7 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(zoxide::Zoxide)),
         Box::pin(|| f(mru::Mru)),
         Box::pin(|| f(diagnostics::Diagnostics::new())),
-        Box::pin(|| f(browser_history::BrowserHistory)),
+        Box::pin(|| f(browser_history::BrowserHistory::new())),
         Box::pin(|| f(git_branch::GitBranch)),
         Box::pin(|| f(git_log::GitLog::Head)),
         Box::pin(|| f(git_log::GitLog::All)),
@@ -463,7 +463,7 @@ pub mod config_builder {
                 b.change_mode(super::zoxide::Zoxide.name(), false),
             ],
             "alt-h" => [
-                b.change_mode(super::browser_history::BrowserHistory.name(), false),
+                b.change_mode(super::browser_history::BrowserHistory::new().name(), false),
             ],
             "alt-w" => [
                 b.change_mode(super::diagnostics::Diagnostics::new().name(), false),

@@ -4,7 +4,7 @@ use crate::{
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     state::State,
-    utils::{fzf, sqlite},
+    utils::{browser, fzf, sqlite},
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -15,7 +15,17 @@ use tokio::process::Command;
 use super::CallbackMap;
 
 #[derive(Clone)]
-pub struct BrowserHistory;
+pub struct BrowserHistory {
+    browser: browser::Browser,
+}
+
+impl BrowserHistory {
+    pub fn new() -> Self {
+        Self {
+            browser: browser::get_browser(),
+        }
+    }
+}
 
 struct Item {
     url: String,
@@ -38,26 +48,23 @@ impl ModeDef for BrowserHistory {
         _item: String,
     ) -> BoxFuture<'a, Result<LoadResp, String>> {
         async move {
-            let run_query = || -> Result<Vec<Item>, String> {
-                let (db, query) = if get_browser().eq("firefox") {
-                    info!("oh yes");
-                    (get_firefox_db_path()?, firefox_query())
-                } else {
-                    (get_chrome_db_path()?, chrome_query())
-                };
+            let (db, query) = match self.browser {
+                browser::Browser::Firefox(_) => (get_firefox_db_path()?, firefox_query()),
+                browser::Browser::Chrome(_) => (get_chrome_db_path()?, chrome_query()),
+            };
+            let items = tokio::task::spawn_blocking(move || {
                 sqlite::run_query(db, Some(temp_sqlite_path()), &query, |row| {
                     let url = row.get(0).unwrap();
                     let title = row.get(1).unwrap();
                     let date = row.get(2).unwrap();
                     Ok(Item { url, title, date })
                 })
-            };
-            let items = tokio::task::spawn_blocking(run_query)
-                .await
-                .map_err(|e| e.to_string())??
-                .into_iter()
-                .map(|x| format!("{}|{}|{}", x.date, x.url, x.title))
-                .collect();
+            })
+            .await
+            .map_err(|e| e.to_string())??
+            .into_iter()
+            .map(|x| format!("{}|{}|{}", x.date, x.url, x.title))
+            .collect();
             Ok(LoadResp::new_with_default_header(items))
         }
         .boxed()
@@ -81,33 +88,25 @@ impl ModeDef for BrowserHistory {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [
-                execute!(b, |_mode,_config,_state,_query,item| {
-                    let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
-                    Command::new(get_browser())
-                        .arg(&url)
-                        .spawn()
-                        .expect("browser_history: open")
-                        .wait()
-                        .await
-                        .expect("browser_history: open");
-                    Ok(())
+            "enter" => [{
+                let self_ = self.clone();
+                b.execute(move |_mode,_config,_state,_query,item| {
+                    let self_ = self_.clone();
+                    async move {
+                        let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
+                        Command::new(self_.browser.as_ref())
+                            .arg(&url)
+                            .spawn()
+                            .expect("browser_history: open")
+                            .wait()
+                            .await
+                            .expect("browser_history: open");
+                        Ok(())
+                    }.boxed()
                 })
-            ],
+            }],
         }
     }
-}
-
-fn get_browser() -> String {
-    vec![
-        std::env::var("FZFW_BROWSER"),
-        std::env::var("BROWSER"),
-        Ok("firefox".to_string()),
-    ]
-    .into_iter()
-    .find(|x| x.is_ok())
-    .unwrap()
-    .unwrap()
 }
 
 fn temp_sqlite_path() -> &'static str {
