@@ -20,7 +20,6 @@ use tokio::sync::Mutex;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
-use crate::external_command::fzf;
 use crate::logger::Serde;
 use crate::method;
 use crate::method::ExecuteParam;
@@ -32,6 +31,7 @@ use crate::mode;
 use crate::mode::Mode;
 use crate::nvim::NeovimExt;
 use crate::state::State;
+use crate::utils::fzf;
 use crate::Config;
 
 pub async fn server(config: Config, state: State, listener: UnixListener) -> Result<(), String> {

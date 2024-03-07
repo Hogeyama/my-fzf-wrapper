@@ -3,11 +3,11 @@ use tokio::process::Command;
 
 use crate::{
     config::Config,
-    external_command::{fzf, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim::NeovimExt,
     state::State,
+    utils::{fzf, git},
 };
 
 use super::CallbackMap;

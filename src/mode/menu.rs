@@ -1,9 +1,9 @@
 use crate::{
     config::Config,
-    external_command::fzf,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, CallbackMap, ModeDef},
     state::State,
+    utils::fzf,
 };
 
 use futures::{future::BoxFuture, FutureExt};

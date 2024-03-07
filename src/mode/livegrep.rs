@@ -1,11 +1,11 @@
 use crate::{
     config::Config,
-    external_command::{bat, fzf, gh, git, rg},
     logger::Serde,
     method::{LoadResp, PreviewResp},
     mode::{config_builder, CallbackMap, ModeDef},
     nvim::{self, NeovimExt},
     state::State,
+    utils::{bat, fzf, gh, git, rg},
 };
 
 use clap::Parser;

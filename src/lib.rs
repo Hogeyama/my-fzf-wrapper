@@ -1,6 +1,5 @@
 mod client;
 mod config;
-mod external_command;
 mod logger;
 mod method;
 mod mode;
@@ -8,6 +7,7 @@ mod nvim;
 mod path;
 mod server;
 mod state;
+mod utils;
 
 // std
 use std::env;

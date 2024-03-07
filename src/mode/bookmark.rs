@@ -2,12 +2,12 @@ use std::error::Error;
 
 use crate::{
     config::Config,
-    external_command::{bat, fzf, xsel},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim, NeovimExt},
     path::to_relpath,
     state::State,
+    utils::{bat, fzf, xsel},
 };
 
 use futures::{future::BoxFuture, FutureExt};

@@ -1,10 +1,10 @@
 use crate::{
     config::Config,
-    external_command::{bat, fd, fzf, gh, xsel},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim::{self, NeovimExt},
     state::State,
+    utils::{bat, fd, fzf, gh, xsel},
 };
 
 use futures::{future::BoxFuture, FutureExt};

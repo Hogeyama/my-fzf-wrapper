@@ -1,11 +1,11 @@
 use crate::{
     config::Config,
-    external_command::{bat, fzf, glow},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim, NeovimExt},
     path::to_relpath,
     state::State,
+    utils::{bat, fzf, glow},
 };
 
 use ansi_term::ANSIGenericString;

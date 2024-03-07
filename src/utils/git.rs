@@ -4,7 +4,7 @@ use git2::{BranchType, IntoCString, Repository, Status, StatusEntry, StatusOptio
 use regex::Regex;
 use tokio::process::Command;
 
-use crate::external_command::fzf;
+use crate::utils::fzf;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Log

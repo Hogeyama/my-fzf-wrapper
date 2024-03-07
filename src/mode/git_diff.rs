@@ -10,11 +10,11 @@ use unidiff::{Hunk, PatchSet, PatchedFile};
 
 use crate::{
     config::Config,
-    external_command::{bat, fzf, git},
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim, NeovimExt},
     state::State,
+    utils::{bat, fzf, git},
 };
 
 use super::CallbackMap;

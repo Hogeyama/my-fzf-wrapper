@@ -19,9 +19,9 @@ use std::pin::Pin;
 
 use crate::{
     config::Config,
-    external_command::fzf,
     method::{LoadResp, PreviewResp},
     state::State,
+    utils::fzf,
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -233,7 +233,7 @@ pub struct ExecuteCallback {
 
 pub mod config_builder {
     #![allow(dead_code)]
-    use crate::{config::Config, external_command::fzf, mode::ModeDef, state::State};
+    use crate::{config::Config, mode::ModeDef, state::State, utils::fzf};
     use futures::future::BoxFuture;
 
     pub struct ConfigBuilder {
@@ -380,7 +380,7 @@ pub mod config_builder {
             $builder.callback_counter = callback_map.execute.len() + callback_map.load.len();
             $builder.callback_map = callback_map;
             let bindings = bindings.merge(
-                $crate::external_command::fzf::Bindings(core::convert::From::from([$(
+                $crate::utils::fzf::Bindings(core::convert::From::from([$(
                     ($k.to_string(), vec![$($v),*]),
                 )*]))
             );
@@ -411,7 +411,7 @@ pub mod config_builder {
         ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident|
          $($k:expr => $v:expr),* $(,)?) => {
             $builder.execute(|$mode, $config, $state, $query, $item| async move {
-                match &*$crate::external_command::fzf::select(vec![$($k),*]).await? {
+                match &*$crate::utils::fzf::select(vec![$($k),*]).await? {
                     $($k => { $v })*
                     _ => { Ok(()) }
                 }

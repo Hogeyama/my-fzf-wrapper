@@ -1,9 +1,9 @@
 use crate::config::Config;
 use crate::state::State;
 use crate::{
-    external_command::zoxide,
     method::{LoadResp, PreviewResp},
     mode::ModeDef,
+    utils::zoxide,
 };
 
 use futures::{future::BoxFuture, FutureExt};
