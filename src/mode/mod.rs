@@ -1,4 +1,5 @@
 pub mod bookmark;
+pub mod browser_bookmark;
 pub mod browser_history;
 pub mod buffer;
 pub mod diagnostics;
@@ -44,6 +45,7 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(mru::Mru)),
         Box::pin(|| f(diagnostics::Diagnostics::new())),
         Box::pin(|| f(browser_history::BrowserHistory::new())),
+        Box::pin(|| f(browser_bookmark::BrowserBookmark::new())),
         Box::pin(|| f(git_branch::GitBranch)),
         Box::pin(|| f(git_log::GitLog::Head)),
         Box::pin(|| f(git_log::GitLog::All)),
@@ -464,6 +466,9 @@ pub mod config_builder {
             ],
             "alt-h" => [
                 b.change_mode(super::browser_history::BrowserHistory::new().name(), false),
+            ],
+            "alt-n" => [
+                b.change_mode(super::browser_bookmark::BrowserBookmark::new().name(), false),
             ],
             "alt-w" => [
                 b.change_mode(super::diagnostics::Diagnostics::new().name(), false),
