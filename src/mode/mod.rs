@@ -462,6 +462,9 @@ pub mod config_builder {
             "alt-d" => [
                 b.change_mode(super::zoxide::Zoxide.name(), false),
             ],
+            "alt-h" => [
+                b.change_mode(super::browser_history::BrowserHistory.name(), false),
+            ],
             "alt-w" => [
                 b.change_mode(super::diagnostics::Diagnostics::new().name(), false),
             ],
