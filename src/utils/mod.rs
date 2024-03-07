@@ -5,5 +5,6 @@ pub mod gh;
 pub mod git;
 pub mod glow;
 pub mod rg;
+pub mod sqlite;
 pub mod xsel;
 pub mod zoxide;

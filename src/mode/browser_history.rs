@@ -4,13 +4,12 @@ use crate::{
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     state::State,
-    utils::fzf,
+    utils::{fzf, sqlite},
 };
 
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
-use rusqlite::{params, Connection};
 use tokio::process::Command;
 
 use super::CallbackMap;
@@ -46,20 +45,12 @@ impl ModeDef for BrowserHistory {
                 } else {
                     (get_chrome_db_path()?, chrome_query())
                 };
-                std::fs::copy(db, temp_sqlite_path()).map_err(|e| e.to_string())?;
-                let conn = Connection::open(temp_sqlite_path()).map_err(|e| e.to_string())?;
-                let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
-                let items = stmt
-                    .query_map(params![], |row| {
-                        let url = row.get(0).unwrap();
-                        let title = row.get(1).unwrap();
-                        let date = row.get(2).unwrap();
-                        Ok(Item { url, title, date })
-                    })
-                    .map_err(|e| e.to_string())?
-                    .filter_map(|x| x.ok())
-                    .collect::<Vec<_>>();
-                Ok(items)
+                sqlite::run_query(db, Some(temp_sqlite_path()), &query, |row| {
+                    let url = row.get(0).unwrap();
+                    let title = row.get(1).unwrap();
+                    let date = row.get(2).unwrap();
+                    Ok(Item { url, title, date })
+                })
             };
             let items = tokio::task::spawn_blocking(run_query)
                 .await
