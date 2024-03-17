@@ -155,12 +155,12 @@ impl DiagnosticsItem {
         )
     }
 
-    fn render_list(items: &Vec<Self>) -> Vec<String> {
+    fn render_list(items: &[Self]) -> Vec<String> {
         let num_digit = items.len().to_string().len();
-        items.into_iter().map(|d| d.render(num_digit)).collect()
+        items.iter().map(|d| d.render(num_digit)).collect()
     }
 
-    fn lookup(items: &Vec<Self>, item: String) -> Result<Self, String> {
+    fn lookup(items: &[Self], item: String) -> Result<Self, String> {
         let ix = ITEM_PATTERN
             .captures(&item)
             .and_then(|c| c.name("num"))

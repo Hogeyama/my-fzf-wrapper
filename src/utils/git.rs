@@ -60,7 +60,7 @@ pub fn parse_branches_of_log(line: impl AsRef<str>) -> Vec<String> {
         .unwrap_or("".to_string())
         .split(", ")
         .map(|s| s.strip_prefix("HEAD -> ").unwrap_or(s).to_string())
-        .filter(|s| s.len() == 0 || !s.starts_with("tag: "))
+        .filter(|s| s.is_empty() || !s.starts_with("tag: "))
         .collect::<Vec<_>>()
 }
 
@@ -105,7 +105,7 @@ pub async fn select_commit(context: impl AsRef<str>) -> Result<String, String> {
     let commits = log_graph("--all").await?;
     let commits = commits.iter().map(|s| s.as_str()).collect();
     let commit_line = fzf::select_with_header(context, commits).await?;
-    parse_short_commit(&commit_line)
+    parse_short_commit(commit_line)
 }
 
 ////////////////////////////////////////////////////////////////////////////////

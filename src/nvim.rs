@@ -334,12 +334,12 @@ impl NeovimExt for nvim_rs::Neovim<TokioCompat<WriteHalf<Connection>>> {
     }
 
     async fn get_buf_name(&self, bufnr: usize) -> Result<String, String> {
-        Ok(from_value(
+        from_value(
             self.eval_lua(&format!("return vim.api.nvim_buf_get_name({bufnr})"))
                 .await
                 .map_err(|e| e.to_string())?,
         )
-        .map_err(|e| e.to_string())?)
+        .map_err(|e| e.to_string())
     }
 }
 

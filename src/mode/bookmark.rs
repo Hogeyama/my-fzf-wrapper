@@ -101,7 +101,7 @@ async fn get_bookmarks(nvim: &Neovim) -> Result<Vec<BookmarkItem>, Box<dyn Error
         .iter()
         .map(|b| {
             let mut parts = b.split(':');
-            let file = to_relpath(parts.next().unwrap().to_string());
+            let file = to_relpath(parts.next().unwrap());
             let line = parts.next().unwrap().parse().unwrap();
             BookmarkItem { file, line }
         })

@@ -18,7 +18,7 @@ where
         }
         None => Connection::open(db).map_err(|e| e.to_string())?,
     };
-    let mut stmt = conn.prepare(&query).map_err(|e| e.to_string())?;
+    let mut stmt = conn.prepare(query).map_err(|e| e.to_string())?;
     let items = stmt
         .query_map(params![], parse)
         .map_err(|e| e.to_string())?

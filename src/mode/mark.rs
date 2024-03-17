@@ -70,7 +70,7 @@ impl ModeDef for Mark {
         }
         .boxed()
     }
-    fn fzf_bindings<'a>(&'a self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
