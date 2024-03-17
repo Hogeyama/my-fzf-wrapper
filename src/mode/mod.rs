@@ -444,13 +444,13 @@ pub mod config_builder {
                 b.change_mode(super::fd::Fd.name(), false),
             ],
             "ctrl-b" => [
-                b.change_mode(super::buffer::Buffer.name(), false),
+                b.change_mode(super::visits::Visits::project().name(), false),
             ],
             "ctrl-d" => [
                 b.change_mode(super::bookmark::Bookmark.name(), false),
             ],
             "ctrl-h" => [
-                b.change_mode(super::mru::Mru.name(), false),
+                b.change_mode(super::visits::Visits::all().name(), false),
             ],
             "ctrl-j" => [
                 b.change_mode(super::git_diff::GitDiff::new().name(), false),
