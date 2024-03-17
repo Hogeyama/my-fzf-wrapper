@@ -14,6 +14,7 @@ pub mod mark;
 pub mod menu;
 pub mod mru;
 pub mod nvim_session;
+pub mod visits;
 pub mod zoxide;
 
 use std::pin::Pin;
@@ -56,6 +57,8 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(livegrep::LiveGrep::new())),
         Box::pin(|| f(livegrep::LiveGrep::new_no_ignore())),
         Box::pin(|| f(livegrep::LiveGrepF)),
+        Box::pin(|| f(visits::Visits::all())),
+        Box::pin(|| f(visits::Visits::project())),
     ];
     modes
         .into_iter()
