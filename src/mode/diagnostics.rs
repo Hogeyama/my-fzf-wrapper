@@ -156,8 +156,7 @@ impl DiagnosticsItem {
     }
 
     fn render_list(items: &[Self]) -> Vec<String> {
-        let num_digit = items.len().to_string().len();
-        items.iter().map(|d| d.render(num_digit)).collect()
+        items.iter().enumerate().map(|(i, d)| d.render(i)).collect()
     }
 
     fn lookup(items: &[Self], item: String) -> Result<Self, String> {
