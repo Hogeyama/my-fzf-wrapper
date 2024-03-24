@@ -6,7 +6,7 @@ use crate::{
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim, NeovimExt},
     state::State,
-    utils::{bat, fzf, xsel},
+    utils::{bat, fzf, path::to_relpath, xsel},
 };
 
 use futures::stream::{self, StreamExt};
@@ -137,6 +137,7 @@ async fn get_visits(nvim: &Neovim, kind: VisitsKind) -> Result<Vec<String>, Box<
     )?;
     let mrus = stream::iter(mrus)
         .filter(|x| is_file(x.clone()))
+        .map(to_relpath)
         .collect::<Vec<_>>()
         .await;
     Ok(mrus)
