@@ -4,7 +4,6 @@ mod logger;
 mod method;
 mod mode;
 mod nvim;
-mod path;
 mod server;
 mod state;
 mod utils;

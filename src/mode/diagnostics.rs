@@ -3,8 +3,8 @@ use crate::{
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim, NeovimExt},
-    path::to_relpath,
     state::State,
+    utils::path::to_relpath,
     utils::{bat, fzf, glow},
 };
 
