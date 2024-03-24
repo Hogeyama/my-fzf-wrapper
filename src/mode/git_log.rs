@@ -156,6 +156,17 @@ impl ModeDef for GitLog {
                     "push to remote (force)" => {
                         push_to_remote(&state.nvim, &item, true).await
                     },
+                    "revert" => {
+                        let output = Command::new("git")
+                            .arg("revert")
+                            .arg(git::parse_short_commit(&item)?)
+                            .output()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        state.nvim.notify_command_result("git revert", output)
+                            .await
+                            .map_err(|e| e.to_string())
+                    },
                     "new branch" => {
                         let branch = fzf::input("Enter branch name").await?;
                         let output = Command::new("git")
