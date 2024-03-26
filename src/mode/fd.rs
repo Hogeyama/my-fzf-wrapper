@@ -90,6 +90,19 @@ impl ModeDef for Fd {
                         let opts = OpenOpts::BrowseGithub;
                         open(state, item, opts).await
                     },
+                    "new file" => {
+                        let cwd = std::env::current_dir().unwrap();
+                        let fname = fzf::input("Enter file name").await?;
+                        let fname = fname.trim();
+                        let path = format!("{}/{}", cwd.display(), fname);
+                        Command::new("touch")
+                            .arg(&path)
+                            .output()
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        let opts = OpenOpts::Neovim { tabedit: false };
+                        open(state, path, opts).await
+                    },
                 }
             ]
         }
