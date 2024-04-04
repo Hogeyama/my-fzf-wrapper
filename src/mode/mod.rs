@@ -443,13 +443,13 @@ pub mod config_builder {
             "ctrl-f" => [
                 b.change_mode(super::fd::Fd.name(), false),
             ],
-            "ctrl-b" => [
+            "ctrl-h" => [
                 b.change_mode(super::visits::Visits::project().name(), false),
             ],
             "ctrl-d" => [
                 b.change_mode(super::bookmark::Bookmark.name(), false),
             ],
-            "ctrl-h" => [
+            "ctrl-b" => [
                 b.change_mode(super::visits::Visits::all().name(), false),
             ],
             "ctrl-j" => [
