@@ -14,6 +14,7 @@ pub mod mark;
 pub mod menu;
 pub mod mru;
 pub mod nvim_session;
+pub mod process_compose;
 pub mod visits;
 pub mod zoxide;
 
@@ -59,6 +60,7 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(livegrep::LiveGrepF)),
         Box::pin(|| f(visits::Visits::all())),
         Box::pin(|| f(visits::Visits::project())),
+        Box::pin(|| f(process_compose::ProcessCompose::new())),
     ];
     modes
         .into_iter()
