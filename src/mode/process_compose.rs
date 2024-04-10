@@ -64,11 +64,12 @@ impl ModeDef for ProcessCompose {
                 .json::<dto::Processes>()
                 .await
                 .map_err(|e| e.to_string())?;
-            let items = processes
+            let mut items = processes
                 .data
                 .into_iter()
                 .map(|p| p.name)
                 .collect::<Vec<_>>();
+            items.sort();
             Ok(LoadResp::new_with_default_header(items))
         }
         .boxed()
