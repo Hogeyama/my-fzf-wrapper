@@ -437,7 +437,7 @@ pub mod config_builder {
                 b.clear_screen(),
             ],
             "shift-right" => [
-                b.raw("change-preview-window[right:50%:noborder|right:80%:noborder]"),
+                b.raw("change-preview-window[bottom:90%:border-horizontal|right:50%:noborder]"),
             ],
             "pgdn" => [
                 b.change_mode(super::menu::Menu.name(), false),
