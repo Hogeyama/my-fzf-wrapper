@@ -95,9 +95,16 @@ impl ModeDef for Fd {
                         let fname = fzf::input("Enter file name").await?;
                         let fname = fname.trim();
                         let path = format!("{}/{}", cwd.display(), fname);
+                        let dir = std::path::Path::new(&path).parent().unwrap();
+                        Command::new("mkdir")
+                            .arg("-p")
+                            .arg(dir)
+                            .status()
+                            .await
+                            .map_err(|e| e.to_string())?;
                         Command::new("touch")
                             .arg(&path)
-                            .output()
+                            .status()
                             .await
                             .map_err(|e| e.to_string())?;
                         let opts = OpenOpts::Neovim { tabedit: false };
