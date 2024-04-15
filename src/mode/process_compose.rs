@@ -8,6 +8,7 @@ use crate::{
 };
 
 use futures::{future::BoxFuture, FutureExt};
+use unicode_width::UnicodeWidthStr;
 
 use super::CallbackMap;
 
@@ -83,16 +84,32 @@ impl ModeDef for ProcessCompose {
     ) -> BoxFuture<'a, Result<PreviewResp, String>> {
         async move {
             let Item { process } = Item::parse(item);
+
+            // 最後の高々lines行だけログを取得する
             let host = get_host()?;
-            let height = win.line;
+            let lines = win.lines;
             let limit = 0; // 0 will get all the lines till the end
-            let logs = reqwest::get(format!("{host}/process/logs/{process}/{height}/{limit}"))
+            let logs = reqwest::get(format!("{host}/process/logs/{process}/{lines}/{limit}"))
                 .await
                 .map_err(|e| e.to_string())?
                 .json::<dto::Logs>()
                 .await
-                .map_err(|e| e.to_string())?;
-            let message = logs.logs.join("\n");
+                .map_err(|e| e.to_string())?
+                .logs;
+
+            // 折返しを考慮した上で再度高々lines行だけ残す
+            let mut logs = logs
+                .iter()
+                .flat_map(|s| wrap(s, win.columns))
+                .collect::<Vec<_>>();
+            let offset = if logs.len() > lines {
+                logs.len() - lines
+            } else {
+                0
+            };
+            let logs = logs.split_off(offset);
+
+            let message = logs.join("\n");
             Ok(PreviewResp { message })
         }
         .boxed()
@@ -170,4 +187,26 @@ async fn stop(item: Item) -> Result<(), String> {
         .await
         .map_err(|e| e.to_string())?;
     Ok(())
+}
+
+// wrap("foobar", 3) => ["foo", "bar"]
+// wrap("犬猫", 3) => ["犬", "猫"]
+fn wrap(s: &str, columns: usize) -> Vec<String> {
+    let mut result = Vec::new();
+    let mut chunk = String::new();
+    let mut width = 0;
+    for c in s.chars() {
+        let c_width = UnicodeWidthStr::width(c.to_string().as_str());
+        if width + c_width > columns {
+            result.push(chunk);
+            chunk = String::new();
+            width = 0;
+        }
+        chunk.push(c);
+        width += c_width;
+    }
+    if !chunk.is_empty() {
+        result.push(chunk);
+    }
+    result
 }
