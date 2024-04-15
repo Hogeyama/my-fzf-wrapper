@@ -4,7 +4,11 @@ use crate::{
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     state::State,
-    utils::{browser, fzf, sqlite},
+    utils::{
+        browser,
+        fzf::{self, PreviewWindow},
+        sqlite,
+    },
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -73,6 +77,7 @@ impl ModeDef for BrowserHistory {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {

@@ -7,7 +7,10 @@ use crate::{
     mode::{config_builder, ModeDef},
     nvim::{Neovim, NeovimExt},
     state::State,
-    utils::{fzf, git, xsel},
+    utils::{
+        fzf::{self, PreviewWindow},
+        git, xsel,
+    },
 };
 
 use super::CallbackMap;
@@ -46,6 +49,7 @@ impl ModeDef for GitBranch {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         branch: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {

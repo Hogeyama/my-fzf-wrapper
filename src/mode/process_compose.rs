@@ -4,7 +4,7 @@ use crate::{
     method::{LoadResp, PreviewResp},
     mode::{config_builder, ModeDef},
     state::State,
-    utils::fzf,
+    utils::fzf::{self, PreviewWindow},
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -78,6 +78,7 @@ impl ModeDef for ProcessCompose {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {

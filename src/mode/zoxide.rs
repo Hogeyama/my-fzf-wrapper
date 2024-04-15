@@ -1,5 +1,6 @@
 use crate::config::Config;
 use crate::state::State;
+use crate::utils::fzf::PreviewWindow;
 use crate::{
     method::{LoadResp, PreviewResp},
     mode::ModeDef,
@@ -37,6 +38,7 @@ impl ModeDef for Zoxide {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {

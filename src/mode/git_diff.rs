@@ -14,7 +14,11 @@ use crate::{
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim, NeovimExt},
     state::State,
-    utils::{bat, fzf, git},
+    utils::{
+        bat,
+        fzf::{self, PreviewWindow},
+        git,
+    },
 };
 
 use super::CallbackMap;
@@ -154,6 +158,7 @@ impl ModeDef for GitDiff {
         &'a self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp, String>> {
         async move {

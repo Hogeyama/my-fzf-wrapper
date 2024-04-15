@@ -5,7 +5,11 @@ use crate::{
     mode::{config_builder, CallbackMap, ModeDef},
     nvim::{self, NeovimExt},
     state::State,
-    utils::{bat, fzf, gh, git, rg},
+    utils::{
+        bat,
+        fzf::{self, PreviewWindow},
+        gh, git, rg,
+    },
 };
 
 use clap::Parser;
@@ -55,6 +59,7 @@ impl ModeDef for LiveGrep {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move { preview(item).await }.boxed()
@@ -157,6 +162,7 @@ impl ModeDef for LiveGrepF {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move { preview(item).await }.boxed()

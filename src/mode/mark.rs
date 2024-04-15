@@ -7,7 +7,11 @@ use crate::{
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim, NeovimExt},
     state::State,
-    utils::{bat, fzf, xsel},
+    utils::{
+        bat,
+        fzf::{self, PreviewWindow},
+        xsel,
+    },
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -59,6 +63,7 @@ impl ModeDef for Mark {
         &'a self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp, String>> {
         async move {

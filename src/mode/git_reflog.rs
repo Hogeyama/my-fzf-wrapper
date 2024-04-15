@@ -7,7 +7,10 @@ use crate::{
     mode::{config_builder, ModeDef},
     nvim::NeovimExt,
     state::State,
-    utils::{fzf, git},
+    utils::{
+        fzf::{self, PreviewWindow},
+        git,
+    },
 };
 
 use super::CallbackMap;
@@ -38,6 +41,7 @@ impl ModeDef for GitReflog {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {

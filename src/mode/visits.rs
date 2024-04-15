@@ -6,7 +6,12 @@ use crate::{
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim, NeovimExt},
     state::State,
-    utils::{bat, fzf, path::to_relpath, xsel},
+    utils::{
+        bat,
+        fzf::{self, PreviewWindow},
+        path::to_relpath,
+        xsel,
+    },
 };
 
 use futures::stream::{self, StreamExt};
@@ -64,6 +69,7 @@ impl ModeDef for Visits {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {

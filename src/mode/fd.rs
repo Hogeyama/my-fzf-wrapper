@@ -4,7 +4,11 @@ use crate::{
     mode::{config_builder, ModeDef},
     nvim::{self, NeovimExt},
     state::State,
-    utils::{bat, fd, fzf, gh, xsel},
+    utils::{
+        bat, fd,
+        fzf::{self, PreviewWindow},
+        gh, xsel,
+    },
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -40,6 +44,7 @@ impl ModeDef for Fd {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {

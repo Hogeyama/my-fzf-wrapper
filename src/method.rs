@@ -1,5 +1,7 @@
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
 
+use crate::utils::fzf::PreviewWindow;
+
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 // Method
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -26,6 +28,7 @@ pub enum Request {
     Preview {
         method: Preview,
         params: <Preview as Method>::Param,
+        preview_window: PreviewWindow,
     },
     Execute {
         method: Execute,
@@ -70,9 +73,11 @@ impl Method for Preview {
         "preview"
     }
     fn request(self, params: Self::Param) -> Request {
+        let preview_window = PreviewWindow::from_env().unwrap();
         Request::Preview {
             method: Preview,
             params,
+            preview_window,
         }
     }
 }

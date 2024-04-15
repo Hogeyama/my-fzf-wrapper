@@ -8,7 +8,10 @@ use crate::{
     mode::{config_builder, ModeDef},
     nvim::{self, NeovimExt},
     state::State,
-    utils::{fzf, gh, git},
+    utils::{
+        fzf::{self, PreviewWindow},
+        gh, git,
+    },
 };
 
 use super::CallbackMap;
@@ -38,6 +41,7 @@ impl ModeDef for GitStatus {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         preview(item)

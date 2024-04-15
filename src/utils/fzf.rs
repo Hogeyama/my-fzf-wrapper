@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
 
+use serde::{Deserialize, Serialize};
 use tokio::{io::AsyncWriteExt, process::Command};
 
 // TODO 多くを mode/mod.rs に移動させる。myself を知っているのはおかしい
@@ -57,6 +58,20 @@ impl Action {
             Action::Toggle => "toggle".to_string(),
             Action::Raw(s) => s.to_string(),
         }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Serialize, Deserialize)]
+pub struct PreviewWindow {
+    pub lines: usize,
+    pub columns: usize,
+}
+
+impl PreviewWindow {
+    pub fn from_env() -> Option<Self> {
+        let lines = std::env::var("FZF_PREVIEW_LINES").ok()?.parse().ok()?;
+        let columns = std::env::var("FZF_PREVIEW_COLUMNS").ok()?.parse().ok()?;
+        Some(Self { lines, columns })
     }
 }
 

@@ -24,7 +24,7 @@ use crate::{
     config::Config,
     method::{LoadResp, PreviewResp},
     state::State,
-    utils::fzf,
+    utils::fzf::{self, PreviewWindow},
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -90,8 +90,8 @@ impl Mode {
         callback_map.preview.insert(
             "default".to_string(),
             PreviewCallback {
-                callback: Box::new(|mode_def, config, state, item| {
-                    mode_def.preview(config, state, item)
+                callback: Box::new(|mode_def, config, state, win, item| {
+                    mode_def.preview(config, state, win, item)
                 }),
             },
         );
@@ -156,6 +156,7 @@ pub trait ModeDef {
         &'a self,
         config: &'a Config,
         state: &'a mut State,
+        win: &'a PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp, String>>;
 
@@ -216,6 +217,7 @@ pub struct PreviewCallback {
                 &'a (dyn ModeDef + Sync + Send),
                 &'a Config,
                 &'a mut State,
+                &'a PreviewWindow,
                 String,
             ) -> BoxFuture<'a, Result<PreviewResp, String>>
             + Sync

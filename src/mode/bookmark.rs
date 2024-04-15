@@ -6,8 +6,8 @@ use crate::{
     mode::{config_builder, ModeDef},
     nvim::{self, Neovim, NeovimExt},
     state::State,
-    utils::path::to_relpath,
     utils::{bat, fzf, xsel},
+    utils::{fzf::PreviewWindow, path::to_relpath},
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -48,6 +48,7 @@ impl ModeDef for Bookmark {
         &'a self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp, String>> {
         async move {

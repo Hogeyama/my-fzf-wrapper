@@ -3,7 +3,7 @@ use crate::{
     method::{LoadResp, PreviewResp},
     mode::{config_builder, CallbackMap, ModeDef},
     state::State,
-    utils::fzf,
+    utils::fzf::{self, PreviewWindow},
 };
 
 use futures::{future::BoxFuture, FutureExt};
@@ -37,6 +37,7 @@ impl ModeDef for Menu {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {

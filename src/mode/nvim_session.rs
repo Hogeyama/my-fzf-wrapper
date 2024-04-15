@@ -9,7 +9,7 @@ use crate::{
     mode::{config_builder, ModeDef},
     nvim::{Neovim, NeovimExt},
     state::State,
-    utils::fzf,
+    utils::fzf::{self, PreviewWindow},
 };
 
 use super::CallbackMap;
@@ -61,6 +61,7 @@ impl ModeDef for NeovimSession {
         &self,
         _config: &Config,
         _state: &mut State,
+        _win: &PreviewWindow,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp, String>> {
         async move {

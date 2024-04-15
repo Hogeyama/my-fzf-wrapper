@@ -167,7 +167,11 @@ async fn handle_one_client(
                 *(current_load_task.lock().await) = Some((handle, abort_handle));
             }
 
-            Some(method::Request::Preview { method, params }) => {
+            Some(method::Request::Preview {
+                method,
+                params,
+                preview_window,
+            }) => {
                 let mut s = server_state.lock().await;
                 let s = s.deref_mut();
                 let callback = &mut s
@@ -178,9 +182,15 @@ async fn handle_one_client(
                         panic!("unknown callback");
                     })
                     .callback;
-                let resp = callback(s.mode.mode_def.as_ref(), &config, &mut s.state, params.item)
-                    .await
-                    .unwrap_or_else(PreviewResp::error);
+                let resp = callback(
+                    s.mode.mode_def.as_ref(),
+                    &config,
+                    &mut s.state,
+                    &preview_window,
+                    params.item,
+                )
+                .await
+                .unwrap_or_else(PreviewResp::error);
                 let mut tx = tx.lock().await;
                 match send_response(&mut *tx, method, resp).await {
                     Ok(()) => trace!("server: preview done"),
