@@ -74,21 +74,17 @@ impl ModeDef for ProcessCompose {
         }
         .boxed()
     }
-    fn preview(
+    fn preview<'a>(
         &self,
         _config: &Config,
         _state: &mut State,
-        _win: &PreviewWindow,
+        win: &'a PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'a, Result<PreviewResp, String>> {
         async move {
             let Item { process } = Item::parse(item);
             let host = get_host()?;
-            // NOTE: なぜかFZF_PREVIEW_LINESが渡ってこない
-            let height = std::env::var("FZF_PREVIEW_LINES")
-                .unwrap_or("50".to_string())
-                .parse::<usize>()
-                .unwrap_or(50);
+            let height = win.line;
             let limit = 0; // 0 will get all the lines till the end
             let logs = reqwest::get(format!("{host}/process/logs/{process}/{height}/{limit}"))
                 .await
