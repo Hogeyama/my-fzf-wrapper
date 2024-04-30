@@ -8,6 +8,7 @@ use crate::{
     state::State,
     utils::{
         bat,
+        command::edit_and_run,
         fzf::{self, PreviewWindow},
         path::to_relpath,
         xsel,
@@ -116,6 +117,19 @@ impl ModeDef for Visits {
                     Ok(())
                 }),
                 b.reload(),
+            ],
+            "ctrl-space" => [
+                select_and_execute!{b, |_mode,_config,state,_query,item|
+                    "execute any command" => {
+                        let (cmd, output) = edit_and_run(format!(" {item}"))
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        state.nvim.notify_command_result(&cmd, output)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        Ok(())
+                    },
+                }
             ]
         }
     }

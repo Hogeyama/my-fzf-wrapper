@@ -14,7 +14,10 @@ pub async fn edit_and_run(
         .spawn()?
         .wait()
         .await?;
-    let cmd = std::fs::read_to_string(tmp_file.path()).unwrap();
+    let cmd = std::fs::read_to_string(tmp_file.path())
+        .unwrap()
+        .trim()
+        .to_string();
     let output = Command::new("sh").arg("-c").arg(&cmd).output().await?;
     Ok((cmd, output))
 }
