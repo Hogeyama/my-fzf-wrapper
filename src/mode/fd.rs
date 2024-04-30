@@ -5,7 +5,9 @@ use crate::{
     nvim::{self, NeovimExt},
     state::State,
     utils::{
-        bat, fd,
+        bat,
+        command::edit_and_run,
+        fd,
         fzf::{self, PreviewWindow},
         gh, xsel,
     },
@@ -102,6 +104,15 @@ impl ModeDef for Fd {
                             .map_err(|e| e.to_string())?;
                         let opts = OpenOpts::Neovim { tabedit: false };
                         open(state, path, opts).await
+                    },
+                    "execute any command" => {
+                        let (cmd, output) = edit_and_run(format!(" {item}"))
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        state.nvim.notify_command_result(&cmd, output)
+                            .await
+                            .map_err(|e| e.to_string())?;
+                        Ok(())
                     },
                     "browse-github" => {
                         let opts = OpenOpts::BrowseGithub;

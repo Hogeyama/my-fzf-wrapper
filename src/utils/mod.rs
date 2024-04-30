@@ -1,5 +1,6 @@
 pub mod bat;
 pub mod browser;
+pub mod command;
 pub mod fd;
 pub mod fzf;
 pub mod gh;
