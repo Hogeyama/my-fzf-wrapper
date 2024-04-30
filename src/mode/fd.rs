@@ -83,18 +83,6 @@ impl ModeDef for Fd {
             ],
             "ctrl-space" => [
                 select_and_execute!{b, |_mode,_config,state,_query,item|
-                    "neovim" => {
-                        let opts = OpenOpts::Neovim { tabedit: false };
-                        open(state, item, opts).await
-                    },
-                    "vifm" => {
-                        let opts = OpenOpts::Vifm;
-                        open(state, item, opts).await
-                    },
-                    "browse-github" => {
-                        let opts = OpenOpts::BrowseGithub;
-                        open(state, item, opts).await
-                    },
                     "new file" => {
                         let cwd = std::env::current_dir().unwrap();
                         let fname = fzf::input("Enter file name").await?;
@@ -114,6 +102,10 @@ impl ModeDef for Fd {
                             .map_err(|e| e.to_string())?;
                         let opts = OpenOpts::Neovim { tabedit: false };
                         open(state, path, opts).await
+                    },
+                    "browse-github" => {
+                        let opts = OpenOpts::BrowseGithub;
+                        open(state, item, opts).await
                     },
                 }
             ]
