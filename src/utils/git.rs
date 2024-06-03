@@ -102,7 +102,7 @@ pub fn parse_short_commit(commit: impl AsRef<str>) -> Result<String, String> {
 }
 
 pub async fn select_commit(context: impl AsRef<str>) -> Result<String, String> {
-    let commits = log_graph("--all").await?;
+    let commits = log_graph("HEAD").await?;
     let commits = commits.iter().map(|s| s.as_str()).collect();
     let commit_line = fzf::select_with_header(context, commits).await?;
     parse_short_commit(commit_line)
