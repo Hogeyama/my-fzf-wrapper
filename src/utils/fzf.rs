@@ -108,6 +108,7 @@ pub fn new(config: Config) -> Command {
     #[rustfmt::skip]
     let mut args = vec![
         c("--ansi"),
+        c("--no-sort"),
         c("--header-lines"), c("1"),
         c("--layout"), c("reverse"),
         c("--query"), initial_query,
@@ -137,6 +138,7 @@ pub fn new(config: Config) -> Command {
 pub async fn select(items: Vec<&str>) -> Result<String, String> {
     let mut fzf = Command::new("fzf")
         .arg("--ansi")
+        .arg("--no-sort")
         .args(vec!["--layout", "reverse"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
@@ -163,6 +165,7 @@ pub async fn select_with_header(
 ) -> Result<String, String> {
     let mut fzf = Command::new("fzf")
         .arg("--ansi")
+        .arg("--no-sort")
         .args(vec!["--header-lines", "1"])
         .args(vec!["--layout", "reverse"])
         .stdin(std::process::Stdio::piped())
