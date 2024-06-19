@@ -309,7 +309,26 @@ impl ModeDef for GitDiff {
                         }
                         Item::UnstagedHunk { .. } => {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
-                            git_apply(&state.nvim, patch, vec!["--cached"]).await?;
+                            let r = git_apply(&state.nvim, patch.clone(), vec!["--cached"]).await;
+                            match r {
+                                Ok(_) => {}
+                                Err(e) => {
+                                    let patch_contents = std::fs::read_to_string(&patch)
+                                        .map_err(|e| e.to_string())?;
+                                    let mut temp =
+                                        NamedTempFile::new().map_err(|e| e.to_string())?;
+                                    writeln!(
+                                        temp,
+                                        "{}\\ No newline at end of file",
+                                        patch_contents
+                                    )
+                                    .map_err(|e| e.to_string())?;
+                                    let path = temp.path().to_str().unwrap().to_string();
+                                    git_apply(&state.nvim, path, vec!["--cached"])
+                                        .await
+                                        .or(Err(e))?;
+                                }
+                            }
                         }
                         Item::UnstagedBinayChange { file } => {
                             git_stage_file(&state.nvim, file).await?;
@@ -775,7 +794,15 @@ async fn git_restore_file(
 
 async fn git_apply(nvim: &Neovim, patch: String, args: Vec<&str>) -> Result<(), String> {
     let output = git::apply(patch, args).await?;
-    nvim.notify_command_result_if_error("git apply", output)
+    if !output.status.success() {
+        nvim.notify_error(format!(
+            "{} failed\n{}",
+            "git apply",
+            String::from_utf8_lossy(output.stderr.as_slice())
+        ))
         .await
-        .map_err(|e| e.to_string())
+        .map_err(|e| e.to_string())?;
+        return Err("dame".to_string());
+    }
+    Ok(())
 }
