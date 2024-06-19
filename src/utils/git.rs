@@ -112,6 +112,7 @@ pub async fn select_commit(context: impl AsRef<str>) -> Result<String, String> {
 // Diff
 ////////////////////////////////////////////////////////////////////////////////
 
+#[allow(dead_code)]
 pub async fn diff() -> Result<String, String> {
     let diff = Command::new("git")
         .arg("diff")
@@ -123,6 +124,7 @@ pub async fn diff() -> Result<String, String> {
     Ok(String::from_utf8_lossy(diff.as_slice()).into_owned())
 }
 
+#[allow(dead_code)]
 pub async fn diff_cached() -> Result<String, String> {
     let diff = Command::new("git")
         .arg("diff")

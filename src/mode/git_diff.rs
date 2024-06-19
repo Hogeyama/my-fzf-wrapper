@@ -1,12 +1,12 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use futures::{future::BoxFuture, FutureExt};
+use git2::{Diff, Patch};
 use serde::Serialize;
 use serde_json::{from_value, to_value};
 use std::io::Write;
 use tempfile::NamedTempFile;
 use tokio::process::Command;
-use unidiff::{Hunk, PatchSet, PatchedFile};
 
 use crate::{
     config::Config,
@@ -25,20 +25,26 @@ use super::CallbackMap;
 
 #[derive(Clone)]
 pub struct GitDiff {
-    files: HashMap<String, PatchedFile>,
+    files: HashSet<String>,
     hunks: HashMap<Item, Hunk>,
+}
+
+#[derive(Clone)]
+struct Hunk {
+    new_file: String,
+    target_start: usize,
+    patch: String,
 }
 
 impl GitDiff {
     pub fn new() -> Self {
         GitDiff {
-            files: HashMap::new(),
+            files: HashSet::new(),
             hunks: HashMap::new(),
         }
     }
 
     pub fn clear(&mut self) {
-        self.files.clear();
         self.hunks.clear();
     }
 
@@ -47,55 +53,12 @@ impl GitDiff {
         Ok(hunk)
     }
 
-    fn patched_file_of_item(&self, item: &Item) -> Result<PatchedFile, String> {
-        let patch = self.files.get(item.file()).ok_or("wow")?.clone();
-        Ok(patch)
-    }
-
-    fn patch_of_item(&self, item: &Item) -> Result<PatchedFile, String> {
-        let file = self.patched_file_of_item(item)?;
-        let hunk = self.hunk_of_item(item)?;
-        let patch_to_stage =
-            PatchedFile::with_hunks(file.source_file, file.target_file, vec![hunk]);
-        Ok(patch_to_stage)
-    }
-
     fn save_patch_to_temp(&self, item: &Item) -> Result<(NamedTempFile, String), String> {
-        let patch_to_stage = self.patch_of_item(item)?;
+        let hunk = self.hunk_of_item(item)?;
         let mut temp = NamedTempFile::new().map_err(|e| e.to_string())?;
-        writeln!(temp, "{}", patch_to_stage).map_err(|e| e.to_string())?;
+        writeln!(temp, "{}", hunk.patch).map_err(|e| e.to_string())?;
         let path = temp.path().to_str().unwrap().to_string();
         Ok((temp, path))
-    }
-
-    fn parse_diff(&mut self, kind: HunkKind, diff: String) -> Result<Vec<Item>, String> {
-        let mut items = vec![];
-        let mut patch = PatchSet::new();
-        patch.parse(&diff).map_err(|e| e.to_string())?;
-        for patched_file in patch {
-            let file = patched_file.target_file.clone();
-            if file == "/dev/null" {
-                continue;
-            }
-            let file = file.strip_prefix("b/").unwrap().to_string();
-            self.files.insert(file.clone(), patched_file.clone());
-            for hunk in patched_file {
-                let target_start = hunk.target_start;
-                let item = match kind {
-                    HunkKind::Staged => Item::StagedHunk {
-                        file: file.clone(),
-                        target_start,
-                    },
-                    HunkKind::Unstaged => Item::UnstagedHunk {
-                        file: file.clone(),
-                        target_start,
-                    },
-                };
-                self.hunks.insert(item.clone(), hunk);
-                items.push(item);
-            }
-        }
-        Ok(items)
     }
 }
 
@@ -111,22 +74,40 @@ impl ModeDef for GitDiff {
         _item: String,
     ) -> BoxFuture<'a, Result<LoadResp, String>> {
         async move {
-            let mut items = vec![];
             self.clear();
-            self.parse_diff(HunkKind::Unstaged, git::diff().await?)?
-                .iter()
-                .for_each(|item| items.push(item.render()));
-            self.parse_diff(HunkKind::Staged, git::diff_cached().await?)?
-                .iter()
-                .for_each(|item| items.push(item.render()));
+
+            let mut items = vec![];
+
+            for hunk in git_diff()? {
+                let target_start = hunk.target_start;
+                let item = Item::UnstagedHunk {
+                    file: hunk.new_file.clone(),
+                    target_start,
+                };
+                self.files.insert(hunk.new_file.clone());
+                self.hunks.insert(item.clone(), hunk);
+                items.push(item.render());
+            }
+
+            for hunk in git_diff_cached()? {
+                let target_start = hunk.target_start;
+                let item = Item::StagedHunk {
+                    file: hunk.new_file.clone(),
+                    target_start,
+                };
+                self.files.insert(hunk.new_file.clone());
+                self.hunks.insert(item.clone(), hunk);
+                items.push(item.render());
+            }
+
             git::workingtree_modified_files()?
                 .into_iter()
-                .filter(|s| !self.files.contains_key(s))
+                .filter(|s| !self.files.contains(s))
                 .map(|s| Item::UnstagedBinayChange { file: s })
                 .for_each(|item| items.push(item.render()));
             git::index_modified_files()?
                 .into_iter()
-                .filter(|s| !self.files.contains_key(s))
+                .filter(|s| !self.files.contains(s))
                 .map(|s| Item::StagedBinayChange { file: s })
                 .for_each(|item| items.push(item.render()));
             git::workingtree_deleted_files()?
@@ -139,7 +120,7 @@ impl ModeDef for GitDiff {
                 .for_each(|item| items.push(item.render()));
             git::index_new_files()?
                 .into_iter()
-                .filter(|s| !self.files.contains_key(s))
+                .filter(|s| !self.files.contains(s))
                 .map(|s| Item::AddedBinaryFile { file: s })
                 .for_each(|item| items.push(item.render()));
             git::untracked_files()?
@@ -722,17 +703,12 @@ impl Item {
     }
 }
 
-enum HunkKind {
-    Staged,
-    Unstaged,
-}
-
 trait HunkExt {
     fn colorize(&self) -> String;
 }
 impl HunkExt for Hunk {
     fn colorize(&self) -> String {
-        format!("{}", self)
+        self.patch
             .lines()
             .map(|line| {
                 if line.starts_with('+') {
@@ -746,6 +722,87 @@ impl HunkExt for Hunk {
             .collect::<Vec<_>>()
             .join("\n")
     }
+}
+
+fn git_diff() -> Result<Vec<Hunk>, String> {
+    let repo = git::get_repo()?;
+    let index = repo.index().map_err(|e| e.to_string())?;
+    let diff = repo
+        .diff_index_to_workdir(Some(&index), None)
+        .map_err(|e| e.to_string())?;
+    parse_diff(diff)
+}
+
+fn git_diff_cached() -> Result<Vec<Hunk>, String> {
+    let repo = git::get_repo()?;
+    let index = repo.index().map_err(|e| e.to_string())?;
+    let head = repo
+        .head()
+        .map_err(|e| e.to_string())?
+        .peel_to_tree()
+        .map_err(|e| e.to_string())?;
+    let diff = repo
+        .diff_tree_to_index(Some(&head), Some(&index), None)
+        .map_err(|e| e.to_string())?;
+    parse_diff(diff)
+}
+
+fn parse_diff(diff: Diff) -> Result<Vec<Hunk>, String> {
+    let mut hunks = vec![];
+
+    for i in 0..diff.deltas().len() {
+        let patch = Patch::from_diff(&diff, i).unwrap().unwrap();
+        if patch.num_hunks() > 0 {
+            for h in 0..patch.num_hunks() {
+                if patch.num_lines_in_hunk(h).unwrap() == 0 {
+                    info!("empty hunk";
+                        "old_file" => patch.delta().old_file().path().unwrap().display(),
+                        "new_file" => patch.delta().new_file().path().unwrap().display(),
+                    );
+                    continue;
+                }
+                let (hunk, _) = patch.hunk(h).unwrap();
+                let mut patch_str = String::new();
+                patch_str.push_str(&format!(
+                    "--- a/{}\n",
+                    patch.delta().old_file().path().unwrap().display()
+                ));
+                patch_str.push_str(&format!(
+                    "+++ b/{}\n",
+                    patch.delta().new_file().path().unwrap().display()
+                ));
+                patch_str.push_str(std::str::from_utf8(hunk.header()).unwrap());
+                for l in 0..patch.num_lines_in_hunk(h).unwrap() {
+                    if let Ok(line) = patch.line_in_hunk(h, l) {
+                        match line.origin() {
+                            c @ ('+' | '-' | ' ') => {
+                                patch_str.push_str(&format!(
+                                    "{}{}",
+                                    c,
+                                    std::str::from_utf8(line.content()).unwrap()
+                                ));
+                            }
+                            _ => {
+                                patch_str.push_str(std::str::from_utf8(line.content()).unwrap());
+                            }
+                        }
+                    }
+                }
+                hunks.push(Hunk {
+                    target_start: hunk.new_start() as usize,
+                    new_file: patch
+                        .delta()
+                        .new_file()
+                        .path()
+                        .unwrap()
+                        .display()
+                        .to_string(),
+                    patch: patch_str,
+                });
+            }
+        }
+    }
+    Ok(hunks)
 }
 
 async fn git_stage_file(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
