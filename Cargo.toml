@@ -28,7 +28,6 @@ ansi_term = "0.12.1"
 libc = "0.2.149"
 shellwords = "1.1.0"
 git2 = "0.18.1"
-unidiff = "0.3.3"
 tempfile = "3.8.1"
 shellexpand = "3.1.0"
 reqwest = { version = "0.12.2", features = ["json"] }
