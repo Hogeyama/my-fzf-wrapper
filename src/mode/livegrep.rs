@@ -1,22 +1,26 @@
-use crate::{
-    config::Config,
-    logger::Serde,
-    method::{LoadResp, PreviewResp},
-    mode::{config_builder, CallbackMap, ModeDef},
-    nvim::{self, NeovimExt},
-    state::State,
-    utils::{
-        bat,
-        fzf::{self, PreviewWindow},
-        gh, git, rg,
-    },
-};
-
 use anyhow::Result;
 use clap::Parser;
-use futures::{future::BoxFuture, FutureExt};
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
+
+use crate::config::Config;
+use crate::logger::Serde;
+use crate::method::LoadResp;
+use crate::method::PreviewResp;
+use crate::mode::config_builder;
+use crate::mode::CallbackMap;
+use crate::mode::ModeDef;
+use crate::nvim;
+use crate::nvim::NeovimExt;
+use crate::state::State;
+use crate::utils::bat;
+use crate::utils::fzf;
+use crate::utils::fzf::PreviewWindow;
+use crate::utils::gh;
+use crate::utils::git;
+use crate::utils::rg;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Livegrep

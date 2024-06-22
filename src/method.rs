@@ -1,4 +1,6 @@
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::de::DeserializeOwned;
+use serde::Deserialize;
+use serde::Serialize;
 
 use crate::utils::fzf::PreviewWindow;
 

@@ -1,4 +1,5 @@
-use crate::{method::LoadResp, nvim::Neovim};
+use crate::method::LoadResp;
+use crate::nvim::Neovim;
 
 pub struct State {
     pub nvim: Neovim,

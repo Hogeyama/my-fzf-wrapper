@@ -1,28 +1,33 @@
-use std::collections::{HashMap, HashSet};
+use std::collections::HashMap;
+use std::collections::HashSet;
 
-use anyhow::{anyhow, Result};
-use futures::{future::BoxFuture, FutureExt};
-use git2::{Diff, Patch};
+use anyhow::anyhow;
+use anyhow::Result;
+use futures::future::BoxFuture;
+use futures::FutureExt;
+use git2::Diff;
+use git2::Patch;
 use serde::Serialize;
-use serde_json::{from_value, to_value};
+use serde_json::from_value;
+use serde_json::to_value;
 use std::io::Write;
 use tempfile::NamedTempFile;
 use tokio::process::Command;
 
-use crate::{
-    config::Config,
-    method::{LoadResp, PreviewResp},
-    mode::{config_builder, ModeDef},
-    nvim::{self, Neovim, NeovimExt},
-    state::State,
-    utils::{
-        bat,
-        fzf::{self, PreviewWindow},
-        git,
-    },
-};
-
-use super::CallbackMap;
+use crate::config::Config;
+use crate::method::LoadResp;
+use crate::method::PreviewResp;
+use crate::mode::config_builder;
+use crate::mode::CallbackMap;
+use crate::mode::ModeDef;
+use crate::nvim;
+use crate::nvim::Neovim;
+use crate::nvim::NeovimExt;
+use crate::state::State;
+use crate::utils::bat;
+use crate::utils::fzf;
+use crate::utils::fzf::PreviewWindow;
+use crate::utils::git;
 
 #[derive(Clone)]
 pub struct GitDiff {

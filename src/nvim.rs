@@ -1,14 +1,16 @@
 use std::process::Output;
 
 // Neovim
+use nvim_rs::call_args;
 use nvim_rs::compat::tokio::Compat as TokioCompat;
 use nvim_rs::create::tokio as nvim_tokio;
 use nvim_rs::rpc::model::IntoVal;
-use nvim_rs::{call_args, Handler};
+use nvim_rs::Handler;
 
 // Tokio
 use parity_tokio_ipc::Connection;
-use rmpv::ext::{from_value, to_value};
+use rmpv::ext::from_value;
+use rmpv::ext::to_value;
 use tokio::io::WriteHalf;
 
 use anyhow::anyhow;

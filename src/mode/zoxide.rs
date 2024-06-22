@@ -1,15 +1,15 @@
+use anyhow::Result;
+use futures::future::BoxFuture;
+use futures::FutureExt;
+use tokio::process::Command;
+
 use crate::config::Config;
+use crate::method::LoadResp;
+use crate::method::PreviewResp;
+use crate::mode::ModeDef;
 use crate::state::State;
 use crate::utils::fzf::PreviewWindow;
-use crate::{
-    method::{LoadResp, PreviewResp},
-    mode::ModeDef,
-    utils::zoxide,
-};
-
-use anyhow::Result;
-use futures::{future::BoxFuture, FutureExt};
-use tokio::process::Command;
+use crate::utils::zoxide;
 
 #[derive(Clone)]
 pub struct Zoxide;

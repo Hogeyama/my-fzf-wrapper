@@ -1,7 +1,9 @@
 use std::path::Path;
 
 use anyhow::Result;
-use rusqlite::{params, Connection, Error};
+use rusqlite::params;
+use rusqlite::Connection;
+use rusqlite::Error;
 
 pub fn run_query<T, F>(
     db: impl AsRef<Path>,

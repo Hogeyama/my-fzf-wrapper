@@ -1,5 +1,7 @@
-use crate::mode::{self, ModeDef};
-use crate::mode::{MkMode, Mode};
+use crate::mode;
+use crate::mode::MkMode;
+use crate::mode::Mode;
+use crate::mode::ModeDef;
 
 pub struct Config {
     pub myself: String,

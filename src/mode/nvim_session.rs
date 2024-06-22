@@ -1,19 +1,21 @@
 use std::fs;
 
 use anyhow::Result;
-use futures::{future::BoxFuture, FutureExt};
+use futures::future::BoxFuture;
+use futures::FutureExt;
 
-use crate::{
-    bindings,
-    config::Config,
-    method::{LoadResp, PreviewResp},
-    mode::{config_builder, ModeDef},
-    nvim::{Neovim, NeovimExt},
-    state::State,
-    utils::fzf::{self, PreviewWindow},
-};
-
-use super::CallbackMap;
+use crate::bindings;
+use crate::config::Config;
+use crate::method::LoadResp;
+use crate::method::PreviewResp;
+use crate::mode::config_builder;
+use crate::mode::CallbackMap;
+use crate::mode::ModeDef;
+use crate::nvim::Neovim;
+use crate::nvim::NeovimExt;
+use crate::state::State;
+use crate::utils::fzf;
+use crate::utils::fzf::PreviewWindow;
 
 #[derive(Clone)]
 pub struct NeovimSession;

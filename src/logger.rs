@@ -1,7 +1,11 @@
+use std::error::Error;
 use std::fs::OpenOptions;
-use std::{error::Error, path::Path};
+use std::path::Path;
 
-use slog::{Drain, FnValue, PushFnValue, Record};
+use slog::Drain;
+use slog::FnValue;
+use slog::PushFnValue;
+use slog::Record;
 use slog_scope::GlobalLoggerGuard;
 
 pub fn init(log_path: impl AsRef<Path>) -> Result<GlobalLoggerGuard, Box<dyn Error>> {

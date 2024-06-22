@@ -1,23 +1,24 @@
-use crate::{
-    config::Config,
-    method::{LoadResp, PreviewResp},
-    mode::{config_builder, ModeDef},
-    nvim::{self, NeovimExt},
-    state::State,
-    utils::{
-        bat,
-        command::edit_and_run,
-        fd,
-        fzf::{self, PreviewWindow},
-        gh, xsel,
-    },
-};
-
 use anyhow::Result;
-use futures::{future::BoxFuture, FutureExt};
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use tokio::process::Command;
 
-use super::CallbackMap;
+use crate::config::Config;
+use crate::method::LoadResp;
+use crate::method::PreviewResp;
+use crate::mode::config_builder;
+use crate::mode::CallbackMap;
+use crate::mode::ModeDef;
+use crate::nvim;
+use crate::nvim::NeovimExt;
+use crate::state::State;
+use crate::utils::bat;
+use crate::utils::command::edit_and_run;
+use crate::utils::fd;
+use crate::utils::fzf;
+use crate::utils::fzf::PreviewWindow;
+use crate::utils::gh;
+use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct Fd;

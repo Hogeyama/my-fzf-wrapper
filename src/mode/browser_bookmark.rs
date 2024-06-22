@@ -1,24 +1,24 @@
-use crate::{
-    bindings,
-    config::Config,
-    method::{LoadResp, PreviewResp},
-    mode::{config_builder, ModeDef},
-    state::State,
-    utils::{
-        browser,
-        fzf::{self, PreviewWindow},
-        sqlite,
-    },
-};
-
-use anyhow::{anyhow, Result};
-use futures::{future::BoxFuture, FutureExt};
+use anyhow::anyhow;
+use anyhow::Result;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use serde::Deserialize;
 use tokio::process::Command;
 
-use super::CallbackMap;
+use crate::bindings;
+use crate::config::Config;
+use crate::method::LoadResp;
+use crate::method::PreviewResp;
+use crate::mode::config_builder;
+use crate::mode::CallbackMap;
+use crate::mode::ModeDef;
+use crate::state::State;
+use crate::utils::browser;
+use crate::utils::fzf;
+use crate::utils::fzf::PreviewWindow;
+use crate::utils::sqlite;
 
 #[derive(Clone)]
 pub struct BrowserBookmark {

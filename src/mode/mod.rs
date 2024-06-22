@@ -19,16 +19,16 @@ pub mod visits;
 pub mod zoxide;
 
 use anyhow::Result;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use std::pin::Pin;
 
-use crate::{
-    config::Config,
-    method::{LoadResp, PreviewResp},
-    state::State,
-    utils::fzf::{self, PreviewWindow},
-};
-
-use futures::{future::BoxFuture, FutureExt};
+use crate::config::Config;
+use crate::method::LoadResp;
+use crate::method::PreviewResp;
+use crate::state::State;
+use crate::utils::fzf;
+use crate::utils::fzf::PreviewWindow;
 
 pub type MkMode = Pin<Box<dyn (Fn() -> Mode) + Send + Sync>>;
 
@@ -243,7 +243,10 @@ pub struct ExecuteCallback {
 
 pub mod config_builder {
     #![allow(dead_code)]
-    use crate::{config::Config, mode::ModeDef, state::State, utils::fzf};
+    use crate::config::Config;
+    use crate::mode::ModeDef;
+    use crate::state::State;
+    use crate::utils::fzf;
     use anyhow::Result;
     use futures::future::BoxFuture;
 

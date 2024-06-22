@@ -1,26 +1,29 @@
-use crate::{
-    config::Config,
-    logger::Serde,
-    method::{LoadResp, PreviewResp},
-    mode::{config_builder, ModeDef},
-    nvim::{self, Neovim, NeovimExt},
-    state::State,
-    utils::{
-        bat,
-        fzf::{self, PreviewWindow},
-        xsel,
-    },
-};
-
 use anyhow::Result;
-use futures::stream::{self, StreamExt};
-use futures::{future::BoxFuture, FutureExt};
+use futures::future::BoxFuture;
+use futures::stream;
+use futures::stream::StreamExt;
+use futures::FutureExt;
 use once_cell::sync::Lazy;
 use regex::Regex;
 use rmpv::ext::from_value;
-use serde::{Deserialize, Serialize};
+use serde::Deserialize;
+use serde::Serialize;
 
-use super::CallbackMap;
+use crate::config::Config;
+use crate::logger::Serde;
+use crate::method::LoadResp;
+use crate::method::PreviewResp;
+use crate::mode::config_builder;
+use crate::mode::CallbackMap;
+use crate::mode::ModeDef;
+use crate::nvim;
+use crate::nvim::Neovim;
+use crate::nvim::NeovimExt;
+use crate::state::State;
+use crate::utils::bat;
+use crate::utils::fzf;
+use crate::utils::fzf::PreviewWindow;
+use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct Mru;

@@ -2,8 +2,10 @@
 use std::collections::HashMap;
 
 use anyhow::Result;
-use serde::{Deserialize, Serialize};
-use tokio::{io::AsyncWriteExt, process::Command};
+use serde::Deserialize;
+use serde::Serialize;
+use tokio::io::AsyncWriteExt;
+use tokio::process::Command;
 
 // TODO 多くを mode/mod.rs に移動させる。myself を知っているのはおかしい
 

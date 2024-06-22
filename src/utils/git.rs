@@ -1,7 +1,13 @@
 use std::process::Output;
 
-use anyhow::{anyhow, Result};
-use git2::{BranchType, IntoCString, Repository, Status, StatusEntry, StatusOptions};
+use anyhow::anyhow;
+use anyhow::Result;
+use git2::BranchType;
+use git2::IntoCString;
+use git2::Repository;
+use git2::Status;
+use git2::StatusEntry;
+use git2::StatusOptions;
 use regex::Regex;
 use tokio::process::Command;
 

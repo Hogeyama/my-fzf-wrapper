@@ -1,19 +1,25 @@
-use crate::{
-    config::Config,
-    method::{LoadResp, PreviewResp},
-    mode::{config_builder, ModeDef},
-    nvim::{self, Neovim, NeovimExt},
-    state::State,
-    utils::{bat, fzf, xsel},
-    utils::{fzf::PreviewWindow, path::to_relpath},
-};
-
-use anyhow::{anyhow, Result};
-use futures::{future::BoxFuture, FutureExt};
+use anyhow::anyhow;
+use anyhow::Result;
+use futures::future::BoxFuture;
+use futures::FutureExt;
 use rmpv::ext::from_value;
 use serde::Serialize;
 
-use super::CallbackMap;
+use crate::config::Config;
+use crate::method::LoadResp;
+use crate::method::PreviewResp;
+use crate::mode::config_builder;
+use crate::mode::CallbackMap;
+use crate::mode::ModeDef;
+use crate::nvim;
+use crate::nvim::Neovim;
+use crate::nvim::NeovimExt;
+use crate::state::State;
+use crate::utils::bat;
+use crate::utils::fzf;
+use crate::utils::fzf::PreviewWindow;
+use crate::utils::path::to_relpath;
+use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct Bookmark;
