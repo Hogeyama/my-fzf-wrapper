@@ -12,6 +12,7 @@ use crate::{
     },
 };
 
+use anyhow::Result;
 use clap::Parser;
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
@@ -52,7 +53,7 @@ impl ModeDef for LiveGrep {
         _state: &mut State,
         query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         load(query, &self.rg_opts)
     }
     fn preview(
@@ -61,7 +62,7 @@ impl ModeDef for LiveGrep {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move { preview(item).await }.boxed()
     }
     fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
@@ -114,13 +115,13 @@ pub struct LoadOpts {
     pub query: String,
 }
 
-fn load(query: String, opts: &Vec<String>) -> BoxFuture<'static, Result<LoadResp, String>> {
+fn load(query: String, opts: &Vec<String>) -> BoxFuture<'static, Result<LoadResp>> {
     let mut rg_cmd = rg::new();
     rg_cmd.args(opts);
     rg_cmd.arg("--");
     rg_cmd.arg(query);
     async move {
-        let rg_output = rg_cmd.output().await.map_err(|e| e.to_string())?;
+        let rg_output = rg_cmd.output().await?;
         let rg_output = String::from_utf8_lossy(&rg_output.stdout)
             .lines()
             .map(|line| line.to_string())
@@ -147,7 +148,7 @@ impl ModeDef for LiveGrepF {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         let livegrep_result = state.last_load_resp.clone();
         async move {
             let items = match livegrep_result {
@@ -164,7 +165,7 @@ impl ModeDef for LiveGrepF {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move { preview(item).await }.boxed()
     }
     fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
@@ -206,7 +207,7 @@ impl ModeDef for LiveGrepF {
 static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?P<file>[^:]*):(?P<line>\d+):(?P<col>\d+):.*").unwrap());
 
-async fn preview(item: String) -> Result<PreviewResp, String> {
+async fn preview(item: String) -> Result<PreviewResp> {
     let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
     let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
     let col = ITEM_PATTERN.replace(&item, "$col").into_owned();
@@ -234,7 +235,7 @@ enum OpenOpts {
     BrowseGithub,
 }
 
-async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), String> {
+async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<()> {
     let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
     let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
 
@@ -245,9 +246,7 @@ async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), Str
                 line: line.parse::<usize>().ok(),
                 tabedit,
             };
-            nvim.open(file.into(), nvim_opts)
-                .await
-                .map_err(|e| e.to_string())?;
+            nvim.open(file.into(), nvim_opts).await?;
         }
         OpenOpts::BrowseGithub => {
             let revision = git::rev_parse("HEAD")?;

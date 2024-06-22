@@ -1,4 +1,4 @@
-use std::{collections::HashMap, error::Error, sync::Arc};
+use std::{collections::HashMap, sync::Arc};
 
 use crate::{
     config::Config,
@@ -14,6 +14,7 @@ use crate::{
     },
 };
 
+use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -46,10 +47,10 @@ impl ModeDef for Mark {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp>> {
         let nvim = state.nvim.clone();
         async move {
-            let marks = get_nvim_marks(&nvim).await.map_err(|e| e.to_string())?;
+            let marks = get_nvim_marks(&nvim).await?;
             let items = marks.iter().map(|m| m.render()).collect();
             self.marks
                 .lock()
@@ -65,10 +66,15 @@ impl ModeDef for Mark {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'a, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'a, Result<PreviewResp>> {
         async move {
-            let marks = self.marks.lock().await.clone().ok_or("marks not loaded")?;
-            let item = MarkItem::lookup(&marks, &item).ok_or("invalid item")?;
+            let marks = self
+                .marks
+                .lock()
+                .await
+                .clone()
+                .ok_or(anyhow!("marks not loaded"))?;
+            let item = MarkItem::lookup(&marks, &item).ok_or(anyhow!("invalid item"))?;
             let file = shellexpand::tilde(&item.file).to_string();
             let message = bat::render_file_with_highlight(file, item.line as isize).await?;
             Ok(PreviewResp { message })
@@ -86,9 +92,9 @@ impl ModeDef for Mark {
                     // TODO よく分かってない
                     let self_ = self_.clone();
                     async move {
-                        let marks = self_.marks.lock().await.clone().ok_or("marks not loaded")?;
+                        let marks = self_.marks.lock().await.clone().ok_or(anyhow!("marks not loaded"))?;
                         let mark = MarkItem::lookup(&marks, &item)
-                            .ok_or("invalid item")?;
+                            .ok_or(anyhow!("invalid item"))?;
                         let opts = ExecOpts::Open { tabedit: false };
                         exec(mark, state, opts).await
                     }.boxed()
@@ -99,9 +105,9 @@ impl ModeDef for Mark {
                 b.execute(move |_mode,_config,state,_query,item| {
                     let self_ = self_.clone();
                     async move {
-                        let marks = self_.marks.lock().await.clone().ok_or("marks not loaded")?;
+                        let marks = self_.marks.lock().await.clone().ok_or(anyhow!("marks not loaded"))?;
                         let mark = MarkItem::lookup(&marks, &item)
-                            .ok_or("invalid item")?;
+                            .ok_or(anyhow!("invalid item"))?;
                         let opts = ExecOpts::Open { tabedit: true };
                         exec(mark, state, opts).await
                     }.boxed()
@@ -122,7 +128,7 @@ impl ModeDef for Mark {
 // Util
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async fn get_nvim_marks(nvim: &Neovim) -> Result<Vec<MarkItem>, Box<dyn Error>> {
+async fn get_nvim_marks(nvim: &Neovim) -> Result<Vec<MarkItem>> {
     let marks: Vec<MarkItem> = from_value::<Vec<RawMarkItem>>(nvim.eval("getmarklist()").await?)?
         .into_iter()
         .map(|b| b.into())
@@ -135,7 +141,7 @@ enum ExecOpts {
     Open { tabedit: bool },
 }
 
-async fn exec(mark: MarkItem, state: &mut State, opts: ExecOpts) -> Result<(), String> {
+async fn exec(mark: MarkItem, state: &mut State, opts: ExecOpts) -> Result<()> {
     match opts {
         ExecOpts::Open { tabedit } => {
             let nvim = state.nvim.clone();

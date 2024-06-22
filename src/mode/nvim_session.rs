@@ -1,5 +1,6 @@
 use std::fs;
 
+use anyhow::Result;
 use futures::{future::BoxFuture, FutureExt};
 
 use crate::{
@@ -45,12 +46,11 @@ impl ModeDef for NeovimSession {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         async move {
             let home = std::env::var("HOME").unwrap();
             // わざわざ tokio::fs にしなくていいかな
-            let sessions = fs::read_dir(format!("{home}/.local/share/nvim/session"))
-                .map_err(|e| e.to_string())?
+            let sessions = fs::read_dir(format!("{home}/.local/share/nvim/session"))?
                 .filter_map(|x| x.ok().and_then(|x| x.file_name().into_string().ok()))
                 .collect::<Vec<String>>();
             Ok(LoadResp::new_with_default_header(sessions))
@@ -63,7 +63,7 @@ impl ModeDef for NeovimSession {
         _state: &mut State,
         _win: &PreviewWindow,
         _item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             Ok(PreviewResp {
                 message: "No description".to_string(),

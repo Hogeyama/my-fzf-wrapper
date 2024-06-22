@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, FutureExt};
 use tokio::process::Command;
 
@@ -34,7 +35,7 @@ impl ModeDef for GitLog {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp>> {
         async move {
             let mut commits = match self {
                 GitLog::Head => git::log_graph("HEAD").await?,
@@ -52,7 +53,7 @@ impl ModeDef for GitLog {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             let commit = git::parse_short_commit(&item)?;
             let message = git::show_commit(commit).await?;
@@ -112,8 +113,8 @@ impl ModeDef for GitLog {
                     "diffview" => {
                         let _ = state.nvim.hide_floaterm().await;
                         state.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))
-                            .await
-                            .map_err(|e| e.to_string())
+                            .await?;
+                        Ok(())
                     },
                     "interactive rebase" => {
                         let _ = state.nvim.hide_floaterm().await;
@@ -125,22 +126,18 @@ impl ModeDef for GitLog {
                             .arg("--rebase-merges=rebase-cousins")
                             .arg(commit)
                             .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         state.nvim.notify_command_result("git rebase", output)
                             .await
-                            .map_err(|e| e.to_string())
                     },
                     "reset" => {
                         let output = Command::new("git")
                             .arg("reset")
                             .arg(git::parse_short_commit(&item)?)
                             .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         state.nvim.notify_command_result("git reset", output)
                             .await
-                            .map_err(|e| e.to_string())
                     },
                     "reset --hard" => {
                         let output = Command::new("git")
@@ -148,11 +145,9 @@ impl ModeDef for GitLog {
                             .arg("--hard")
                             .arg(git::parse_short_commit(&item)?)
                             .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         state.nvim.notify_command_result("git reset", output)
                             .await
-                            .map_err(|e| e.to_string())
                     },
                     "push to remote" => {
                         push_to_remote(&state.nvim, &item, false).await
@@ -165,11 +160,9 @@ impl ModeDef for GitLog {
                             .arg("revert")
                             .arg(git::parse_short_commit(&item)?)
                             .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         state.nvim.notify_command_result("git revert", output)
                             .await
-                            .map_err(|e| e.to_string())
                     },
                     "new branch" => {
                         let branch = fzf::input("Enter branch name").await?;
@@ -178,11 +171,9 @@ impl ModeDef for GitLog {
                             .arg(branch)
                             .arg(git::parse_short_commit(&item)?)
                             .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         state.nvim.notify_command_result("git branch", output)
                             .await
-                            .map_err(|e| e.to_string())
                     }
                 },
                 b.reload(),
@@ -191,7 +182,7 @@ impl ModeDef for GitLog {
     }
 }
 
-async fn push_to_remote(nvim: &Neovim, item: &String, force: bool) -> Result<(), String> {
+async fn push_to_remote(nvim: &Neovim, item: &String, force: bool) -> Result<()> {
     let commit = git::parse_short_commit(item)?;
     let all_remote_branches = git::remote_branches()?;
     let preferred_branches = branches_of(item)?
@@ -208,14 +199,14 @@ async fn push_to_remote(nvim: &Neovim, item: &String, force: bool) -> Result<(),
         .map(|b| b.as_str())
         .collect::<Vec<_>>();
     let selected_branch = fzf::select_with_header("branch to push to", branches).await?;
-    let (remote, selected_branch) = selected_branch.split_once('/').ok_or("No remote found")?;
+    let (remote, selected_branch) = selected_branch
+        .split_once('/')
+        .ok_or(anyhow!("No remote found"))?;
     let output = git::push(remote, commit, selected_branch, force).await?;
-    nvim.notify_command_result("git push", output)
-        .await
-        .map_err(|e| e.to_string())
+    nvim.notify_command_result("git push", output).await
 }
 
-fn branches_of(item: &str) -> Result<Vec<String>, String> {
+fn branches_of(item: &str) -> Result<Vec<String>> {
     let branches = git::parse_branches_of_log(item);
     let remotes = git::remotes()?;
     Ok(branches

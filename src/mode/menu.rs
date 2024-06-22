@@ -6,6 +6,7 @@ use crate::{
     utils::fzf::{self, PreviewWindow},
 };
 
+use anyhow::Result;
 use futures::{future::BoxFuture, FutureExt};
 
 #[derive(Clone)]
@@ -21,7 +22,7 @@ impl ModeDef for Menu {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp>> {
         async move {
             let items = config
                 .get_mode_names()
@@ -39,7 +40,7 @@ impl ModeDef for Menu {
         _state: &mut State,
         _win: &PreviewWindow,
         _item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             Ok(PreviewResp {
                 message: "No description".to_string(),

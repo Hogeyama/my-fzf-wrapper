@@ -11,6 +11,7 @@ use crate::{
     },
 };
 
+use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -50,7 +51,7 @@ impl ModeDef for BrowserHistory {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp>> {
         async move {
             let (db, query) = match self.browser {
                 browser::Browser::Firefox(_) => (get_firefox_db_path()?, firefox_query()),
@@ -64,8 +65,7 @@ impl ModeDef for BrowserHistory {
                     Ok(Item { url, title, date })
                 })
             })
-            .await
-            .map_err(|e| e.to_string())??
+            .await??
             .into_iter()
             .map(|x| format!("{}|{}|{}", x.date, x.url, x.title))
             .collect();
@@ -79,7 +79,7 @@ impl ModeDef for BrowserHistory {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
             let title = ITEM_PATTERN.replace(&item, "$title").into_owned();
@@ -118,7 +118,7 @@ fn temp_sqlite_path() -> &'static str {
     "/tmp/fzfw_browser_history.sqlite"
 }
 
-fn get_chrome_db_path() -> Result<String, String> {
+fn get_chrome_db_path() -> Result<String> {
     // FIXME ad-hoc
     let path = match std::env::var("FZFW_CHROME_HISTORY_PATH") {
         Ok(path) => path,
@@ -130,22 +130,22 @@ fn get_chrome_db_path() -> Result<String, String> {
     };
     match std::fs::metadata(&path) {
         Ok(m) if m.is_file() => Ok(path),
-        _ => Err("Oh no! No chrome history found".to_string()),
+        _ => Err(anyhow!("Oh no! No chrome history found")),
     }
 }
 
-fn get_firefox_db_path() -> Result<String, String> {
+fn get_firefox_db_path() -> Result<String> {
     let home = std::env::var("HOME").unwrap();
     match std::fs::read_dir(format!("{home}/.mozilla/firefox")) {
         Ok(entries) => {
             let entry = entries
                 .filter_map(|x| x.ok())
                 .find(|x| x.file_name().to_string_lossy().ends_with(".default"))
-                .ok_or("No firefox history found".to_string())?;
+                .ok_or(anyhow!("No firefox history found"))?;
             let dir = entry.path().to_string_lossy().to_string();
             Ok(dir + "/places.sqlite")
         }
-        Err(_) => Err("Oh no! No firefox history found".to_string()),
+        Err(_) => Err(anyhow!("Oh no! No firefox history found")),
     }
 }
 

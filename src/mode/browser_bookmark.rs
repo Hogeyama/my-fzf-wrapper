@@ -11,6 +11,7 @@ use crate::{
     },
 };
 
+use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -30,7 +31,7 @@ impl BrowserBookmark {
             browser: browser::get_browser(),
         }
     }
-    async fn load_items(&self) -> Result<Vec<Item>, String> {
+    async fn load_items(&self) -> Result<Vec<Item>> {
         match self.browser {
             browser::Browser::Firefox(_) => firefox_load_items(),
             browser::Browser::Chrome(_) => chrome_load_items(),
@@ -66,7 +67,7 @@ impl ModeDef for BrowserBookmark {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp>> {
         async move {
             let items = self
                 .load_items()
@@ -84,7 +85,7 @@ impl ModeDef for BrowserBookmark {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             let Item { title, url } = Item::parse(item);
             let message = format!("URL:   {url}\nTITLE: {title}");
@@ -124,7 +125,7 @@ impl ModeDef for BrowserBookmark {
 // 本当は enum Browser を trait Browser にして impl Firefox { } に書きたいんだが
 // trait object は Clone できない問題があって妥協している。
 
-fn firefox_load_items() -> Result<Vec<Item>, String> {
+fn firefox_load_items() -> Result<Vec<Item>> {
     let query = r#"
         SELECT
             moz_places.url,
@@ -160,18 +161,18 @@ fn firefox_load_items() -> Result<Vec<Item>, String> {
     )
 }
 
-fn firefox_db_path() -> Result<String, String> {
+fn firefox_db_path() -> Result<String> {
     let home = std::env::var("HOME").unwrap();
     match std::fs::read_dir(format!("{home}/.mozilla/firefox")) {
         Ok(entries) => {
             let entry = entries
                 .filter_map(|x| x.ok())
                 .find(|x| x.file_name().to_string_lossy().ends_with(".default"))
-                .ok_or("No firefox history found".to_string())?;
+                .ok_or(anyhow!("No firefox history found"))?;
             let dir = entry.path().to_string_lossy().to_string();
             Ok(dir + "/places.sqlite")
         }
-        Err(_) => Err("Oh no! No firefox history found".to_string()),
+        Err(_) => Err(anyhow!("Oh no! No firefox history found")),
     }
 }
 
@@ -179,10 +180,10 @@ fn firefox_db_path() -> Result<String, String> {
 // Chrome
 /////////////////////////////////////////////////////////////////////////////////
 
-fn chrome_load_items() -> Result<Vec<Item>, String> {
+fn chrome_load_items() -> Result<Vec<Item>> {
     let json_path = chrome_json_path()?;
-    let json = std::fs::read_to_string(json_path).map_err(|e| e.to_string())?;
-    let bookmark: Bookmark = serde_json::from_str(&json).map_err(|e| e.to_string())?;
+    let json = std::fs::read_to_string(json_path)?;
+    let bookmark: Bookmark = serde_json::from_str(&json)?;
     let bookmark_bar_items = bookmark.roots.bookmark_bar.flatten();
     let other_items = bookmark.roots.other.flatten();
     let items = bookmark_bar_items
@@ -196,7 +197,7 @@ fn chrome_load_items() -> Result<Vec<Item>, String> {
     Ok(items)
 }
 
-fn chrome_json_path() -> Result<String, String> {
+fn chrome_json_path() -> Result<String> {
     let path = match std::env::var("FZFW_CHROME_BOOKMARKS_PATH") {
         Ok(path) => {
             info!("FZFW_CHROME_BOOKMARKS_PATH: {}", path);
@@ -210,7 +211,7 @@ fn chrome_json_path() -> Result<String, String> {
     };
     match std::fs::metadata(&path) {
         Ok(m) if m.is_file() => Ok(path),
-        _ => Err("Oh no! No chrome history found".to_string()),
+        _ => Err(anyhow!("Oh no! No chrome history found")),
     }
 }
 

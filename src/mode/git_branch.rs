@@ -1,3 +1,4 @@
+use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, FutureExt};
 use tokio::process::Command;
 
@@ -28,7 +29,7 @@ impl ModeDef for GitBranch {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         async move {
             let head = git::head()?;
             let mut branches = git::local_branches()?;
@@ -51,7 +52,7 @@ impl ModeDef for GitBranch {
         _state: &mut State,
         _win: &PreviewWindow,
         branch: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             let log = git::log_graph(branch).await?;
             let message = log.join("\n");
@@ -77,8 +78,7 @@ impl ModeDef for GitBranch {
                             .arg("-m")
                             .arg(branch)
                             .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         Ok(())
                     },
                     "repoint" => {
@@ -89,21 +89,18 @@ impl ModeDef for GitBranch {
                             .arg("-D")
                             .arg(branch.clone())
                             .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         let output = Command::new("git")
                             .arg("branch")
                             .arg(branch.clone())
                             .arg(commit.clone())
                             .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         state.nvim.notify_command_result(
                             format!("git branch {branch} {commit}"),
                             output,
                         )
                         .await
-                        .map_err(|e| e.to_string())
                     },
                     "delete" => {
                         delete_branch(&state.nvim, branch, false).await
@@ -129,7 +126,7 @@ impl ModeDef for GitBranch {
     }
 }
 
-async fn select_remote(local_branch: impl AsRef<str>) -> Result<String, String> {
+async fn select_remote(local_branch: impl AsRef<str>) -> Result<String> {
     let upstream = git::upstream_of(&local_branch)?;
     let mut branches = git::remote_branches()?;
     branches.sort_by(|a, b| {
@@ -145,30 +142,28 @@ async fn select_remote(local_branch: impl AsRef<str>) -> Result<String, String> 
     fzf::select_with_header(context, branches.iter().map(|s| s.as_str()).collect()).await
 }
 
-async fn push_branch_to_remote(nvim: &Neovim, branch: String, force: bool) -> Result<(), String> {
+async fn push_branch_to_remote(nvim: &Neovim, branch: String, force: bool) -> Result<()> {
     let remote_ref = select_remote(&branch).await?;
-    let (remote, remote_branch) = remote_ref.split_once('/').ok_or("No remote found")?;
+    let (remote, remote_branch) = remote_ref
+        .split_once('/')
+        .ok_or(anyhow!("No remote found"))?;
     info!("git push -f";
         "temote_branch" => &branch,
         "remote" => &remote,
         "remote_branch" => &remote_branch
     );
     let output = git::push(remote, branch, remote_branch, force).await?;
-    nvim.notify_command_result("git push", output)
-        .await
-        .map_err(|e| e.to_string())
+    nvim.notify_command_result("git push", output).await
 }
 
-async fn delete_branch(nvim: &Neovim, branch: String, force: bool) -> Result<(), String> {
+async fn delete_branch(nvim: &Neovim, branch: String, force: bool) -> Result<()> {
     let opt = if force { "-D" } else { "-d" };
     let output = Command::new("git")
         .arg("branch")
         .arg(opt)
         .arg(branch)
         .output()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
     nvim.notify_command_result(format!("git branch {opt}"), output)
         .await
-        .map_err(|e| e.to_string())
 }

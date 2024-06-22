@@ -7,6 +7,7 @@ use crate::{
     utils::fzf::{self, PreviewWindow},
 };
 
+use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, FutureExt};
 use unicode_width::UnicodeWidthStr;
 
@@ -56,15 +57,13 @@ impl ModeDef for ProcessCompose {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp>> {
         async move {
             let host = get_host()?;
             let processes = reqwest::get(format!("{host}/processes"))
-                .await
-                .map_err(|e| e.to_string())?
+                .await?
                 .json::<dto::Processes>()
-                .await
-                .map_err(|e| e.to_string())?;
+                .await?;
             let mut items = processes
                 .data
                 .into_iter()
@@ -81,7 +80,7 @@ impl ModeDef for ProcessCompose {
         _state: &mut State,
         win: &'a PreviewWindow,
         item: String,
-    ) -> BoxFuture<'a, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'a, Result<PreviewResp>> {
         async move {
             let Item { process } = Item::parse(item);
 
@@ -90,11 +89,9 @@ impl ModeDef for ProcessCompose {
             let lines = win.lines;
             let limit = 0; // 0 will get all the lines till the end
             let logs = reqwest::get(format!("{host}/process/logs/{process}/{lines}/{limit}"))
-                .await
-                .map_err(|e| e.to_string())?
+                .await?
                 .json::<dto::Logs>()
-                .await
-                .map_err(|e| e.to_string())?
+                .await?
                 .logs;
 
             // 折返しを考慮した上で再度高々lines行だけ残す
@@ -149,43 +146,40 @@ impl ModeDef for ProcessCompose {
     }
 }
 
-fn get_host() -> Result<String, String> {
-    std::env::var("FZFW_PROCESS_COMPOSE_HOST").map_err(|_| "No host".to_string())
+fn get_host() -> Result<String> {
+    std::env::var("FZFW_PROCESS_COMPOSE_HOST").map_err(|_| anyhow!("No host"))
 }
 
-async fn restart(item: Item) -> Result<(), String> {
+async fn restart(item: Item) -> Result<()> {
     let Item { process } = item;
     let host = get_host()?;
     let client = reqwest::Client::new();
     let _processes = client
         .post(format!("{host}/process/restart/{process}"))
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
     Ok(())
 }
 
-async fn start(item: Item) -> Result<(), String> {
+async fn start(item: Item) -> Result<()> {
     let Item { process } = item;
     let host = get_host()?;
     let client = reqwest::Client::new();
     let _processes = client
         .post(format!("{host}/process/start/{process}"))
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
     Ok(())
 }
 
-async fn stop(item: Item) -> Result<(), String> {
+async fn stop(item: Item) -> Result<()> {
     let Item { process } = item;
     let host = get_host()?;
     let client = reqwest::Client::new();
     let _processes = client
         .post(format!("{host}/process/stop/{process}"))
         .send()
-        .await
-        .map_err(|e| e.to_string())?;
+        .await?;
     Ok(())
 }
 

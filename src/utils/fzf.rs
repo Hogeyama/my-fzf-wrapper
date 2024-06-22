@@ -1,6 +1,7 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
 
+use anyhow::Result;
 use serde::{Deserialize, Serialize};
 use tokio::{io::AsyncWriteExt, process::Command};
 
@@ -135,34 +136,27 @@ pub fn new(config: Config) -> Command {
     fzf
 }
 
-pub async fn select(items: Vec<&str>) -> Result<String, String> {
+pub async fn select(items: Vec<&str>) -> Result<String> {
     let mut fzf = Command::new("fzf")
         .arg("--ansi")
         .arg("--no-sort")
         .args(vec!["--layout", "reverse"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| e.to_string())?;
+        .spawn()?;
 
     let mut stdin = fzf.stdin.take().unwrap();
     stdin.write_all(items.join("\n").as_bytes()).await.unwrap();
     drop(stdin);
 
-    Ok(String::from_utf8_lossy(
-        &fzf.wait_with_output()
-            .await
-            .map_err(|e| e.to_string())?
-            .stdout,
+    Ok(
+        String::from_utf8_lossy(&fzf.wait_with_output().await?.stdout)
+            .trim()
+            .to_string(),
     )
-    .trim()
-    .to_string())
 }
 
-pub async fn select_with_header(
-    header: impl AsRef<str>,
-    items: Vec<&str>,
-) -> Result<String, String> {
+pub async fn select_with_header(header: impl AsRef<str>, items: Vec<&str>) -> Result<String> {
     let mut fzf = Command::new("fzf")
         .arg("--ansi")
         .arg("--no-sort")
@@ -170,8 +164,7 @@ pub async fn select_with_header(
         .args(vec!["--layout", "reverse"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| e.to_string())?;
+        .spawn()?;
 
     let mut stdin = fzf.stdin.take().unwrap();
     let header = format!("{}\n", header.as_ref());
@@ -179,17 +172,14 @@ pub async fn select_with_header(
     stdin.write_all(items.join("\n").as_bytes()).await.unwrap();
     drop(stdin);
 
-    Ok(String::from_utf8_lossy(
-        &fzf.wait_with_output()
-            .await
-            .map_err(|e| e.to_string())?
-            .stdout,
+    Ok(
+        String::from_utf8_lossy(&fzf.wait_with_output().await?.stdout)
+            .trim()
+            .to_string(),
     )
-    .trim()
-    .to_string())
 }
 
-pub async fn input(header: impl AsRef<str>) -> Result<String, String> {
+pub async fn input(header: impl AsRef<str>) -> Result<String> {
     let fzf = Command::new("fzf")
         .arg("--ansi")
         .args(vec!["--header", header.as_ref()])
@@ -197,15 +187,11 @@ pub async fn input(header: impl AsRef<str>) -> Result<String, String> {
         .args(vec!["--bind", "enter:print-query"])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|e| e.to_string())?;
+        .spawn()?;
 
-    Ok(String::from_utf8_lossy(
-        &fzf.wait_with_output()
-            .await
-            .map_err(|e| e.to_string())?
-            .stdout,
+    Ok(
+        String::from_utf8_lossy(&fzf.wait_with_output().await?.stdout)
+            .trim()
+            .to_string(),
     )
-    .trim()
-    .to_string())
 }

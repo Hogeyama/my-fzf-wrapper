@@ -222,7 +222,7 @@ async fn handle_one_client(
 
                 match callback(s.mode.mode_def.as_mut(), &config, &mut s.state, query, item).await {
                     Ok(_) => {}
-                    Err(e) => error!("server: execute error"; "error" => e),
+                    Err(e) => error!("server: execute error"; "error" => e.to_string()),
                 }
 
                 let mut tx = tx.lock().await;

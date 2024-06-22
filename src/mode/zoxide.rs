@@ -7,6 +7,7 @@ use crate::{
     utils::zoxide,
 };
 
+use anyhow::Result;
 use futures::{future::BoxFuture, FutureExt};
 use tokio::process::Command;
 
@@ -23,9 +24,9 @@ impl ModeDef for Zoxide {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         async move {
-            let zoxide_output = zoxide::new().output().await.map_err(|e| e.to_string())?;
+            let zoxide_output = zoxide::new().output().await?;
             let zoxide_output = String::from_utf8_lossy(&zoxide_output.stdout)
                 .lines()
                 .map(|line| line.to_string())
@@ -40,7 +41,7 @@ impl ModeDef for Zoxide {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             let output = Command::new("eza")
                 .args(vec!["--color", "always"])

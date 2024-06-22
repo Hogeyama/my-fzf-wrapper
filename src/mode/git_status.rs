@@ -1,3 +1,4 @@
+use anyhow::Result;
 use futures::{future::BoxFuture, FutureExt};
 use git2::Status;
 use tokio::process::Command;
@@ -29,7 +30,7 @@ impl ModeDef for GitStatus {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         load([
             Status::INDEX_NEW,
             Status::INDEX_MODIFIED,
@@ -43,7 +44,7 @@ impl ModeDef for GitStatus {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         preview(item)
     }
     fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
@@ -53,9 +54,7 @@ impl ModeDef for GitStatus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-fn load(
-    statuses: impl IntoIterator<Item = Status>,
-) -> BoxFuture<'static, Result<LoadResp, String>> {
+fn load(statuses: impl IntoIterator<Item = Status>) -> BoxFuture<'static, Result<LoadResp>> {
     let files = git::files_with_status(statuses);
     async move {
         match files {
@@ -66,7 +65,7 @@ fn load(
     .boxed()
 }
 
-fn preview(path: String) -> BoxFuture<'static, Result<PreviewResp, String>> {
+fn preview(path: String) -> BoxFuture<'static, Result<PreviewResp>> {
     async move {
         let workdir = git::workdir()?;
         let message = Command::new("git")
@@ -77,8 +76,7 @@ fn preview(path: String) -> BoxFuture<'static, Result<PreviewResp, String>> {
             .arg("--")
             .arg(format!("{workdir}{path}"))
             .output()
-            .await
-            .map_err(|e| e.to_string())?
+            .await?
             .stdout;
         let message = String::from_utf8_lossy(message.as_slice()).into_owned();
         Ok(PreviewResp { message })
@@ -139,7 +137,7 @@ enum OpenOpts {
     BrowseGithub,
 }
 
-async fn open(state: &mut State, file: String, opts: OpenOpts) -> Result<(), String> {
+async fn open(state: &mut State, file: String, opts: OpenOpts) -> Result<()> {
     let workdir = git::workdir()?;
     let file = format!("{}{}", workdir, file);
     match opts {
@@ -149,19 +147,11 @@ async fn open(state: &mut State, file: String, opts: OpenOpts) -> Result<(), Str
                 line: None,
                 tabedit,
             };
-            nvim.open(file.into(), nvim_opts)
-                .await
-                .map_err(|e| e.to_string())?;
+            nvim.open(file.into(), nvim_opts).await?
         }
         OpenOpts::Vifm => {
             let pwd = std::env::current_dir().unwrap().into_os_string();
-            Command::new("vifm")
-                .arg(&pwd)
-                .spawn()
-                .map_err(|e| e.to_string())?
-                .wait()
-                .await
-                .map_err(|e| e.to_string())?;
+            Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
         }
         OpenOpts::BrowseGithub => {
             gh::browse_github(file).await?;

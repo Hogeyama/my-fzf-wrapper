@@ -1,3 +1,4 @@
+use anyhow::Result;
 use futures::{future::BoxFuture, FutureExt};
 use tokio::process::Command;
 
@@ -28,7 +29,7 @@ impl ModeDef for GitReflog {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         async move {
             let mut commits = git::reflog_graph("HEAD").await?;
             // reset color to white
@@ -43,7 +44,7 @@ impl ModeDef for GitReflog {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             let commit = git::parse_short_commit(&item)?;
             let message = git::show_commit(commit).await?;
@@ -60,19 +61,18 @@ impl ModeDef for GitReflog {
                     "diffview" => {
                         let _ = state.nvim.hide_floaterm().await;
                         state.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))
-                            .await
-                            .map_err(|e| e.to_string())
+                            .await?;
+                        Ok(())
                     },
                     "cherry-pick" => {
                         let output = Command::new("git")
                             .arg("cherry-pick")
                             .arg(git::parse_short_commit(&item)?)
                             .output()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         state.nvim.notify_command_result("git cherry-pick", output)
-                            .await
-                            .map_err(|e| e.to_string())
+                            .await?;
+                        Ok(())
                     },
                 }
             ]

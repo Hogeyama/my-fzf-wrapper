@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use crate::{
     config::Config,
     method::{LoadResp, PreviewResp},
@@ -15,6 +13,7 @@ use crate::{
     },
 };
 
+use anyhow::Result;
 use futures::stream::{self, StreamExt};
 use futures::{future::BoxFuture, FutureExt};
 use rmpv::ext::from_value;
@@ -57,11 +56,11 @@ impl ModeDef for Visits {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         let nvim = state.nvim.clone();
         let kind = self.kind;
         async move {
-            let mru_items = get_visits(&nvim, kind).await.map_err(|e| e.to_string())?;
+            let mru_items = get_visits(&nvim, kind).await?;
             Ok(LoadResp::new_with_default_header(mru_items))
         }
         .boxed()
@@ -72,7 +71,7 @@ impl ModeDef for Visits {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             let meta = std::fs::metadata(&item);
             match meta {
@@ -113,7 +112,7 @@ impl ModeDef for Visits {
                 execute_silent!(b, |_mode,_config,state,_query,item| {
                     state.nvim.eval_lua(
                         format!("require'mini.visits'.remove_path('{}')", item)
-                    ).await.map_err(|e| e.to_string())?;
+                    ).await?;
                     Ok(())
                 }),
                 b.reload(),
@@ -122,11 +121,9 @@ impl ModeDef for Visits {
                 select_and_execute!{b, |_mode,_config,state,_query,item|
                     "execute any command" => {
                         let (cmd, output) = edit_and_run(format!(" {item}"))
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         state.nvim.notify_command_result(&cmd, output)
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         Ok(())
                     },
                 }
@@ -144,7 +141,7 @@ async fn is_file(path: String) -> bool {
     matches!(meta, Ok(meta) if meta.is_file())
 }
 
-async fn get_visits(nvim: &Neovim, kind: VisitsKind) -> Result<Vec<String>, Box<dyn Error>> {
+async fn get_visits(nvim: &Neovim, kind: VisitsKind) -> Result<Vec<String>> {
     let mrus: Vec<String> = from_value(
         nvim.eval_lua(format!(
             "return require'mini.visits'.list_paths({})",
@@ -167,15 +164,13 @@ struct OpenOpts {
     tabedit: bool,
 }
 
-async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), String> {
+async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<()> {
     let OpenOpts { tabedit } = opts;
     let nvim = state.nvim.clone();
     let nvim_opts = nvim::OpenOpts {
         line: None,
         tabedit,
     };
-    nvim.open(item.into(), nvim_opts)
-        .await
-        .map_err(|e| e.to_string())?;
+    nvim.open(item.into(), nvim_opts).await?;
     Ok(())
 }

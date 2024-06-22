@@ -18,6 +18,7 @@ pub mod process_compose;
 pub mod visits;
 pub mod zoxide;
 
+use anyhow::Result;
 use std::pin::Pin;
 
 use crate::{
@@ -149,7 +150,7 @@ pub trait ModeDef {
         state: &'a mut State,
         query: String,
         item: String, // currently selected item
-    ) -> BoxFuture<'a, Result<LoadResp, String>>;
+    ) -> BoxFuture<'a, Result<LoadResp>>;
 
     /// Preview the currently selected item
     fn preview<'a>(
@@ -158,7 +159,7 @@ pub trait ModeDef {
         state: &'a mut State,
         win: &'a PreviewWindow,
         item: String,
-    ) -> BoxFuture<'a, Result<PreviewResp, String>>;
+    ) -> BoxFuture<'a, Result<PreviewResp>>;
 
     /// Execute the currently selected item
     /// (Optional. Intended to be used by the callback of fzf_bindings)
@@ -168,7 +169,7 @@ pub trait ModeDef {
         _state: &'a mut State,
         _item: String,
         _args: serde_json::Value,
-    ) -> BoxFuture<'a, Result<(), String>> {
+    ) -> BoxFuture<'a, Result<()>> {
         async move { Ok(()) }.boxed()
     }
 }
@@ -204,7 +205,7 @@ pub struct LoadCallback {
                 &'a mut State,
                 String,
                 String,
-            ) -> BoxFuture<'a, Result<LoadResp, String>>
+            ) -> BoxFuture<'a, Result<LoadResp>>
             + Sync
             + Send,
     >,
@@ -219,7 +220,7 @@ pub struct PreviewCallback {
                 &'a mut State,
                 &'a PreviewWindow,
                 String,
-            ) -> BoxFuture<'a, Result<PreviewResp, String>>
+            ) -> BoxFuture<'a, Result<PreviewResp>>
             + Sync
             + Send,
     >,
@@ -234,7 +235,7 @@ pub struct ExecuteCallback {
                 &'a mut State,
                 String,
                 String,
-            ) -> BoxFuture<'a, Result<(), String>>
+            ) -> BoxFuture<'a, Result<()>>
             + Sync
             + Send,
     >,
@@ -243,6 +244,7 @@ pub struct ExecuteCallback {
 pub mod config_builder {
     #![allow(dead_code)]
     use crate::{config::Config, mode::ModeDef, state::State, utils::fzf};
+    use anyhow::Result;
     use futures::future::BoxFuture;
 
     pub struct ConfigBuilder {
@@ -266,7 +268,7 @@ pub mod config_builder {
                     &'a mut State,
                     String,
                     String,
-                ) -> BoxFuture<'a, Result<(), String>>
+                ) -> BoxFuture<'a, Result<()>>
                 + Send
                 + Sync
                 + 'static,
@@ -287,7 +289,7 @@ pub mod config_builder {
                     &'a mut State,
                     String,
                     String,
-                ) -> BoxFuture<'a, Result<(), String>>
+                ) -> BoxFuture<'a, Result<()>>
                 + Send
                 + Sync
                 + 'static,
@@ -312,7 +314,7 @@ pub mod config_builder {
                     &'a mut State,
                     String,
                     String,
-                ) -> BoxFuture<'a, Result<super::LoadResp, String>>
+                ) -> BoxFuture<'a, Result<super::LoadResp>>
                 + Send
                 + Sync
                 + 'static,

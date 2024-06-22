@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use crate::{
     config::Config,
     logger::Serde,
@@ -14,6 +12,7 @@ use crate::{
     },
 };
 
+use anyhow::Result;
 use futures::stream::{self, StreamExt};
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
@@ -39,10 +38,10 @@ impl ModeDef for Mru {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         let nvim = state.nvim.clone();
         async move {
-            let mru_items = get_nvim_oldefiles(&nvim).await.map_err(|e| e.to_string())?;
+            let mru_items = get_nvim_oldefiles(&nvim).await?;
             Ok(LoadResp::new_with_default_header(mru_items))
         }
         .boxed()
@@ -53,7 +52,7 @@ impl ModeDef for Mru {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
             let path = ITEM_PATTERN.replace(&item, "$path").into_owned();
@@ -109,7 +108,7 @@ async fn is_file(path: String) -> bool {
     matches!(meta, Ok(meta) if meta.is_file())
 }
 
-async fn get_nvim_oldefiles(nvim: &Neovim) -> Result<Vec<String>, Box<dyn Error>> {
+async fn get_nvim_oldefiles(nvim: &Neovim) -> Result<Vec<String>> {
     let mrus: Vec<String> = from_value(nvim.eval("v:oldfiles").await?)?;
     let mrus = stream::iter(mrus)
         .filter(|x| is_file(x.clone()))
@@ -135,7 +134,7 @@ struct OpenOpts {
     tabedit: bool,
 }
 
-async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), String> {
+async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<()> {
     let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
     let OpenOpts { tabedit } = opts;
     let nvim = state.nvim.clone();
@@ -143,8 +142,6 @@ async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<(), Str
         line: None,
         tabedit,
     };
-    nvim.open(bufnr.into(), nvim_opts)
-        .await
-        .map_err(|e| e.to_string())?;
+    nvim.open(bufnr.into(), nvim_opts).await?;
     Ok(())
 }

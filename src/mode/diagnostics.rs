@@ -9,12 +9,13 @@ use crate::{
 };
 
 use ansi_term::ANSIGenericString;
+use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
 use rmpv::ext::from_value;
 use serde::{Deserialize, Serialize};
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use tokio::sync::Mutex;
 
 use super::CallbackMap;
@@ -42,12 +43,10 @@ impl ModeDef for Diagnostics {
         state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp>> {
         let nvim = state.nvim.clone();
         async move {
-            let mut diagnostics = DiagnosticsItem::gather(&nvim)
-                .await
-                .map_err(|e| e.to_string())?;
+            let mut diagnostics = DiagnosticsItem::gather(&nvim).await?;
             diagnostics.sort_by(|a, b| a.severity.0.cmp(&b.severity.0));
             let items = DiagnosticsItem::render_list(&diagnostics);
             self.items.lock().await.replace(diagnostics);
@@ -61,11 +60,11 @@ impl ModeDef for Diagnostics {
         state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'a, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'a, Result<PreviewResp>> {
         let nvim = state.nvim.clone();
         async move {
             let items = self.items.lock().await;
-            let items = items.as_ref().ok_or("diagnostics not loaded")?;
+            let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
             let item = DiagnosticsItem::lookup(items, item.clone())?;
             let file = nvim.get_buf_name(item.bufnr as usize).await?;
             let rendered_message =
@@ -89,7 +88,7 @@ impl ModeDef for Diagnostics {
                     let self_ = self_.clone();
                     async move {
                         let items = self_.items.lock().await;
-                        let items = items.as_ref().ok_or("diagnostics not loaded")?;
+                        let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
                         let item = DiagnosticsItem::lookup(items, item.clone())?;
                         let opts = OpenOpts { tabedit: false };
                         open(state, item, opts).await
@@ -102,7 +101,7 @@ impl ModeDef for Diagnostics {
                     let self_ = self_.clone();
                     async move {
                         let items = self_.items.lock().await;
-                        let items = items.as_ref().ok_or("diagnostics not loaded")?;
+                        let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
                         let item = DiagnosticsItem::lookup(items, item.clone())?;
                         let opts = OpenOpts { tabedit: true };
                         open(state, item, opts).await
@@ -130,7 +129,7 @@ pub struct DiagnosticsItem {
 static ITEM_PATTERN: Lazy<Regex> = Lazy::new(|| Regex::new(r".*\s{200}(?P<num>\d+)$").unwrap());
 
 impl DiagnosticsItem {
-    async fn gather(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>, Box<dyn Error>> {
+    async fn gather(nvim: &Neovim) -> Result<Vec<DiagnosticsItem>> {
         Ok(from_value(
             nvim.eval_lua(
                 r#"
@@ -160,13 +159,13 @@ impl DiagnosticsItem {
         items.iter().enumerate().map(|(i, d)| d.render(i)).collect()
     }
 
-    fn lookup(items: &[Self], item: String) -> Result<Self, String> {
+    fn lookup(items: &[Self], item: String) -> Result<Self> {
         let ix = ITEM_PATTERN
             .captures(&item)
             .and_then(|c| c.name("num"))
             .and_then(|n| n.as_str().parse::<usize>().ok())
-            .ok_or("モポ")?;
-        let item = items.get(ix).ok_or("モポ")?.clone();
+            .ok_or(anyhow!("モポ"))?;
+        let item = items.get(ix).ok_or(anyhow!("モポ"))?.clone();
         Ok(item)
     }
 }
@@ -199,12 +198,9 @@ struct OpenOpts {
     tabedit: bool,
 }
 
-async fn open(state: &State, item: DiagnosticsItem, opts: OpenOpts) -> Result<(), String> {
+async fn open(state: &State, item: DiagnosticsItem, opts: OpenOpts) -> Result<()> {
     let nvim = state.nvim.clone();
-    let file = nvim
-        .get_buf_name(item.bufnr as usize)
-        .await
-        .map_err(|e| e.to_string())?;
+    let file = nvim.get_buf_name(item.bufnr as usize).await?;
     let opts = nvim::OpenOpts {
         line: Some(item.lnum as usize + 1),
         tabedit: opts.tabedit,

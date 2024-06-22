@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use crate::{
     config::Config,
     method::{LoadResp, PreviewResp},
@@ -10,6 +8,7 @@ use crate::{
     utils::{fzf::PreviewWindow, path::to_relpath},
 };
 
+use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, FutureExt};
 use rmpv::ext::from_value;
 use serde::Serialize;
@@ -35,10 +34,10 @@ impl ModeDef for Bookmark {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp>> {
         let nvim = state.nvim.clone();
         async move {
-            let bookmarks = get_bookmarks(&nvim).await.map_err(|e| e.to_string())?;
+            let bookmarks = get_bookmarks(&nvim).await?;
             let items = bookmarks.iter().map(|m| m.render()).collect();
             Ok(LoadResp::new_with_default_header(items))
         }
@@ -50,7 +49,7 @@ impl ModeDef for Bookmark {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'a, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'a, Result<PreviewResp>> {
         async move {
             let bookmark = BookmarkItem::parse(&item)?;
             let message =
@@ -92,7 +91,7 @@ impl ModeDef for Bookmark {
 // Util
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async fn get_bookmarks(nvim: &Neovim) -> Result<Vec<BookmarkItem>, Box<dyn Error>> {
+async fn get_bookmarks(nvim: &Neovim) -> Result<Vec<BookmarkItem>> {
     // Example:
     // [ "/home/hogeyama/code/my-fzf-wrapper/src/mode/bookmark.rs:23:pub struct Bookmark {"
     // , "/home/hogeyama/code/my-fzf-wrapper/src/mode/bookmark.rs:27:impl Bookmark {"
@@ -114,7 +113,7 @@ enum ExecOpts {
     Open { tabedit: bool },
 }
 
-async fn open(bookmark: BookmarkItem, state: &mut State, opts: ExecOpts) -> Result<(), String> {
+async fn open(bookmark: BookmarkItem, state: &mut State, opts: ExecOpts) -> Result<()> {
     match opts {
         ExecOpts::Open { tabedit } => {
             let nvim = state.nvim.clone();
@@ -141,10 +140,10 @@ impl BookmarkItem {
     fn render(&self) -> String {
         format!("{}:{}", self.file, self.line)
     }
-    fn parse(s: &str) -> Result<Self, String> {
-        let (file, line) = s.rsplit_once(':').ok_or("invalid item")?;
+    fn parse(s: &str) -> Result<Self> {
+        let (file, line) = s.rsplit_once(':').ok_or(anyhow!("invalid item"))?;
         let file = file.to_string();
-        let line = line.parse().ok().ok_or("invalid item")?;
+        let line = line.parse().ok().ok_or(anyhow!("invalid item"))?;
         Ok(BookmarkItem { file, line })
     }
 }

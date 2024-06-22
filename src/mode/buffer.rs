@@ -1,5 +1,3 @@
-use std::error::Error;
-
 use crate::{
     config::Config,
     logger::Serde,
@@ -14,6 +12,7 @@ use crate::{
     },
 };
 
+use anyhow::Result;
 use futures::{future::BoxFuture, FutureExt};
 use once_cell::sync::Lazy;
 use regex::Regex;
@@ -38,10 +37,10 @@ impl ModeDef for Buffer {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         let nvim = state.nvim.clone();
         async move {
-            let items = get_nvim_buffers(&nvim).await.map_err(|e| e.to_string())?;
+            let items = get_nvim_buffers(&nvim).await?;
             Ok(LoadResp::new_with_default_header(items))
         }
         .boxed()
@@ -52,7 +51,7 @@ impl ModeDef for Buffer {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
             let path = ITEM_PATTERN.replace(&item, "$path").into_owned();
@@ -111,7 +110,7 @@ impl ModeDef for Buffer {
 // Util
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-async fn get_nvim_buffers(nvim: &Neovim) -> Result<Vec<String>, Box<dyn Error>> {
+async fn get_nvim_buffers(nvim: &Neovim) -> Result<Vec<String>> {
     let buffers: Vec<BufferItem> = from_value(nvim.eval("getbufinfo()").await?)?;
     let mut buffers: Vec<BufferItem> = buffers
         .into_iter()
@@ -144,12 +143,11 @@ enum ExecOpts {
     Delete { force: bool },
 }
 
-async fn exec(state: &mut State, item: String, opts: ExecOpts) -> Result<(), String> {
+async fn exec(state: &mut State, item: String, opts: ExecOpts) -> Result<()> {
     let bufnr = ITEM_PATTERN
         .replace(&item, "$bufnr")
         .into_owned()
-        .parse::<usize>()
-        .map_err(|e| e.to_string())?;
+        .parse::<usize>()?;
     match opts {
         ExecOpts::Open { tabedit } => {
             let nvim = state.nvim.clone();

@@ -1,5 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
+use anyhow::{anyhow, Result};
 use futures::{future::BoxFuture, FutureExt};
 use git2::{Diff, Patch};
 use serde::Serialize;
@@ -48,15 +49,15 @@ impl GitDiff {
         self.hunks.clear();
     }
 
-    fn hunk_of_item(&self, item: &Item) -> Result<Hunk, String> {
-        let hunk = self.hunks.get(item).ok_or("wow")?.clone();
+    fn hunk_of_item(&self, item: &Item) -> Result<Hunk> {
+        let hunk = self.hunks.get(item).ok_or(anyhow!("wow"))?.clone();
         Ok(hunk)
     }
 
-    fn save_patch_to_temp(&self, item: &Item) -> Result<(NamedTempFile, String), String> {
+    fn save_patch_to_temp(&self, item: &Item) -> Result<(NamedTempFile, String)> {
         let hunk = self.hunk_of_item(item)?;
-        let mut temp = NamedTempFile::new().map_err(|e| e.to_string())?;
-        writeln!(temp, "{}", hunk.patch).map_err(|e| e.to_string())?;
+        let mut temp = NamedTempFile::new()?;
+        writeln!(temp, "{}", hunk.patch)?;
         let path = temp.path().to_str().unwrap().to_string();
         Ok((temp, path))
     }
@@ -72,7 +73,7 @@ impl ModeDef for GitDiff {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp, String>> {
+    ) -> BoxFuture<'a, Result<LoadResp>> {
         async move {
             self.clear();
 
@@ -141,7 +142,7 @@ impl ModeDef for GitDiff {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'a, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'a, Result<PreviewResp>> {
         async move {
             let item = Item::parse(&item)?;
             match item {
@@ -195,17 +196,17 @@ impl ModeDef for GitDiff {
         state: &'a mut State,
         item: String,
         args: serde_json::Value,
-    ) -> BoxFuture<'a, Result<(), String>> {
+    ) -> BoxFuture<'a, Result<()>> {
         async move {
-            match from_value(args).map_err(|e| e.to_string())? {
+            match from_value(args)? {
                 ExecOpts::Open { tabedit } => {
                     let root = git::get_repo()?
                         .workdir()
-                        .ok_or("wow")?
+                        .ok_or(anyhow!("wow"))?
                         .to_owned()
                         .into_os_string()
                         .into_string()
-                        .map_err(|_| "wow")?;
+                        .map_err(|_| anyhow!("wow"))?;
                     let item = Item::parse(&item)?;
                     match item {
                         Item::StagedHunk { file, target_start } => {
@@ -214,11 +215,7 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            state
-                                .nvim
-                                .open(file.into(), nvim_opts)
-                                .await
-                                .map_err(|e| e.to_string())?;
+                            state.nvim.open(file.into(), nvim_opts).await?;
                         }
                         Item::UnstagedHunk { file, target_start } => {
                             let file = format!("{root}/{file}");
@@ -226,11 +223,7 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            state
-                                .nvim
-                                .open(file.into(), nvim_opts)
-                                .await
-                                .map_err(|e| e.to_string())?;
+                            state.nvim.open(file.into(), nvim_opts).await?;
                         }
                         Item::StagedBinayChange { .. } => {
                             // can't open binary file
@@ -253,11 +246,7 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            state
-                                .nvim
-                                .open(file.into(), nvim_opts)
-                                .await
-                                .map_err(|e| e.to_string())?;
+                            state.nvim.open(file.into(), nvim_opts).await?;
                         }
                         Item::ConflictedFile { file } => {
                             let file = format!("{root}/{file}");
@@ -265,11 +254,7 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            state
-                                .nvim
-                                .open(file.into(), nvim_opts)
-                                .await
-                                .map_err(|e| e.to_string())?;
+                            state.nvim.open(file.into(), nvim_opts).await?;
                         }
                     }
                 }
@@ -419,13 +404,11 @@ impl ModeDef for GitDiff {
                         .stdout(std::process::Stdio::null())
                         .stderr(std::process::Stdio::null())
                         .output()
-                        .await
-                        .map_err(|e| e.to_string())?;
+                        .await?;
                     state
                         .nvim
                         .notify_command_result("git commit", output)
-                        .await
-                        .map_err(|e| e.to_string())?;
+                        .await?;
                 }
                 ExecOpts::CommitInstantFixup => {
                     let commit = git::select_commit("target of instant fixup").await?;
@@ -435,13 +418,11 @@ impl ModeDef for GitDiff {
                         .stdout(std::process::Stdio::null())
                         .stderr(std::process::Stdio::null())
                         .output()
-                        .await
-                        .map_err(|e| e.to_string())?;
+                        .await?;
                     state
                         .nvim
                         .notify_command_result("git commit", output)
-                        .await
-                        .map_err(|e| e.to_string())?;
+                        .await?;
                     let output = Command::new("git")
                         .arg("rebase")
                         .arg("--update-refs")
@@ -453,8 +434,7 @@ impl ModeDef for GitDiff {
                         .stdout(std::process::Stdio::null())
                         .stderr(std::process::Stdio::null())
                         .output()
-                        .await
-                        .map_err(|e| e.to_string())?;
+                        .await?;
                     info!(
                         "git rebase --update-refs --autosquash --autostash -i {}^",
                         commit
@@ -462,18 +442,15 @@ impl ModeDef for GitDiff {
                     state
                         .nvim
                         .notify_command_result("git rebase", output)
-                        .await
-                        .map_err(|e| e.to_string())?;
+                        .await?;
                 }
                 ExecOpts::LazyGit => {
                     let pwd = std::env::current_dir().unwrap().into_os_string();
                     Command::new("lazygit")
                         .current_dir(pwd)
-                        .spawn()
-                        .map_err(|e| e.to_string())?
+                        .spawn()?
                         .wait()
-                        .await
-                        .map_err(|e| e.to_string())?;
+                        .await?;
                 }
             }
             Ok(())
@@ -657,15 +634,15 @@ impl Item {
         }
     }
 
-    fn parse(item: &str) -> Result<Self, String> {
+    fn parse(item: &str) -> Result<Self> {
         let (file, target) = item
             .split_once(' ')
-            .ok_or("")?
+            .ok_or(anyhow!(""))?
             .1
             .split_once(':')
-            .ok_or("")?;
-        match item.chars().next().ok_or("")? {
-            'S' => Ok(match target.parse::<usize>().map_err(|e| e.to_string())? {
+            .ok_or(anyhow!(""))?;
+        match item.chars().next().ok_or(anyhow!(""))? {
+            'S' => Ok(match target.parse::<usize>()? {
                 0 => Item::StagedBinayChange {
                     file: file.to_string(),
                 },
@@ -674,7 +651,7 @@ impl Item {
                     target_start: n,
                 },
             }),
-            'U' => Ok(match target.parse::<usize>().map_err(|e| e.to_string())? {
+            'U' => Ok(match target.parse::<usize>()? {
                 0 => Item::UnstagedBinayChange {
                     file: file.to_string(),
                 },
@@ -698,7 +675,7 @@ impl Item {
             'C' => Ok(Item::UntrackedFile {
                 file: file.to_string(),
             }),
-            _ => Err("parse error".to_string()),
+            _ => Err(anyhow!("parse error")),
         }
     }
 }
@@ -724,30 +701,22 @@ impl HunkExt for Hunk {
     }
 }
 
-fn git_diff() -> Result<Vec<Hunk>, String> {
+fn git_diff() -> Result<Vec<Hunk>> {
     let repo = git::get_repo()?;
-    let index = repo.index().map_err(|e| e.to_string())?;
-    let diff = repo
-        .diff_index_to_workdir(Some(&index), None)
-        .map_err(|e| e.to_string())?;
+    let index = repo.index()?;
+    let diff = repo.diff_index_to_workdir(Some(&index), None)?;
     parse_diff(diff)
 }
 
-fn git_diff_cached() -> Result<Vec<Hunk>, String> {
+fn git_diff_cached() -> Result<Vec<Hunk>> {
     let repo = git::get_repo()?;
-    let index = repo.index().map_err(|e| e.to_string())?;
-    let head = repo
-        .head()
-        .map_err(|e| e.to_string())?
-        .peel_to_tree()
-        .map_err(|e| e.to_string())?;
-    let diff = repo
-        .diff_tree_to_index(Some(&head), Some(&index), None)
-        .map_err(|e| e.to_string())?;
+    let index = repo.index()?;
+    let head = repo.head()?.peel_to_tree()?;
+    let diff = repo.diff_tree_to_index(Some(&head), Some(&index), None)?;
     parse_diff(diff)
 }
 
-fn parse_diff(diff: Diff) -> Result<Vec<Hunk>, String> {
+fn parse_diff(diff: Diff) -> Result<Vec<Hunk>> {
     let mut hunks = vec![];
 
     for i in 0..diff.deltas().len() {
@@ -805,34 +774,30 @@ fn parse_diff(diff: Diff) -> Result<Vec<Hunk>, String> {
     Ok(hunks)
 }
 
-async fn git_stage_file(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
+async fn git_stage_file(nvim: &Neovim, file: impl AsRef<str>) -> Result<()> {
     let output = git::stage_file(file).await?;
     nvim.notify_command_result_if_error("git_stage_file", output)
         .await
-        .map_err(|e| e.to_string())
 }
 
-async fn git_unstage_file(nvim: &Neovim, file: impl AsRef<str>) -> Result<(), String> {
+async fn git_unstage_file(nvim: &Neovim, file: impl AsRef<str>) -> Result<()> {
     let output = git::unstage_file(file).await?;
     nvim.notify_command_result_if_error("git_unstage_file", output)
         .await
-        .map_err(|e| e.to_string())
 }
 
 async fn git_restore_file(
     nvim: &Neovim,
     file: impl AsRef<str>,
     source: Option<impl AsRef<str>>,
-) -> Result<(), String> {
+) -> Result<()> {
     let output = git::restore_file(file, source).await?;
     nvim.notify_command_result_if_error("git_restore_file", output)
         .await
-        .map_err(|e| e.to_string())
 }
 
-async fn git_apply(nvim: &Neovim, patch: String, args: Vec<&str>) -> Result<(), String> {
+async fn git_apply(nvim: &Neovim, patch: String, args: Vec<&str>) -> Result<()> {
     let output = git::apply(patch, args).await?;
     nvim.notify_command_result_if_error("git apply", output)
         .await
-        .map_err(|e| e.to_string())
 }

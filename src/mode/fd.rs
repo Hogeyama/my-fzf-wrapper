@@ -13,6 +13,7 @@ use crate::{
     },
 };
 
+use anyhow::Result;
 use futures::{future::BoxFuture, FutureExt};
 use tokio::process::Command;
 
@@ -31,9 +32,9 @@ impl ModeDef for Fd {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp, String>> {
+    ) -> BoxFuture<'static, Result<LoadResp>> {
         async move {
-            let fd_output = fd::new().output().await.map_err(|e| e.to_string())?;
+            let fd_output = fd::new().output().await?;
             let fd_output = String::from_utf8_lossy(&fd_output.stdout)
                 .lines()
                 .map(|line| line.to_string())
@@ -48,7 +49,7 @@ impl ModeDef for Fd {
         _state: &mut State,
         _win: &PreviewWindow,
         item: String,
-    ) -> BoxFuture<'static, Result<PreviewResp, String>> {
+    ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move {
             let message = bat::render_file(&item).await?;
             Ok(PreviewResp { message })
@@ -95,23 +96,19 @@ impl ModeDef for Fd {
                             .arg("-p")
                             .arg(dir)
                             .status()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         Command::new("touch")
                             .arg(&path)
                             .status()
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         let opts = OpenOpts::Neovim { tabedit: false };
                         open(state, path, opts).await
                     },
                     "execute any command" => {
                         let (cmd, output) = edit_and_run(format!(" {item}"))
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         state.nvim.notify_command_result(&cmd, output)
-                            .await
-                            .map_err(|e| e.to_string())?;
+                            .await?;
                         Ok(())
                     },
                     "browse-github" => {
@@ -130,7 +127,7 @@ enum OpenOpts {
     BrowseGithub,
 }
 
-async fn open(state: &mut State, file: String, opts: OpenOpts) -> Result<(), String> {
+async fn open(state: &mut State, file: String, opts: OpenOpts) -> Result<()> {
     match opts {
         OpenOpts::Neovim { tabedit } => {
             let nvim = state.nvim.clone();
@@ -138,19 +135,11 @@ async fn open(state: &mut State, file: String, opts: OpenOpts) -> Result<(), Str
                 line: None,
                 tabedit,
             };
-            nvim.open(file.into(), nvim_opts)
-                .await
-                .map_err(|e| e.to_string())?;
+            nvim.open(file.into(), nvim_opts).await?
         }
         OpenOpts::Vifm => {
             let pwd = std::env::current_dir().unwrap().into_os_string();
-            Command::new("vifm")
-                .arg(&pwd)
-                .spawn()
-                .map_err(|e| e.to_string())?
-                .wait()
-                .await
-                .map_err(|e| e.to_string())?;
+            Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
         }
         OpenOpts::BrowseGithub => {
             gh::browse_github(file).await?;
