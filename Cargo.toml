@@ -32,3 +32,4 @@ tempfile = "3.8.1"
 shellexpand = "3.1.0"
 reqwest = { version = "0.12.2", features = ["json"] }
 unicode-width = "0.1.11"
+anyhow = { version = "1.0.86", features = ["backtrace"] }
