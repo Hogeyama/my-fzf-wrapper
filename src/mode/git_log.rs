@@ -176,7 +176,18 @@ impl ModeDef for GitLog {
                             .await?;
                         state.nvim.notify_command_result("git branch", output)
                             .await
-                    }
+                    },
+                    "switch-detached" => {
+                        let output = Command::new("git")
+                            .arg("switch")
+                            .arg("--detach")
+                            .arg(git::parse_short_commit(&item)?)
+                            .output()
+                            .await?;
+                        state.nvim.notify_command_result("git switch --detach", output)
+                            .await?;
+                        Ok(())
+                    },
                 },
                 b.reload(),
             ],

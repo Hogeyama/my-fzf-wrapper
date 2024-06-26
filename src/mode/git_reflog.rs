@@ -73,6 +73,17 @@ impl ModeDef for GitReflog {
                             .await?;
                         Ok(())
                     },
+                    "switch-detached" => {
+                        let output = Command::new("git")
+                            .arg("switch")
+                            .arg("--detach")
+                            .arg(git::parse_short_commit(&item)?)
+                            .output()
+                            .await?;
+                        state.nvim.notify_command_result("git switch --detach", output)
+                            .await?;
+                        Ok(())
+                    },
                 }
             ]
         }
