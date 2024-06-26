@@ -13,7 +13,7 @@
     flake-utils.url = "github:numtide/flake-utils/main";
   };
 
-  outputs = { nixpkgs, nixpkgs-for-bin, naersk, fenix, flake-utils, ... }:
+  outputs = { self, nixpkgs, nixpkgs-for-bin, naersk, fenix, flake-utils, ... }:
     flake-utils.lib.eachDefaultSystem (system:
       let
         pkgs = import nixpkgs { inherit system; };
@@ -44,14 +44,18 @@
           FZF_MANPATH = "${pkgs-for-bin.fzf.man}/share/man";
         };
 
-        fzfw-unwrapped = naerskLib.buildPackage {
+        fzfw-unwrapped = (naerskLib.buildPackage {
           name = "fzfw-unwrapped";
           src = ./.;
           buildInputs = [
             pkgs.pkg-config
             pkgs.openssl.dev
           ];
-        };
+        }).overrideAttrs (oldAttrs: {
+          # overrideAttrsに書かないと依存関係が毎回ビルドされてしまう
+          # cf. https://github.com/nix-community/naersk?tab=readme-ov-file#note-on-overrideattrs
+          GIT_REVISION = if self ? shortRev then self.shortRev else "dirty";
+        });
         fzfw = pkgs.runCommand "fzfw"
           { buildInputs = [ pkgs.makeWrapper fzfw-unwrapped ]; }
           ''

@@ -23,6 +23,7 @@ extern crate slog_scope;
 #[macro_use(json)]
 extern crate serde_json;
 
+use once_cell::sync::Lazy;
 // rand
 use rand::distributions::Alphanumeric;
 use rand::Rng;
@@ -42,8 +43,14 @@ use crate::nvim::start_nvim;
 // Cli
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
+static VERSION: Lazy<String> = Lazy::new(|| {
+    let version = env!("CARGO_PKG_VERSION");
+    let git_revision = option_env!("GIT_REVISION").unwrap_or("unknown");
+    format!("v{} ({})", version, git_revision)
+});
+
 #[derive(Parser)]
-#[clap(author, version, about, long_about = None)]
+#[clap(author, version = VERSION.as_str(), about, long_about = None)]
 #[clap(propagate_version = true)]
 struct Cli {
     /// (internal)
