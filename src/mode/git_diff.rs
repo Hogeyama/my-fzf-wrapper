@@ -3,6 +3,8 @@ use std::collections::HashSet;
 
 use anyhow::anyhow;
 use anyhow::Result;
+use encoding_rs::EUC_JP;
+use encoding_rs::SHIFT_JIS;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use git2::Diff;
@@ -39,7 +41,7 @@ pub struct GitDiff {
 struct Hunk {
     new_file: String,
     target_start: usize,
-    patch: String,
+    patch: Vec<u8>,
 }
 
 impl GitDiff {
@@ -62,7 +64,7 @@ impl GitDiff {
     fn save_patch_to_temp(&self, item: &Item) -> Result<(NamedTempFile, String)> {
         let hunk = self.hunk_of_item(item)?;
         let mut temp = NamedTempFile::new()?;
-        writeln!(temp, "{}", hunk.patch)?;
+        temp.write_all(&hunk.patch)?;
         let path = temp.path().to_str().unwrap().to_string();
         Ok((temp, path))
     }
@@ -690,7 +692,8 @@ trait HunkExt {
 }
 impl HunkExt for Hunk {
     fn colorize(&self) -> String {
-        self.patch
+        display_bytes(&self.patch)
+            .unwrap_or("Binary File".to_string())
             .lines()
             .map(|line| {
                 if line.starts_with('+') {
@@ -704,6 +707,22 @@ impl HunkExt for Hunk {
             .collect::<Vec<_>>()
             .join("\n")
     }
+}
+
+// UTF-8, Shift_JIS, EUC-JPで解釈を試みる
+fn display_bytes(bytes: &[u8]) -> Option<String> {
+    if let Ok(s) = std::str::from_utf8(bytes) {
+        return Some(s.to_string());
+    }
+    let (cow, _, had_errors) = EUC_JP.decode(bytes);
+    if !had_errors {
+        return Some(cow.into_owned());
+    }
+    let (cow, _, had_errors) = SHIFT_JIS.decode(bytes);
+    if !had_errors {
+        return Some(cow.into_owned());
+    }
+    None
 }
 
 fn git_diff() -> Result<Vec<Hunk>> {
@@ -736,30 +755,28 @@ fn parse_diff(diff: Diff) -> Result<Vec<Hunk>> {
                     continue;
                 }
                 let (hunk, _) = patch.hunk(h).unwrap();
-                let mut patch_str = String::new();
-                patch_str.push_str(&format!(
-                    "--- a/{}\n",
-                    patch.delta().old_file().path().unwrap().display()
-                ));
-                patch_str.push_str(&format!(
-                    "+++ b/{}\n",
-                    patch.delta().new_file().path().unwrap().display()
-                ));
-                patch_str.push_str(std::str::from_utf8(hunk.header()).unwrap());
+                let mut patch_bytes = vec![];
+                patch_bytes.extend_from_slice(
+                    format!(
+                        "--- a/{}\n",
+                        patch.delta().old_file().path().unwrap().display()
+                    )
+                    .as_bytes(),
+                );
+                patch_bytes.extend_from_slice(
+                    format!(
+                        "+++ b/{}\n",
+                        patch.delta().new_file().path().unwrap().display()
+                    )
+                    .as_bytes(),
+                );
+                patch_bytes.extend_from_slice(hunk.header());
                 for l in 0..patch.num_lines_in_hunk(h).unwrap() {
                     if let Ok(line) = patch.line_in_hunk(h, l) {
-                        match line.origin() {
-                            c @ ('+' | '-' | ' ') => {
-                                patch_str.push_str(&format!(
-                                    "{}{}",
-                                    c,
-                                    std::str::from_utf8(line.content()).unwrap()
-                                ));
-                            }
-                            _ => {
-                                patch_str.push_str(std::str::from_utf8(line.content()).unwrap());
-                            }
+                        if let c @ ('+' | '-' | ' ') = line.origin() {
+                            patch_bytes.push(c as u8);
                         }
+                        patch_bytes.extend_from_slice(line.content());
                     }
                 }
                 hunks.push(Hunk {
@@ -771,7 +788,7 @@ fn parse_diff(diff: Diff) -> Result<Vec<Hunk>> {
                         .unwrap()
                         .display()
                         .to_string(),
-                    patch: patch_str,
+                    patch: patch_bytes,
                 });
             }
         }
