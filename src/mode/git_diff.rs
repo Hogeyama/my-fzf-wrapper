@@ -80,8 +80,8 @@ impl ModeDef for GitDiff {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream<'a> {
+        Box::pin(async_stream::stream! {
             self.clear();
 
             let mut items = vec![];
@@ -139,9 +139,9 @@ impl ModeDef for GitDiff {
                 .into_iter()
                 .map(|s| Item::ConflictedFile { file: s })
                 .for_each(|item| items.push(item.render()));
-            Ok(LoadResp::new_with_default_header(items))
-        }
-        .boxed()
+
+            yield Ok(LoadResp::new_with_default_header(items))
+        })
     }
     fn preview<'a>(
         &'a self,

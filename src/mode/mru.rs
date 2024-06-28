@@ -41,13 +41,12 @@ impl ModeDef for Mru {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
+    ) -> super::LoadStream {
         let nvim = state.nvim.clone();
-        async move {
+        Box::pin(async_stream::stream! {
             let mru_items = get_nvim_oldefiles(&nvim).await?;
-            Ok(LoadResp::new_with_default_header(mru_items))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(mru_items))
+        })
     }
     fn preview(
         &self,

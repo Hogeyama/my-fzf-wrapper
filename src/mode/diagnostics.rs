@@ -50,16 +50,15 @@ impl ModeDef for Diagnostics {
         state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp>> {
+    ) -> super::LoadStream<'a> {
         let nvim = state.nvim.clone();
-        async move {
+        Box::pin(async_stream::stream! {
             let mut diagnostics = DiagnosticsItem::gather(&nvim).await?;
             diagnostics.sort_by(|a, b| a.severity.0.cmp(&b.severity.0));
             let items = DiagnosticsItem::render_list(&diagnostics);
             self.items.lock().await.replace(diagnostics);
-            Ok(LoadResp::new_with_default_header(items))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(items))
+        })
     }
     fn preview<'a>(
         &'a self,

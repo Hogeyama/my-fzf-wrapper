@@ -48,16 +48,15 @@ impl ModeDef for NeovimSession {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream {
+        Box::pin(async_stream::stream! {
             let home = std::env::var("HOME").unwrap();
             // わざわざ tokio::fs にしなくていいかな
             let sessions = fs::read_dir(format!("{home}/.local/share/nvim/session"))?
                 .filter_map(|x| x.ok().and_then(|x| x.file_name().into_string().ok()))
                 .collect::<Vec<String>>();
-            Ok(LoadResp::new_with_default_header(sessions))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(sessions))
+        })
     }
     fn preview(
         &self,

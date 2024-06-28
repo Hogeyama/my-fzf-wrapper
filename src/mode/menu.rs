@@ -25,17 +25,16 @@ impl ModeDef for Menu {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream<'a> {
+        Box::pin(async_stream::stream! {
             let items = config
                 .get_mode_names()
                 .into_iter()
                 .map(|s| s.to_string())
                 .filter(|s| s != "livegrepf" && s != "menu") // FIXME ad-hoc
                 .collect();
-            Ok(LoadResp::new_with_default_header(items))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(items))
+        })
     }
     fn preview(
         &self,

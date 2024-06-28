@@ -67,17 +67,16 @@ impl ModeDef for BrowserBookmark {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream {
+        Box::pin(async_stream::stream! {
             let items = self
                 .load_items()
                 .await?
                 .into_iter()
                 .map(|x| x.render())
                 .collect();
-            Ok(LoadResp::new_with_default_header(items))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(items))
+        })
     }
     fn preview(
         &self,

@@ -57,7 +57,7 @@ impl ModeDef for LiveGrep {
         _state: &mut State,
         query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
+    ) -> super::LoadStream {
         load(query, &self.rg_opts)
     }
     fn preview(
@@ -119,20 +119,19 @@ pub struct LoadOpts {
     pub query: String,
 }
 
-fn load(query: String, opts: &Vec<String>) -> BoxFuture<'static, Result<LoadResp>> {
+fn load(query: String, opts: &Vec<String>) -> super::LoadStream {
     let mut rg_cmd = rg::new();
     rg_cmd.args(opts);
     rg_cmd.arg("--");
     rg_cmd.arg(query);
-    async move {
+    Box::pin(async_stream::stream! {
         let rg_output = rg_cmd.output().await?;
         let rg_output = String::from_utf8_lossy(&rg_output.stdout)
             .lines()
             .map(|line| line.to_string())
             .collect::<Vec<_>>();
-        Ok(LoadResp::new_with_default_header(rg_output))
-    }
-    .boxed()
+        yield Ok(LoadResp::new_with_default_header(rg_output))
+    })
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -152,16 +151,15 @@ impl ModeDef for LiveGrepF {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
+    ) -> super::LoadStream {
         let livegrep_result = state.last_load_resp.clone();
-        async move {
+        Box::pin(async_stream::stream! {
             let items = match livegrep_result {
                 Some(resp) => resp.items,
                 None => vec![],
             };
-            Ok(LoadResp::new_with_default_header(items))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(items))
+        })
     }
     fn preview(
         &self,

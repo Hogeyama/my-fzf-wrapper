@@ -59,8 +59,8 @@ impl ModeDef for ProcessCompose {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream {
+        Box::pin(async_stream::stream! {
             let host = get_host()?;
             let processes = reqwest::get(format!("{host}/processes"))
                 .await?
@@ -72,9 +72,8 @@ impl ModeDef for ProcessCompose {
                 .map(|p| p.name)
                 .collect::<Vec<_>>();
             items.sort();
-            Ok(LoadResp::new_with_default_header(items))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(items))
+        })
     }
     fn preview<'a>(
         &self,

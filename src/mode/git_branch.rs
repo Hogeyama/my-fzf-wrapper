@@ -31,8 +31,8 @@ impl ModeDef for GitBranch {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream {
+        Box::pin(async_stream::stream! {
             let head = git::head()?;
             let mut branches = git::local_branches()?;
             branches.sort_by(|a, b| {
@@ -44,9 +44,8 @@ impl ModeDef for GitBranch {
                     return a.cmp(b);
                 }
             });
-            Ok(LoadResp::new_with_default_header(branches))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(branches))
+        })
     }
     fn preview(
         &self,

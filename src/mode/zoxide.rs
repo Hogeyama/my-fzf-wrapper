@@ -24,16 +24,15 @@ impl ModeDef for Zoxide {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream {
+        Box::pin(async_stream::stream! {
             let zoxide_output = zoxide::new().output().await?;
             let zoxide_output = String::from_utf8_lossy(&zoxide_output.stdout)
                 .lines()
                 .map(|line| line.to_string())
                 .collect::<Vec<_>>();
-            Ok(LoadResp::new_with_default_header(zoxide_output))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(zoxide_output))
+        })
     }
     fn preview(
         &self,

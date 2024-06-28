@@ -39,13 +39,12 @@ impl ModeDef for Buffer {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
+    ) -> super::LoadStream {
         let nvim = state.nvim.clone();
-        async move {
+        Box::pin(async_stream::stream! {
             let items = get_nvim_buffers(&nvim).await?;
-            Ok(LoadResp::new_with_default_header(items))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(items))
+        })
     }
     fn preview(
         &self,

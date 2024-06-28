@@ -31,7 +31,7 @@ impl ModeDef for GitStatus {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
+    ) -> super::LoadStream {
         load([
             Status::INDEX_NEW,
             Status::INDEX_MODIFIED,
@@ -55,15 +55,14 @@ impl ModeDef for GitStatus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-fn load(statuses: impl IntoIterator<Item = Status>) -> BoxFuture<'static, Result<LoadResp>> {
+fn load(statuses: impl IntoIterator<Item = Status>) -> super::LoadStream<'static> {
     let files = git::files_with_status(statuses);
-    async move {
+    Box::pin(async_stream::stream! {
         match files {
-            Ok(files) => Ok(LoadResp::new_with_default_header(files)),
-            Err(e) => Err(e),
+            Ok(files) => yield Ok(LoadResp::new_with_default_header(files)),
+            Err(e) => yield Err(e),
         }
-    }
-    .boxed()
+    })
 }
 
 fn preview(path: String) -> BoxFuture<'static, Result<PreviewResp>> {

@@ -37,17 +37,16 @@ impl ModeDef for GitLog {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream<'a> {
+        Box::pin(async_stream::stream! {
             let mut commits = match self {
                 GitLog::Head => git::log_graph("HEAD").await?,
                 GitLog::All => git::log_graph("--all").await?,
             };
             // reset color to white
             commits.push(ansi_term::Colour::White.normal().paint("").to_string());
-            Ok(LoadResp::new_with_default_header(commits))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(commits))
+        })
     }
     fn preview(
         &self,

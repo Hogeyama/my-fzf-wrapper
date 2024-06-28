@@ -33,16 +33,15 @@ impl ModeDef for Fd {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream {
+        Box::pin(async_stream::stream! {
             let fd_output = fd::new().output().await?;
             let fd_output = String::from_utf8_lossy(&fd_output.stdout)
                 .lines()
                 .map(|line| line.to_string())
                 .collect::<Vec<_>>();
-            Ok(LoadResp::new_with_default_header(fd_output))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(fd_output))
+        })
     }
     fn preview(
         &self,

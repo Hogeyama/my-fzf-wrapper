@@ -338,7 +338,7 @@ impl From<Execute> for String {
 // Load method
 ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[derive(Serialize, Deserialize, Default, Clone, Copy, Debug)]
 #[serde(try_from = "String", into = "String")]
 pub struct Load;
 

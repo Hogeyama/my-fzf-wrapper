@@ -51,8 +51,8 @@ impl ModeDef for BrowserHistory {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream {
+        Box::pin(async_stream::stream! {
             let (db, query) = match self.browser {
                 browser::Browser::Firefox(_) => (get_firefox_db_path()?, firefox_query()),
                 browser::Browser::Chrome(_) => (get_chrome_db_path()?, chrome_query()),
@@ -69,9 +69,8 @@ impl ModeDef for BrowserHistory {
             .into_iter()
             .map(|x| format!("{}|{}|{}", x.date, x.url, x.title))
             .collect();
-            Ok(LoadResp::new_with_default_header(items))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(items))
+        })
     }
     fn preview(
         &self,

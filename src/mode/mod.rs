@@ -21,6 +21,7 @@ pub mod zoxide;
 use anyhow::Result;
 use futures::future::BoxFuture;
 use futures::FutureExt;
+use futures::Stream;
 use std::pin::Pin;
 
 use crate::config::Config;
@@ -127,6 +128,8 @@ impl Mode {
     }
 }
 
+pub type LoadStream<'a> = Pin<Box<dyn Stream<Item = Result<LoadResp>> + Send + 'a>>;
+
 pub trait ModeDef {
     /// The name of the mode
     fn name(&self) -> &'static str;
@@ -150,7 +153,7 @@ pub trait ModeDef {
         state: &'a mut State,
         query: String,
         item: String, // currently selected item
-    ) -> BoxFuture<'a, Result<LoadResp>>;
+    ) -> LoadStream<'a>;
 
     /// Preview the currently selected item
     fn preview<'a>(
@@ -205,7 +208,7 @@ pub struct LoadCallback {
                 &'a mut State,
                 String,
                 String,
-            ) -> BoxFuture<'a, Result<LoadResp>>
+            ) -> LoadStream<'a>
             + Sync
             + Send,
     >,
@@ -317,7 +320,7 @@ pub mod config_builder {
                     &'a mut State,
                     String,
                     String,
-                ) -> BoxFuture<'a, Result<super::LoadResp>>
+                ) -> super::LoadStream<'a>
                 + Send
                 + Sync
                 + 'static,

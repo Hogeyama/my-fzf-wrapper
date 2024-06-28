@@ -28,14 +28,13 @@ impl ModeDef for GitReflog {
         _state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
-        async move {
+    ) -> super::LoadStream {
+        Box::pin(async_stream::stream! {
             let mut commits = git::reflog_graph("HEAD").await?;
             // reset color to white
             commits.push(ansi_term::Colour::White.normal().paint("").to_string());
-            Ok(LoadResp::new_with_default_header(commits))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(commits))
+        })
     }
     fn preview(
         &self,

@@ -51,18 +51,17 @@ impl ModeDef for Mark {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'a, Result<LoadResp>> {
+    ) -> super::LoadStream<'a> {
         let nvim = state.nvim.clone();
-        async move {
+        Box::pin(async_stream::stream! {
             let marks = get_nvim_marks(&nvim).await?;
             let items = marks.iter().map(|m| m.render()).collect();
             self.marks
                 .lock()
                 .await
                 .replace(marks.into_iter().map(|b| (b.mark.clone(), b)).collect());
-            Ok(LoadResp::new_with_default_header(items))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(items))
+        })
     }
     fn preview<'a>(
         &'a self,

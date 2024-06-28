@@ -5,6 +5,7 @@ use std::time::Duration;
 use futures::stream::AbortHandle;
 use futures::stream::Abortable;
 use futures::stream::Aborted;
+use futures::StreamExt as _;
 
 // Serde
 use serde_json::json;
@@ -144,22 +145,39 @@ async fn handle_one_client(
                             })
                             .callback;
 
-                        let resp = callback(
-                            s.mode.mode_def.as_mut(),
-                            &config,
-                            &mut s.state,
-                            query,
-                            item.unwrap_or_default(),
-                        )
-                        .await
-                        .unwrap_or_else(LoadResp::error);
-
-                        s.state.last_load_resp = Some(resp.clone());
-                        let mut tx = tx.lock().await;
-                        match send_response(&mut *tx, method, resp).await {
-                            Ok(()) => trace!("server: load done"),
-                            Err(e) => error!("server: load error"; "error" => e),
+                        let mut header = None;
+                        let mut items = vec![];
+                        {
+                            let mut stream = callback(
+                                s.mode.mode_def.as_mut(),
+                                &config,
+                                &mut s.state,
+                                query,
+                                item.unwrap_or_default(),
+                            );
+                            while let Some(resp) = stream.next().await {
+                                let resp = match resp {
+                                    Ok(resp) => resp,
+                                    Err(e) => LoadResp::error(e),
+                                };
+                                header = header.or_else(|| resp.header.clone());
+                                items.extend(resp.items.clone());
+                                let is_last = resp.is_last;
+                                let mut tx = tx.lock().await;
+                                match send_response(&mut *tx, method, resp).await {
+                                    Ok(()) => trace!("server: load done"),
+                                    Err(e) => error!("server: load error"; "error" => e),
+                                }
+                                if is_last {
+                                    break;
+                                }
+                            }
                         }
+                        s.state.last_load_resp = Some(LoadResp {
+                            header,
+                            items,
+                            is_last: true,
+                        });
                     },
                     abort_registration,
                 ));
@@ -238,7 +256,7 @@ async fn handle_one_client(
                 let resp = match &s.state.last_load_resp {
                     Some(resp) => resp.clone(),
                     None => method::LoadResp {
-                        header: "".to_string(),
+                        header: Some("".to_string()),
                         items: vec![],
                         is_last: true,
                     },

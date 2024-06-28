@@ -58,14 +58,13 @@ impl ModeDef for Visits {
         state: &mut State,
         _query: String,
         _item: String,
-    ) -> BoxFuture<'static, Result<LoadResp>> {
+    ) -> super::LoadStream {
         let nvim = state.nvim.clone();
         let kind = self.kind;
-        async move {
+        Box::pin(async_stream::stream! {
             let mru_items = get_visits(&nvim, kind).await?;
-            Ok(LoadResp::new_with_default_header(mru_items))
-        }
-        .boxed()
+            yield Ok(LoadResp::new_with_default_header(mru_items))
+        })
     }
     fn preview(
         &self,
