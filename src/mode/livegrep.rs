@@ -2,6 +2,7 @@ use anyhow::Result;
 use clap::Parser;
 use futures::future::BoxFuture;
 use futures::FutureExt;
+use futures::StreamExt as _;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
@@ -16,6 +17,7 @@ use crate::nvim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::bat;
+use crate::utils::command;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::gh;
@@ -125,12 +127,25 @@ fn load(query: String, opts: &Vec<String>) -> super::LoadStream {
     rg_cmd.arg("--");
     rg_cmd.arg(query);
     Box::pin(async_stream::stream! {
-        let rg_output = rg_cmd.output().await?;
-        let rg_output = String::from_utf8_lossy(&rg_output.stdout)
-            .lines()
-            .map(|line| line.to_string())
-            .collect::<Vec<_>>();
-        yield Ok(LoadResp::new_with_default_header(rg_output))
+        let stream = command::command_output_stream(rg_cmd).chunks(100); // tekito
+        tokio::pin!(stream);
+        let mut has_error = false;
+        while let Some(r) = stream.next().await {
+            let r = r.into_iter().collect::<Result<Vec<String>>>();
+            match r {
+                Ok(lines) => {
+                    yield Ok(LoadResp::wip_with_default_header(lines));
+                }
+                Err(e) => {
+                    yield Ok(LoadResp::error(e.to_string()));
+                    has_error = true;
+                    break;
+                }
+            }
+        }
+        if !has_error {
+            yield Ok(LoadResp::last())
+        }
     })
 }
 
