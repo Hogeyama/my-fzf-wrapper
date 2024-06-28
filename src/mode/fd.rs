@@ -1,6 +1,7 @@
 use anyhow::Result;
 use futures::future::BoxFuture;
 use futures::FutureExt;
+use futures::StreamExt as _;
 use tokio::process::Command;
 
 use crate::config::Config;
@@ -13,6 +14,7 @@ use crate::nvim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::bat;
+use crate::utils::command;
 use crate::utils::command::edit_and_run;
 use crate::utils::fd;
 use crate::utils::fzf;
@@ -35,12 +37,26 @@ impl ModeDef for Fd {
         _item: String,
     ) -> super::LoadStream {
         Box::pin(async_stream::stream! {
-            let fd_output = fd::new().output().await?;
-            let fd_output = String::from_utf8_lossy(&fd_output.stdout)
-                .lines()
-                .map(|line| line.to_string())
-                .collect::<Vec<_>>();
-            yield Ok(LoadResp::new_with_default_header(fd_output))
+            let fd = fd::new();
+            let stream = command::command_output_stream(fd).chunks(100); // tekito
+            tokio::pin!(stream);
+            let mut has_error = false;
+            while let Some(r) = stream.next().await {
+                let r = r.into_iter().collect::<Result<Vec<String>>>();
+                match r {
+                    Ok(lines) => {
+                        yield Ok(LoadResp::wip_with_default_header(lines));
+                    }
+                    Err(e) => {
+                        yield Ok(LoadResp::error(e.to_string()));
+                        has_error = true;
+                        break;
+                    }
+                }
+            }
+            if !has_error {
+                yield Ok(LoadResp::last())
+            }
         })
     }
     fn preview(
