@@ -78,9 +78,6 @@ impl ModeDef for LiveGrep {
             "change" => [
                 b.reload(),
             ],
-            "ctrl-c" => [
-                b.change_mode(LiveGrepF.name(), false),
-            ],
             "esc" => [
                 b.change_mode(LiveGrepF.name(), false),
             ],
