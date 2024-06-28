@@ -166,7 +166,13 @@ async fn handle_one_client(
                                 let mut tx = tx.lock().await;
                                 match send_response(&mut *tx, method, resp).await {
                                     Ok(()) => trace!("server: load done"),
-                                    Err(e) => error!("server: load error"; "error" => e),
+                                    Err(e) => {
+                                        if e.kind() == std::io::ErrorKind::BrokenPipe {
+                                            error!("server: broken pipe";);
+                                            break;
+                                        }
+                                        error!("server: load error"; "error" => e);
+                                    }
                                 }
                                 if is_last {
                                     break;
@@ -340,7 +346,13 @@ async fn handle_one_client(
                 let mut tx = tx.lock().await;
                 match send_response(&mut *tx, method, ()).await {
                     Ok(()) => trace!("server: change-mode done"),
-                    Err(e) => error!("server: change-mode error"; "error" => e),
+                    Err(e) => {
+                        if e.kind() == std::io::ErrorKind::BrokenPipe {
+                            error!("server: broken pipe";);
+                            Err("broken pipe")?
+                        }
+                        error!("server: change-mode error"; "error" => e);
+                    }
                 }
             }
             _ => {
@@ -359,10 +371,8 @@ async fn send_response<M: method::Method, TX: AsyncWriteExt + Unpin>(
     tx: &mut TX,
     _method: M, // 型合わせ用
     resp: <M as Method>::Response,
-) -> Result<(), String> {
+) -> std::io::Result<()> {
     let resp = serde_json::to_string(&resp).unwrap() + "\n";
-    tx.write_all(resp.as_bytes())
-        .await
-        .map_err(|e| e.to_string())?;
+    tx.write_all(resp.as_bytes()).await?;
     Ok(())
 }
