@@ -129,12 +129,12 @@ impl ModeDef for GitBranch {
 }
 
 async fn select_remote(local_branch: impl AsRef<str>) -> Result<String> {
-    let upstream = git::upstream_of(&local_branch)?;
+    let upstream = git::upstream_of(&local_branch).ok();
     let mut branches = git::remote_branches()?;
     branches.sort_by(|a, b| {
-        if a == &upstream {
+        if Some(a) == upstream.as_ref() {
             std::cmp::Ordering::Less
-        } else if b == &upstream {
+        } else if Some(b) == upstream.as_ref() {
             return std::cmp::Ordering::Greater;
         } else {
             return a.cmp(b);
