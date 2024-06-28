@@ -358,22 +358,40 @@ impl Method for Load {
 
 #[derive(Serialize, Deserialize, Default, Clone, Debug)]
 pub struct LoadResp {
-    pub header: String,
+    pub header: Option<String>,
     pub items: Vec<String>,
+    pub is_last: bool,
 }
 
 impl LoadResp {
     pub fn new_with_default_header(items: Vec<String>) -> Self {
         let pwd = std::env::current_dir().unwrap().into_os_string();
         Self {
-            header: format!("[{}]", pwd.to_string_lossy()),
+            header: Some(format!("[{}]", pwd.to_string_lossy())),
             items,
+            is_last: true,
         }
     }
     pub fn error(err: impl ToString) -> Self {
         Self {
-            header: "[error]".to_string(),
+            header: Some("[error]".to_string()),
             items: vec![err.to_string()],
+            is_last: true,
+        }
+    }
+    pub fn wip_with_default_header(items: Vec<String>) -> Self {
+        let pwd = std::env::current_dir().unwrap().into_os_string();
+        Self {
+            header: Some(format!("[{}]", pwd.to_string_lossy())),
+            items,
+            is_last: false,
+        }
+    }
+    pub fn last() -> Self {
+        Self {
+            header: None,
+            items: vec![],
+            is_last: true,
         }
     }
 }

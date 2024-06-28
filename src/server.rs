@@ -240,6 +240,7 @@ async fn handle_one_client(
                     None => method::LoadResp {
                         header: "".to_string(),
                         items: vec![],
+                        is_last: true,
                     },
                 };
                 match send_response(&mut *tx, method, resp).await {

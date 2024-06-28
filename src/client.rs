@@ -5,6 +5,8 @@ use std::error::Error;
 use clap::Subcommand;
 
 // Tokio
+use futures::Stream;
+use futures::StreamExt;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
@@ -62,14 +64,31 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
             fzfw_socket,
             params,
         } => {
-            match send_request(fzfw_socket, method::Load, params).await? {
-                Ok(LoadResp { header, items }) => {
-                    println!("{}", header);
-                    for line in items {
-                        println!("{}", line);
+            let stream = send_stream_request(fzfw_socket, method::Load, params);
+            tokio::pin!(stream);
+            let mut is_first = true;
+            while let Some(resp) = stream.next().await {
+                match resp? {
+                    Ok(LoadResp {
+                        header,
+                        items,
+                        is_last,
+                    }) => {
+                        if let Some(header) = header {
+                            if is_first {
+                                println!("{}", header);
+                            }
+                            is_first = false;
+                        }
+                        for line in items {
+                            println!("{}", line);
+                        }
+                        if is_last {
+                            break;
+                        }
                     }
+                    Err(e) => println!("Error: {}", e),
                 }
-                Err(e) => println!("Error: {}", e),
             }
             Ok(())
         }
@@ -116,20 +135,39 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
     }
 }
 
+// 1 request, 1 response
 pub async fn send_request<M: Method>(
     fzfw_socket: String,
     method: M,
     param: <M as method::Method>::Param,
 ) -> Result<Result<<M as method::Method>::Response, String>, Box<dyn Error>> {
-    let (rx, mut tx) = tokio::io::split(UnixStream::connect(&fzfw_socket).await?);
-    let mut rx = BufReader::new(rx).lines();
+    let stream = send_stream_request(fzfw_socket, method, param);
+    tokio::pin!(stream);
+    if let Some(resp) = stream.next().await {
+        return resp;
+    }
+    panic!("impossible");
+}
 
-    let req = serde_json::to_string(&<M as Method>::request(method, param))?;
-    tx.write_all(format!("{req}\n").as_bytes()).await?;
+// 1 request, multiple response
+pub fn send_stream_request<M: Method>(
+    fzfw_socket: String,
+    method: M,
+    param: <M as method::Method>::Param,
+) -> impl Stream<Item = Result<Result<<M as method::Method>::Response, String>, Box<dyn Error>>> {
+    async_stream::try_stream! {
+        let us = UnixStream::connect(&fzfw_socket).await?;
+        let (rx, mut tx) = tokio::io::split(us);
+        let mut rx = BufReader::new(rx).lines();
+        let req = serde_json::to_string(&<M as Method>::request(method, param))?;
+        tx.write_all(format!("{req}\n").as_bytes()).await?;
 
-    let resp = rx.next_line().await?.unwrap();
-    match serde_json::from_str(&resp) {
-        Ok(resp) => Ok(Ok(resp)),
-        Err(e) => Ok(Err(e.to_string())),
+        while let Some(line) = rx.next_line().await? {
+            let resp = match serde_json::from_str(&line) {
+                Ok(resp) => Ok(resp),
+                Err(e) => Err(e.to_string()),
+            };
+            yield resp;
+        }
     }
 }
