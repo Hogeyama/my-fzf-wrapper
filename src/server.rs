@@ -138,6 +138,9 @@ async fn handle_one_client(
             }
 
             Some(method::Request::Execute { params, method: _ }) => {
+                if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
+                    abort_handle.abort();
+                }
                 handle_execute_request(config, server_state, params, tx).await;
             }
 
@@ -145,16 +148,23 @@ async fn handle_one_client(
                 params: (),
                 method: _,
             }) => {
+                if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
+                    abort_handle.abort();
+                }
                 handle_get_last_load_request(server_state, tx).await;
             }
 
             Some(method::Request::ChangeMode { params, method: _ }) => {
+                if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
+                    abort_handle.abort();
+                }
                 handle_change_mode_request(config, server_state, params, tx).await;
             }
 
             Some(method::Request::ChangeDirectory { params, method: _ }) => {
                 handle_change_directory_request(config, params, tx).await;
             }
+
             _ => {
                 let mut tx = tx.lock().await;
                 (*tx)
