@@ -185,7 +185,7 @@ async fn handle_load_request(
         item,
     } = params;
 
-    let callback = &mut s
+    let callback = &s
         .callbacks
         .load
         .get_mut(&registered_name)
@@ -256,10 +256,10 @@ async fn handle_preview_request(
 ) {
     let mut s = server_state.lock().await;
     let s = s.deref_mut();
-    let callback = &mut s
+    let callback = &s
         .callbacks
         .preview
-        .get_mut("default")
+        .get("default")
         .unwrap_or_else(|| {
             panic!("unknown callback");
         })
@@ -297,10 +297,10 @@ async fn handle_execute_request(
         item,
     } = params;
 
-    let callback = &mut s
+    let callback = &s
         .callbacks
         .execute
-        .get_mut(&registered_name)
+        .get(&registered_name)
         .unwrap_or_else(|| {
             error!("server: execute error";
                 "error" => "unknown callback",

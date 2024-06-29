@@ -202,7 +202,7 @@ impl CallbackMap {
 #[allow(clippy::type_complexity)]
 pub struct LoadCallback {
     pub callback: Box<
-        dyn for<'a> FnMut(
+        dyn for<'a> Fn(
                 &'a mut (dyn ModeDef + Sync + Send),
                 &'a Config,
                 &'a mut State,
@@ -217,7 +217,7 @@ pub struct LoadCallback {
 #[allow(clippy::type_complexity)]
 pub struct PreviewCallback {
     pub callback: Box<
-        dyn for<'a> FnMut(
+        dyn for<'a> Fn(
                 &'a (dyn ModeDef + Sync + Send),
                 &'a Config,
                 &'a mut State,
@@ -232,7 +232,7 @@ pub struct PreviewCallback {
 #[allow(clippy::type_complexity)]
 pub struct ExecuteCallback {
     pub callback: Box<
-        dyn for<'a> FnMut(
+        dyn for<'a> Fn(
                 &'a mut (dyn ModeDef + Sync + Send),
                 &'a Config,
                 &'a mut State,
@@ -268,7 +268,7 @@ pub mod config_builder {
 
         pub fn execute<F>(&mut self, callback: F) -> fzf::Action
         where
-            for<'a> F: FnMut(
+            for<'a> F: Fn(
                     &'a mut (dyn ModeDef + Sync + Send),
                     &'a Config,
                     &'a mut State,
@@ -289,7 +289,7 @@ pub mod config_builder {
 
         pub fn execute_silent<F>(&mut self, callback: F) -> fzf::Action
         where
-            for<'a> F: FnMut(
+            for<'a> F: Fn(
                     &'a mut (dyn ModeDef + Sync + Send),
                     &'a Config,
                     &'a mut State,
@@ -314,7 +314,7 @@ pub mod config_builder {
 
         pub fn reload_with<F>(&mut self, callback: F) -> fzf::Action
         where
-            for<'a> F: FnMut(
+            for<'a> F: Fn(
                     &'a mut (dyn ModeDef + Sync + Send),
                     &'a Config,
                     &'a mut State,
