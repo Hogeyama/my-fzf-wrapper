@@ -6,6 +6,7 @@ use futures::stream::AbortHandle;
 use futures::stream::Abortable;
 use futures::stream::Aborted;
 use futures::StreamExt as _;
+use futures::TryStreamExt as _;
 
 // Serde
 use serde_json::json;
@@ -197,52 +198,49 @@ async fn handle_load_request(
         })
         .callback;
 
-    let last_load_resp = {
-        let mut stream = callback(
+    s.state.last_load_resp = {
+        let stream = callback(
             s.mode.mode_def.as_mut(),
             &config,
             &mut s.state,
             query,
             item.unwrap_or_default(),
         );
-        send_load_stream(&mut stream, tx).await
+        send_load_stream(stream, tx).await
     };
-    s.state.last_load_resp = Some(last_load_resp);
 }
 
-async fn send_load_stream<'a>(
-    stream: &mut mode::LoadStream<'a>,
+async fn send_load_stream(
+    stream: mode::LoadStream<'_>,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
-) -> LoadResp {
-    let mut header = None;
-    let mut items = vec![];
-
-    while let Some(resp) = stream.next().await {
-        let resp = match resp {
-            Ok(resp) => resp,
-            Err(e) => LoadResp::error(e),
-        };
-
-        let mut tx = tx.lock().await;
-        match send_response(method::Load, &mut *tx, &resp).await {
-            Ok(()) => trace!("server: load done"),
-            Err(e) => {
-                if e.kind() == std::io::ErrorKind::BrokenPipe {
-                    error!("server: broken pipe";);
-                    break;
+) -> Option<LoadResp> {
+    let r = stream
+        .map(|resp| resp.unwrap_or_else(LoadResp::error))
+        .map(Ok::<_, anyhow::Error>) // try_foldを使うために持ち上げる
+        .try_fold((None, vec![]), |(mut header, mut items), resp| async {
+            let mut tx = tx.lock().await;
+            match send_response(method::Load, &mut *tx, &resp).await {
+                Ok(()) => {
+                    trace!("server: load done");
+                    header = header.or(resp.header);
+                    items.extend(resp.items);
+                    Ok((header, items))
                 }
-                error!("server: load error"; "error" => e);
+                Err(e) => {
+                    error!("server: load error"; "error" => &e);
+                    Err(anyhow::anyhow!(e))
+                }
             }
-        }
+        })
+        .await;
 
-        header = header.or(resp.header);
-        items.extend(resp.items);
-    }
-
-    LoadResp {
-        header,
-        items,
-        is_last: true,
+    match r {
+        Ok((header, items)) => Some(LoadResp {
+            header,
+            items,
+            is_last: true,
+        }),
+        Err(_) => None,
     }
 }
 
