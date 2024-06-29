@@ -77,21 +77,21 @@ impl ModeDef for Fd {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: false };
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: true };
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-v" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts::Vifm;
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-y" => [
@@ -101,7 +101,7 @@ impl ModeDef for Fd {
                 })
             ],
             "ctrl-space" => [
-                select_and_execute!{b, |_mode,_config,state,_query,item|
+                select_and_execute!{b, |_mode,config,_state,_query,item|
                     "new file" => {
                         let cwd = std::env::current_dir().unwrap();
                         let fname = fzf::input("Enter file name").await?;
@@ -118,18 +118,18 @@ impl ModeDef for Fd {
                             .status()
                             .await?;
                         let opts = OpenOpts::Neovim { tabedit: false };
-                        open(state, path, opts).await
+                        open(config, path, opts).await
                     },
                     "execute any command" => {
                         let (cmd, output) = edit_and_run(format!(" {item}"))
                             .await?;
-                        state.nvim.notify_command_result(&cmd, output)
+                        config.nvim.notify_command_result(&cmd, output)
                             .await?;
                         Ok(())
                     },
                     "browse-github" => {
                         let opts = OpenOpts::BrowseGithub;
-                        open(state, item, opts).await
+                        open(config, item, opts).await
                     },
                 }
             ]
@@ -143,10 +143,10 @@ enum OpenOpts {
     BrowseGithub,
 }
 
-async fn open(state: &mut State, file: String, opts: OpenOpts) -> Result<()> {
+async fn open(config: &Config, file: String, opts: OpenOpts) -> Result<()> {
     match opts {
         OpenOpts::Neovim { tabedit } => {
-            let nvim = state.nvim.clone();
+            let nvim = config.nvim.clone();
             let nvim_opts = nvim::OpenOpts {
                 line: None,
                 tabedit,

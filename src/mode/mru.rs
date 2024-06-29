@@ -37,12 +37,12 @@ impl ModeDef for Mru {
     }
     fn load(
         &mut self,
-        _config: &Config,
-        state: &mut State,
+        config: &Config,
+        _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
-        let nvim = state.nvim.clone();
+        let nvim = config.nvim.clone();
         Box::pin(async_stream::stream! {
             let mru_items = get_nvim_oldefiles(&nvim).await?;
             yield Ok(LoadResp::new_with_default_header(mru_items))
@@ -80,15 +80,15 @@ impl ModeDef for Mru {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts { tabedit: false };
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts { tabedit: true };
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-y" => [
@@ -136,10 +136,10 @@ struct OpenOpts {
     tabedit: bool,
 }
 
-async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<()> {
+async fn open(config: &Config, item: String, opts: OpenOpts) -> Result<()> {
     let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
     let OpenOpts { tabedit } = opts;
-    let nvim = state.nvim.clone();
+    let nvim = config.nvim.clone();
     let nvim_opts = nvim::OpenOpts {
         line: None,
         tabedit,

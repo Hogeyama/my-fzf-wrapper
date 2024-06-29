@@ -35,12 +35,12 @@ impl ModeDef for Buffer {
     }
     fn load(
         &mut self,
-        _config: &Config,
-        state: &mut State,
+        config: &Config,
+        _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
-        let nvim = state.nvim.clone();
+        let nvim = config.nvim.clone();
         Box::pin(async_stream::stream! {
             let items = get_nvim_buffers(&nvim).await?;
             yield Ok(LoadResp::new_with_default_header(items))
@@ -78,21 +78,21 @@ impl ModeDef for Buffer {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = ExecOpts::Open { tabedit: false };
-                    exec(state, item, opts).await
+                    exec(config, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = ExecOpts::Open { tabedit: true };
-                    exec(state, item, opts).await
+                    exec(config, item, opts).await
                 })
             ],
             "ctrl-x" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = ExecOpts::Delete { force: true };
-                    exec(state, item, opts).await
+                    exec(config, item, opts).await
                 }),
                 b.reload(),
             ],
@@ -144,14 +144,14 @@ enum ExecOpts {
     Delete { force: bool },
 }
 
-async fn exec(state: &mut State, item: String, opts: ExecOpts) -> Result<()> {
+async fn exec(config: &Config, item: String, opts: ExecOpts) -> Result<()> {
     let bufnr = ITEM_PATTERN
         .replace(&item, "$bufnr")
         .into_owned()
         .parse::<usize>()?;
     match opts {
         ExecOpts::Open { tabedit } => {
-            let nvim = state.nvim.clone();
+            let nvim = config.nvim.clone();
             let nvim_opts = nvim::OpenOpts {
                 line: None,
                 tabedit,
@@ -162,7 +162,7 @@ async fn exec(state: &mut State, item: String, opts: ExecOpts) -> Result<()> {
             }
         }
         ExecOpts::Delete { force } => {
-            let nvim = state.nvim.clone();
+            let nvim = config.nvim.clone();
             let r = nvim.delete_buffer(bufnr, force).await;
             if let Err(e) = r {
                 error!("buffer: run: nvim_delete_buffer failed"; "error" => e.to_string());

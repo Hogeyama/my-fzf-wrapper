@@ -55,10 +55,10 @@ impl ModeDef for GitReflog {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,_config,state,_query,item|
+                select_and_execute!{b, |_mode,config,_state,_query,item|
                     "diffview" => {
-                        let _ = state.nvim.hide_floaterm().await;
-                        state.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))
+                        let _ = config.nvim.hide_floaterm().await;
+                        config.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))
                             .await?;
                         Ok(())
                     },
@@ -68,7 +68,7 @@ impl ModeDef for GitReflog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        state.nvim.notify_command_result("git cherry-pick", output)
+                        config.nvim.notify_command_result("git cherry-pick", output)
                             .await?;
                         Ok(())
                     },
@@ -79,7 +79,7 @@ impl ModeDef for GitReflog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        state.nvim.notify_command_result("git switch --detach", output)
+                        config.nvim.notify_command_result("git switch --detach", output)
                             .await?;
                         Ok(())
                     },

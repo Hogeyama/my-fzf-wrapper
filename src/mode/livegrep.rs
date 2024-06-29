@@ -82,26 +82,26 @@ impl ModeDef for LiveGrep {
                 b.change_mode(LiveGrepF.name(), false),
             ],
             "enter" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: false };
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: true };
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-space" => [
-                select_and_execute!{b, |_mode,_config,state,_query,item|
+                select_and_execute!{b, |_mode,config,_state,_query,item|
                     "neovim" => {
                         let opts = OpenOpts::Neovim { tabedit: false };
-                        open(state, item, opts).await
+                        open(config, item, opts).await
                     },
                     "browse-github" => {
                         let opts = OpenOpts::BrowseGithub;
-                        open(state, item, opts).await
+                        open(config, item, opts).await
                     },
                 }
             ]
@@ -187,26 +187,26 @@ impl ModeDef for LiveGrepF {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: false };
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: true };
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-space" => [
-                select_and_execute!{b, |_mode,_config,state,_query,item|
+                select_and_execute!{b, |_mode,config,_state,_query,item|
                     "neovim" => {
                         let opts = OpenOpts::Neovim { tabedit: false };
-                        open(state, item, opts).await
+                        open(config, item, opts).await
                     },
                     "browse-github" => {
                         let opts = OpenOpts::BrowseGithub;
-                        open(state, item, opts).await
+                        open(config, item, opts).await
                     },
                 }
             ]
@@ -249,13 +249,13 @@ enum OpenOpts {
     BrowseGithub,
 }
 
-async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<()> {
+async fn open(config: &Config, item: String, opts: OpenOpts) -> Result<()> {
     let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
     let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
 
     match opts {
         OpenOpts::Neovim { tabedit } => {
-            let nvim = state.nvim.clone();
+            let nvim = config.nvim.clone();
             let nvim_opts = nvim::OpenOpts {
                 line: line.parse::<usize>().ok(),
                 tabedit,

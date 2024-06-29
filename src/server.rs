@@ -153,7 +153,7 @@ async fn handle_one_client(
             }
 
             Some(method::Request::ChangeDirectory { params, method: _ }) => {
-                handle_change_directory_request(server_state, params, tx).await;
+                handle_change_directory_request(config, params, tx).await;
             }
             _ => {
                 let mut tx = tx.lock().await;
@@ -389,19 +389,17 @@ async fn handle_change_mode_request(
 // ChangeDirectory
 
 async fn handle_change_directory_request(
-    server_state: MutexServerState,
+    config: Arc<Config>,
     params: method::ChangeDirectoryParam,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let s = server_state.lock().await;
     let dir = match params {
         method::ChangeDirectoryParam::ToParent => {
             let mut dir = std::env::current_dir().unwrap();
             dir.pop();
             Ok(dir)
         }
-        method::ChangeDirectoryParam::ToLastFileDir => s
-            .state
+        method::ChangeDirectoryParam::ToLastFileDir => config
             .nvim
             .last_opened_file()
             .await

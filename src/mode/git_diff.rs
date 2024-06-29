@@ -199,8 +199,8 @@ impl ModeDef for GitDiff {
     }
     fn execute<'a>(
         &'a mut self,
-        _config: &Config,
-        state: &'a mut State,
+        config: &'a Config,
+        _state: &'a mut State,
         item: String,
         args: serde_json::Value,
     ) -> BoxFuture<'a, Result<()>> {
@@ -222,7 +222,7 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            state.nvim.open(file.into(), nvim_opts).await?;
+                            config.nvim.open(file.into(), nvim_opts).await?;
                         }
                         Item::UnstagedHunk { file, target_start } => {
                             let file = format!("{root}/{file}");
@@ -230,7 +230,7 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            state.nvim.open(file.into(), nvim_opts).await?;
+                            config.nvim.open(file.into(), nvim_opts).await?;
                         }
                         Item::StagedBinayChange { .. } => {
                             // can't open binary file
@@ -253,7 +253,7 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            state.nvim.open(file.into(), nvim_opts).await?;
+                            config.nvim.open(file.into(), nvim_opts).await?;
                         }
                         Item::ConflictedFile { file } => {
                             let file = format!("{root}/{file}");
@@ -261,7 +261,7 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            state.nvim.open(file.into(), nvim_opts).await?;
+                            config.nvim.open(file.into(), nvim_opts).await?;
                         }
                     }
                 }
@@ -282,16 +282,16 @@ impl ModeDef for GitDiff {
                         }
                         Item::UnstagedHunk { .. } => {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
-                            git_apply(&state.nvim, patch, vec!["--cached"]).await?;
+                            git_apply(&config.nvim, patch, vec!["--cached"]).await?;
                         }
                         Item::UnstagedBinayChange { file } => {
-                            git_stage_file(&state.nvim, file).await?;
+                            git_stage_file(&config.nvim, file).await?;
                         }
                         Item::UnstagedFileDeletion { file } => {
-                            git_stage_file(&state.nvim, file).await?;
+                            git_stage_file(&config.nvim, file).await?;
                         }
                         Item::UntrackedFile { file } => {
-                            git_stage_file(&state.nvim, file).await?;
+                            git_stage_file(&config.nvim, file).await?;
                         }
                         Item::ConflictedFile { .. } => {
                             // cannot be staged
@@ -303,16 +303,16 @@ impl ModeDef for GitDiff {
                     match item {
                         Item::StagedHunk { .. } => {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
-                            git_apply(&state.nvim, patch, vec!["--reverse", "--cached"]).await?;
+                            git_apply(&config.nvim, patch, vec!["--reverse", "--cached"]).await?;
                         }
                         Item::StagedBinayChange { file } => {
-                            git_unstage_file(&state.nvim, file).await?;
+                            git_unstage_file(&config.nvim, file).await?;
                         }
                         Item::StagedFileDeletion { file } => {
-                            git_unstage_file(&state.nvim, file).await?;
+                            git_unstage_file(&config.nvim, file).await?;
                         }
                         Item::AddedBinaryFile { file } => {
-                            git_unstage_file(&state.nvim, file).await?;
+                            git_unstage_file(&config.nvim, file).await?;
                         }
                         Item::UnstagedHunk { .. } => {
                             // already unstaged
@@ -334,35 +334,35 @@ impl ModeDef for GitDiff {
                 ExecOpts::StageFile => {
                     let item = Item::parse(&item)?;
                     let file = item.file();
-                    git_stage_file(&state.nvim, file).await?;
+                    git_stage_file(&config.nvim, file).await?;
                 }
                 ExecOpts::UnstageFile => {
                     let item = Item::parse(&item)?;
                     let file = item.file();
-                    git_unstage_file(&state.nvim, file).await?;
+                    git_unstage_file(&config.nvim, file).await?;
                 }
                 ExecOpts::Discard => {
                     let item = Item::parse(&item)?;
                     match item {
                         Item::StagedHunk { .. } => {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
-                            git_apply(&state.nvim, patch, vec!["--reverse", "--index"]).await?;
+                            git_apply(&config.nvim, patch, vec!["--reverse", "--index"]).await?;
                         }
                         Item::UnstagedHunk { .. } => {
                             let (_temp, patch) = self.save_patch_to_temp(&item)?;
-                            git_apply(&state.nvim, patch, vec!["--reverse"]).await?;
+                            git_apply(&config.nvim, patch, vec!["--reverse"]).await?;
                         }
                         Item::StagedBinayChange { .. } => {
-                            git_restore_file(&state.nvim, item.file(), Some("HEAD")).await?;
+                            git_restore_file(&config.nvim, item.file(), Some("HEAD")).await?;
                         }
                         Item::UnstagedBinayChange { .. } => {
-                            git_restore_file(&state.nvim, item.file(), None::<&str>).await?;
+                            git_restore_file(&config.nvim, item.file(), None::<&str>).await?;
                         }
                         Item::StagedFileDeletion { .. } => {
-                            git_restore_file(&state.nvim, item.file(), Some("HEAD")).await?;
+                            git_restore_file(&config.nvim, item.file(), Some("HEAD")).await?;
                         }
                         Item::UnstagedFileDeletion { .. } => {
-                            git_restore_file(&state.nvim, item.file(), None::<&str>).await?;
+                            git_restore_file(&config.nvim, item.file(), None::<&str>).await?;
                         }
                         Item::AddedBinaryFile { .. } => {
                             // TODO git rm?
@@ -376,8 +376,8 @@ impl ModeDef for GitDiff {
                     }
                 }
                 ExecOpts::Commit => {
-                    let _ = state.nvim.hide_floaterm().await;
-                    let nvim = state.nvim.clone();
+                    let _ = config.nvim.hide_floaterm().await;
+                    let nvim = config.nvim.clone();
                     tokio::spawn(async move {
                         let commit = Command::new("git")
                             .arg("commit")
@@ -412,7 +412,7 @@ impl ModeDef for GitDiff {
                         .stderr(std::process::Stdio::null())
                         .output()
                         .await?;
-                    state
+                    config
                         .nvim
                         .notify_command_result("git commit", output)
                         .await?;
@@ -426,7 +426,7 @@ impl ModeDef for GitDiff {
                         .stderr(std::process::Stdio::null())
                         .output()
                         .await?;
-                    state
+                    config
                         .nvim
                         .notify_command_result("git commit", output)
                         .await?;
@@ -446,7 +446,7 @@ impl ModeDef for GitDiff {
                         "git rebase --update-refs --autosquash --autostash -i {}^",
                         commit
                     );
-                    state
+                    config
                         .nvim
                         .notify_command_result("git rebase", output)
                         .await?;

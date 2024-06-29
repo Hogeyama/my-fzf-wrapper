@@ -2,12 +2,14 @@ use crate::mode;
 use crate::mode::MkMode;
 use crate::mode::Mode;
 use crate::mode::ModeDef;
+use crate::nvim::Neovim;
 
 pub struct Config {
     pub myself: String,
     pub socket: String,
     pub log_file: String,
     pub initial_mode: String,
+    pub nvim: Neovim,
     pub modes: Vec<(String, MkMode)>,
 }
 
@@ -31,11 +33,12 @@ impl Config {
     }
 }
 
-pub fn new(myself: String, socket: String, log_file: String) -> Config {
+pub fn new(myself: String, nvim: Neovim, socket: String, log_file: String) -> Config {
     let initial_mode = mode::menu::Menu.name().to_string();
     let modes = mode::all_modes();
     Config {
         myself,
+        nvim,
         socket,
         log_file,
         initial_mode,

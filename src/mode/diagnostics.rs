@@ -46,12 +46,12 @@ impl ModeDef for Diagnostics {
     }
     fn load<'a>(
         &'a mut self,
-        _config: &Config,
-        state: &'a mut State,
+        config: &Config,
+        _state: &'a mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
-        let nvim = state.nvim.clone();
+        let nvim = config.nvim.clone();
         Box::pin(async_stream::stream! {
             let mut diagnostics = DiagnosticsItem::gather(&nvim).await?;
             diagnostics.sort_by(|a, b| a.severity.0.cmp(&b.severity.0));
@@ -62,12 +62,12 @@ impl ModeDef for Diagnostics {
     }
     fn preview<'a>(
         &'a self,
-        _config: &Config,
-        state: &mut State,
+        config: &Config,
+        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {
-        let nvim = state.nvim.clone();
+        let nvim = config.nvim.clone();
         async move {
             let items = self.items.lock().await;
             let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
@@ -90,27 +90,27 @@ impl ModeDef for Diagnostics {
             b <= default_bindings(),
             "enter" => [{
                 let self_ = self.clone();
-                b.execute(move |_mode,_config,state,_query,item| {
+                b.execute(move |_mode,config,_state,_query,item| {
                     let self_ = self_.clone();
                     async move {
                         let items = self_.items.lock().await;
                         let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
                         let item = DiagnosticsItem::lookup(items, item.clone())?;
                         let opts = OpenOpts { tabedit: false };
-                        open(state, item, opts).await
+                        open(config, item, opts).await
                     }.boxed()
                 })
             }],
             "ctrl-t" => [{
                 let self_ = self.clone();
-                b.execute(move |_mode,_config,state,_query,item| {
+                b.execute(move |_mode,config,_state,_query,item| {
                     let self_ = self_.clone();
                     async move {
                         let items = self_.items.lock().await;
                         let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
                         let item = DiagnosticsItem::lookup(items, item.clone())?;
                         let opts = OpenOpts { tabedit: true };
-                        open(state, item, opts).await
+                        open(config, item, opts).await
                     }.boxed()
                 })
             }],
@@ -204,8 +204,8 @@ struct OpenOpts {
     tabedit: bool,
 }
 
-async fn open(state: &State, item: DiagnosticsItem, opts: OpenOpts) -> Result<()> {
-    let nvim = state.nvim.clone();
+async fn open(config: &Config, item: DiagnosticsItem, opts: OpenOpts) -> Result<()> {
+    let nvim = config.nvim.clone();
     let file = nvim.get_buf_name(item.bufnr as usize).await?;
     let opts = nvim::OpenOpts {
         line: Some(item.lnum as usize + 1),

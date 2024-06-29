@@ -1,16 +1,12 @@
 use crate::method::LoadResp;
-use crate::nvim::Neovim;
 
 pub struct State {
-    pub nvim: Neovim,
-
     pub last_load_resp: Option<LoadResp>,
 }
 
 impl State {
-    pub fn new(nvim: Neovim) -> Self {
+    pub fn new() -> Self {
         State {
-            nvim,
             last_load_resp: None,
         }
     }

@@ -112,8 +112,13 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     let socket = create_listener(&socket_name);
 
     let myself = args.fzfw_self.unwrap_or(get_program_path());
-    let config = config::new(myself.clone(), socket_name.clone(), args.fzfw_log_file);
-    let state = state::State::new(nvim);
+    let config = config::new(
+        myself.clone(),
+        nvim,
+        socket_name.clone(),
+        args.fzfw_log_file,
+    );
+    let state = state::State::new();
 
     server::server(config, state, socket)
         .await
