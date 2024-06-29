@@ -201,7 +201,7 @@ async fn handle_load_request(
         ..
     } = server_state;
 
-    let mut mode = mode.write().await;
+    let mode = mode.read().await;
     let mut state = state.write().await;
     let callbacks = callbacks.read().await;
 
@@ -219,7 +219,7 @@ async fn handle_load_request(
 
     state.last_load_resp = {
         let stream = callback(
-            mode.mode_def.as_mut(),
+            mode.mode_def.as_ref(),
             &config,
             &mut state,
             query,
@@ -326,7 +326,7 @@ async fn handle_execute_request(
         ..
     } = server_state;
 
-    let mut mode = mode.write().await;
+    let mode = mode.read().await;
     let mut state = state.write().await;
     let callbacks = callbacks.read().await;
 
@@ -342,7 +342,7 @@ async fn handle_execute_request(
         })
         .callback;
 
-    match callback(mode.mode_def.as_mut(), &config, &mut state, query, item).await {
+    match callback(mode.mode_def.as_ref(), &config, &mut state, query, item).await {
         Ok(_) => {}
         Err(e) => error!("server: execute error"; "error" => e.to_string()),
     }
