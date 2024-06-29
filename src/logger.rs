@@ -4,6 +4,7 @@ use std::path::Path;
 
 use slog::Drain;
 use slog::FnValue;
+use slog::Level;
 use slog::PushFnValue;
 use slog::Record;
 use slog_scope::GlobalLoggerGuard;
@@ -13,6 +14,21 @@ pub fn init(log_path: impl AsRef<Path>) -> Result<GlobalLoggerGuard, Box<dyn Err
         .create(true)
         .append(true)
         .open(log_path)?;
+
+    let log_level = match std::env::var("FZFW_LOG_LEVEL")
+        .unwrap_or_else(|_| "info".to_string())
+        .to_lowercase()
+        .as_str()
+    {
+        "trace" => Level::Trace,
+        "debug" => Level::Debug,
+        "info" => Level::Info,
+        "warning" => Level::Warning,
+        "error" => Level::Error,
+        "critical" => Level::Critical,
+        _ => Level::Info,
+    };
+
     let drain = slog_json::Json::new(file)
         .add_key_value(o!(
             "level"   => FnValue(move |r : &Record| {
@@ -29,7 +45,9 @@ pub fn init(log_path: impl AsRef<Path>) -> Result<GlobalLoggerGuard, Box<dyn Err
             }),
         ))
         .build()
+        .filter(move |record| record.level().is_at_least(log_level))
         .fuse();
+
     let drain = slog_async::Async::new(drain).build().fuse();
     let log = slog::Logger::root(drain, o!());
     let guard = slog_scope::set_global_logger(log);
