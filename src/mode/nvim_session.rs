@@ -29,13 +29,13 @@ impl ModeDef for NeovimSession {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,_config,state,_query,session|
+                select_and_execute!{b, |_mode,config,_state,_query,session|
                     "switch" => {
-                        session_command(&state.nvim, "read", session).await;
+                        session_command(&config.nvim, "read", session).await;
                         Ok(())
                     },
                     "delete" => {
-                        session_command(&state.nvim, "delete", session).await;
+                        session_command(&config.nvim, "delete", session).await;
                         Ok(())
                     },
                 }
@@ -43,7 +43,7 @@ impl ModeDef for NeovimSession {
         }
     }
     fn load(
-        &mut self,
+        &self,
         _config: &Config,
         _state: &mut State,
         _query: String,
@@ -61,7 +61,6 @@ impl ModeDef for NeovimSession {
     fn preview(
         &self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {

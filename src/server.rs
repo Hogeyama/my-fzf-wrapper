@@ -1,4 +1,3 @@
-use std::ops::DerefMut;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -20,6 +19,7 @@ use tokio::net::UnixListener;
 use tokio::net::UnixStream;
 use tokio::process::Child;
 use tokio::sync::Mutex;
+use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 use tokio::time::sleep;
 
@@ -49,15 +49,17 @@ pub async fn server(config: Config, state: State, listener: UnixListener) -> Res
 
     let config = Arc::new(config);
 
-    let server_state = Arc::new(Mutex::new(ServerState {
-        fzf: fzf::new(fzf_config)
-            .stdout(std::process::Stdio::piped())
-            .spawn()
-            .expect("Failed to spawn fzf"),
-        mode,
-        state,
-        callbacks,
-    }));
+    let server_state = ServerState {
+        fzf: Arc::new(RwLock::new(
+            fzf::new(fzf_config)
+                .stdout(std::process::Stdio::piped())
+                .spawn()
+                .expect("Failed to spawn fzf"),
+        )),
+        mode: Arc::new(RwLock::new(mode)),
+        state: Arc::new(RwLock::new(state)),
+        callbacks: Arc::new(RwLock::new(callbacks)),
+    };
     let current_load_task = Arc::new(Mutex::new(None));
 
     loop {
@@ -77,7 +79,7 @@ pub async fn server(config: Config, state: State, listener: UnixListener) -> Res
             }
             s = async {
                 sleep(Duration::from_millis(100)).await;
-                server_state.lock().await.fzf.try_wait()
+                server_state.fzf.write().await.try_wait()
             } => {
                 if let Ok(Some(_)) = s {
                     break; // fzf が死んだのでサーバーも終了
@@ -89,20 +91,20 @@ pub async fn server(config: Config, state: State, listener: UnixListener) -> Res
     Ok(())
 }
 
+// field order is the lock order
+#[derive(Clone)]
 struct ServerState {
-    fzf: Child,
-    mode: Mode,
-    state: State,
-    callbacks: mode::CallbackMap,
+    fzf: Arc<RwLock<Child>>,
+    mode: Arc<RwLock<Mode>>,
+    state: Arc<RwLock<State>>,
+    callbacks: Arc<RwLock<mode::CallbackMap>>,
 }
-
-type MutexServerState = Arc<Mutex<ServerState>>;
 
 type LoadTask = Arc<Mutex<Option<(JoinHandle<Result<(), Aborted>>, AbortHandle)>>>;
 
 async fn handle_one_client(
     config: Arc<Config>,
-    server_state: MutexServerState,
+    server_state: ServerState,
     current_load_task: LoadTask,
     unix_stream: UnixStream,
 ) -> Result<(), String> {
@@ -138,6 +140,9 @@ async fn handle_one_client(
             }
 
             Some(method::Request::Execute { params, method: _ }) => {
+                if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
+                    abort_handle.abort();
+                }
                 handle_execute_request(config, server_state, params, tx).await;
             }
 
@@ -145,16 +150,23 @@ async fn handle_one_client(
                 params: (),
                 method: _,
             }) => {
+                if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
+                    abort_handle.abort();
+                }
                 handle_get_last_load_request(server_state, tx).await;
             }
 
             Some(method::Request::ChangeMode { params, method: _ }) => {
+                if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
+                    abort_handle.abort();
+                }
                 handle_change_mode_request(config, server_state, params, tx).await;
             }
 
             Some(method::Request::ChangeDirectory { params, method: _ }) => {
-                handle_change_directory_request(server_state, params, tx).await;
+                handle_change_directory_request(config, params, tx).await;
             }
+
             _ => {
                 let mut tx = tx.lock().await;
                 (*tx)
@@ -172,23 +184,30 @@ async fn handle_one_client(
 
 async fn handle_load_request(
     config: Arc<Config>,
-    server_state: MutexServerState,
+    server_state: ServerState,
     params: LoadParam,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let mut s = server_state.lock().await;
-    let s = s.deref_mut();
-
     let LoadParam {
         registered_name,
         query,
         item,
     } = params;
 
-    let callback = &mut s
-        .callbacks
+    let ServerState {
+        mode,
+        state,
+        callbacks,
+        ..
+    } = server_state;
+
+    let mode = mode.read().await;
+    let mut state = state.write().await;
+    let callbacks = callbacks.read().await;
+
+    let callback = &callbacks
         .load
-        .get_mut(&registered_name)
+        .get(&registered_name)
         .unwrap_or_else(|| {
             error!("server: execute error";
                 "error" => "unknown callback",
@@ -198,11 +217,11 @@ async fn handle_load_request(
         })
         .callback;
 
-    s.state.last_load_resp = {
+    state.last_load_resp = {
         let stream = callback(
-            s.mode.mode_def.as_mut(),
+            mode.mode_def.as_ref(),
             &config,
-            &mut s.state,
+            &mut state,
             query,
             item.unwrap_or_default(),
         );
@@ -249,30 +268,35 @@ async fn send_load_stream(
 
 async fn handle_preview_request(
     config: Arc<Config>,
-    server_state: MutexServerState,
+    server_state: ServerState,
     params: method::PreviewParam,
     preview_window: fzf::PreviewWindow,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let mut s = server_state.lock().await;
-    let s = s.deref_mut();
-    let callback = &mut s
-        .callbacks
+    let ServerState {
+        mode, callbacks, ..
+    } = server_state;
+
+    let mode = mode.read().await;
+    let callbacks = callbacks.read().await;
+
+    let callback = &callbacks
         .preview
-        .get_mut("default")
+        .get("default")
         .unwrap_or_else(|| {
             panic!("unknown callback");
         })
         .callback;
+
     let resp = callback(
-        s.mode.mode_def.as_ref(),
+        mode.mode_def.as_ref(),
         &config,
-        &mut s.state,
         &preview_window,
         params.item,
     )
     .await
     .unwrap_or_else(PreviewResp::error);
+
     let mut tx = tx.lock().await;
     match send_response(method::Preview, &mut *tx, &resp).await {
         Ok(()) => trace!("server: preview done"),
@@ -285,22 +309,30 @@ async fn handle_preview_request(
 
 async fn handle_execute_request(
     config: Arc<Config>,
-    server_state: MutexServerState,
+    server_state: ServerState,
     params: method::ExecuteParam,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let mut s = server_state.lock().await;
-    let s = s.deref_mut();
     let ExecuteParam {
         registered_name,
         query,
         item,
     } = params;
 
-    let callback = &mut s
-        .callbacks
+    let ServerState {
+        mode,
+        state,
+        callbacks,
+        ..
+    } = server_state;
+
+    let mode = mode.read().await;
+    let mut state = state.write().await;
+    let callbacks = callbacks.read().await;
+
+    let callback = &callbacks
         .execute
-        .get_mut(&registered_name)
+        .get(&registered_name)
         .unwrap_or_else(|| {
             error!("server: execute error";
                 "error" => "unknown callback",
@@ -310,7 +342,7 @@ async fn handle_execute_request(
         })
         .callback;
 
-    match callback(s.mode.mode_def.as_mut(), &config, &mut s.state, query, item).await {
+    match callback(mode.mode_def.as_ref(), &config, &mut state, query, item).await {
         Ok(_) => {}
         Err(e) => error!("server: execute error"; "error" => e.to_string()),
     }
@@ -326,12 +358,14 @@ async fn handle_execute_request(
 // GetLastLoad
 
 async fn handle_get_last_load_request(
-    server_state: MutexServerState,
+    server_state: ServerState,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let s = server_state.lock().await;
+    let ServerState { state, .. } = server_state;
+    let state = state.read().await;
+
     let mut tx = tx.lock().await;
-    let resp = match &s.state.last_load_resp {
+    let resp = match &state.last_load_resp {
         Some(resp) => resp.clone(),
         None => method::LoadResp {
             header: Some("".to_string()),
@@ -350,7 +384,7 @@ async fn handle_get_last_load_request(
 
 async fn handle_change_mode_request(
     config: Arc<Config>,
-    server_state: MutexServerState,
+    server_state: ServerState,
     params: method::ChangeModeParam,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
@@ -359,8 +393,18 @@ async fn handle_change_mode_request(
         query,
     } = params;
 
-    let mut s = server_state.lock().await;
-    unsafe { libc::kill(s.fzf.id().unwrap() as i32, libc::SIGTERM) };
+    let ServerState {
+        mode,
+        callbacks,
+        fzf,
+        ..
+    } = server_state;
+
+    let mut fzf = fzf.write().await;
+    let mut mode = mode.write().await;
+    let mut callbacks = callbacks.write().await;
+
+    unsafe { libc::kill(fzf.id().unwrap() as i32, libc::SIGTERM) };
 
     let new_mode = config.get_mode(new_mode);
     let new_callback_map = new_mode.callbacks();
@@ -371,12 +415,12 @@ async fn handle_change_mode_request(
         initial_query: query.unwrap_or_default(),
     });
 
-    s.fzf = fzf::new(new_fzf_config)
+    *fzf = fzf::new(new_fzf_config)
         .stdout(std::process::Stdio::piped())
         .spawn()
         .expect("Failed to spawn fzf");
-    s.mode = new_mode;
-    s.callbacks = new_callback_map;
+    *mode = new_mode;
+    *callbacks = new_callback_map;
 
     let mut tx = tx.lock().await;
     match send_response(method::ChangeMode, &mut *tx, &()).await {
@@ -389,19 +433,17 @@ async fn handle_change_mode_request(
 // ChangeDirectory
 
 async fn handle_change_directory_request(
-    server_state: MutexServerState,
+    config: Arc<Config>,
     params: method::ChangeDirectoryParam,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let s = server_state.lock().await;
     let dir = match params {
         method::ChangeDirectoryParam::ToParent => {
             let mut dir = std::env::current_dir().unwrap();
             dir.pop();
             Ok(dir)
         }
-        method::ChangeDirectoryParam::ToLastFileDir => s
-            .state
+        method::ChangeDirectoryParam::ToLastFileDir => config
             .nvim
             .last_opened_file()
             .await

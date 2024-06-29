@@ -35,13 +35,13 @@ impl ModeDef for Bookmark {
         "bookmark"
     }
     fn load<'a>(
-        &'a mut self,
-        _config: &Config,
-        state: &mut State,
+        &'a self,
+        config: &Config,
+        _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
-        let nvim = state.nvim.clone();
+        let nvim = config.nvim.clone();
         Box::pin(async_stream::stream! {
             let bookmarks = get_bookmarks(&nvim).await?;
             let items = bookmarks.iter().map(|m| m.render()).collect();
@@ -51,7 +51,6 @@ impl ModeDef for Bookmark {
     fn preview<'a>(
         &'a self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {
@@ -68,17 +67,17 @@ impl ModeDef for Bookmark {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute_silent!(b, |_mode,_config,state,_query,item| {
+                execute_silent!(b, |_mode,config,_state,_query,item| {
                     let bookmark = BookmarkItem::parse(&item)?;
                     let opts = ExecOpts::Open { tabedit: false };
-                    open(bookmark, state, opts).await
+                    open(bookmark, config, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute_silent!(b, |_mode,_config,state,_query,item| {
+                execute_silent!(b, |_mode,config,_state,_query,item| {
                     let bookmark = BookmarkItem::parse(&item)?;
                     let opts = ExecOpts::Open { tabedit: true };
-                    open(bookmark, state, opts).await
+                    open(bookmark, config, opts).await
                 })
             ],
             "ctrl-y" => [
@@ -118,10 +117,10 @@ enum ExecOpts {
     Open { tabedit: bool },
 }
 
-async fn open(bookmark: BookmarkItem, state: &mut State, opts: ExecOpts) -> Result<()> {
+async fn open(bookmark: BookmarkItem, config: &Config, opts: ExecOpts) -> Result<()> {
     match opts {
         ExecOpts::Open { tabedit } => {
-            let nvim = state.nvim.clone();
+            let nvim = config.nvim.clone();
             let nvim_opts = nvim::OpenOpts {
                 line: Some(bookmark.line as usize),
                 tabedit,

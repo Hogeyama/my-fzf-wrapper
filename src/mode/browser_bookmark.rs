@@ -62,7 +62,7 @@ impl ModeDef for BrowserBookmark {
         "browser-bookmark"
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         _config: &'a Config,
         _state: &'a mut State,
         _query: String,
@@ -81,7 +81,6 @@ impl ModeDef for BrowserBookmark {
     fn preview(
         &self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {

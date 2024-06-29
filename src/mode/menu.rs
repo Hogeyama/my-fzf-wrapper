@@ -20,7 +20,7 @@ impl ModeDef for Menu {
         "menu"
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         config: &'a Config,
         _state: &'a mut State,
         _query: String,
@@ -39,7 +39,6 @@ impl ModeDef for Menu {
     fn preview(
         &self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {

@@ -46,7 +46,7 @@ impl ModeDef for BrowserHistory {
         "browser-history"
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         _config: &'a Config,
         _state: &'a mut State,
         _query: String,
@@ -75,7 +75,6 @@ impl ModeDef for BrowserHistory {
     fn preview(
         &self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {

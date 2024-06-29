@@ -54,7 +54,7 @@ impl ModeDef for ProcessCompose {
         "process-compose"
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         _config: &'a Config,
         _state: &'a mut State,
         _query: String,
@@ -78,7 +78,6 @@ impl ModeDef for ProcessCompose {
     fn preview<'a>(
         &self,
         _config: &Config,
-        _state: &mut State,
         win: &'a PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {

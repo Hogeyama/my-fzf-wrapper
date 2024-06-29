@@ -92,8 +92,8 @@ impl Mode {
         callback_map.preview.insert(
             "default".to_string(),
             PreviewCallback {
-                callback: Box::new(|mode_def, config, state, win, item| {
-                    mode_def.preview(config, state, win, item)
+                callback: Box::new(|mode_def, config, win, item| {
+                    mode_def.preview(config, win, item)
                 }),
             },
         );
@@ -148,7 +148,7 @@ pub trait ModeDef {
 
     /// Load items into fzf
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         config: &'a Config,
         state: &'a mut State,
         query: String,
@@ -159,7 +159,6 @@ pub trait ModeDef {
     fn preview<'a>(
         &'a self,
         config: &'a Config,
-        state: &'a mut State,
         win: &'a PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>>;
@@ -167,7 +166,7 @@ pub trait ModeDef {
     /// Execute the currently selected item
     /// (Optional. Intended to be used by the callback of fzf_bindings)
     fn execute<'a>(
-        &'a mut self,
+        &'a self,
         _config: &'a Config,
         _state: &'a mut State,
         _item: String,
@@ -202,8 +201,8 @@ impl CallbackMap {
 #[allow(clippy::type_complexity)]
 pub struct LoadCallback {
     pub callback: Box<
-        dyn for<'a> FnMut(
-                &'a mut (dyn ModeDef + Sync + Send),
+        dyn for<'a> Fn(
+                &'a (dyn ModeDef + Sync + Send),
                 &'a Config,
                 &'a mut State,
                 String,
@@ -217,10 +216,9 @@ pub struct LoadCallback {
 #[allow(clippy::type_complexity)]
 pub struct PreviewCallback {
     pub callback: Box<
-        dyn for<'a> FnMut(
+        dyn for<'a> Fn(
                 &'a (dyn ModeDef + Sync + Send),
                 &'a Config,
-                &'a mut State,
                 &'a PreviewWindow,
                 String,
             ) -> BoxFuture<'a, Result<PreviewResp>>
@@ -232,8 +230,8 @@ pub struct PreviewCallback {
 #[allow(clippy::type_complexity)]
 pub struct ExecuteCallback {
     pub callback: Box<
-        dyn for<'a> FnMut(
-                &'a mut (dyn ModeDef + Sync + Send),
+        dyn for<'a> Fn(
+                &'a (dyn ModeDef + Sync + Send),
                 &'a Config,
                 &'a mut State,
                 String,
@@ -268,8 +266,8 @@ pub mod config_builder {
 
         pub fn execute<F>(&mut self, callback: F) -> fzf::Action
         where
-            for<'a> F: FnMut(
-                    &'a mut (dyn ModeDef + Sync + Send),
+            for<'a> F: Fn(
+                    &'a (dyn ModeDef + Sync + Send),
                     &'a Config,
                     &'a mut State,
                     String,
@@ -289,8 +287,8 @@ pub mod config_builder {
 
         pub fn execute_silent<F>(&mut self, callback: F) -> fzf::Action
         where
-            for<'a> F: FnMut(
-                    &'a mut (dyn ModeDef + Sync + Send),
+            for<'a> F: Fn(
+                    &'a (dyn ModeDef + Sync + Send),
                     &'a Config,
                     &'a mut State,
                     String,
@@ -314,8 +312,8 @@ pub mod config_builder {
 
         pub fn reload_with<F>(&mut self, callback: F) -> fzf::Action
         where
-            for<'a> F: FnMut(
-                    &'a mut (dyn ModeDef + Sync + Send),
+            for<'a> F: Fn(
+                    &'a (dyn ModeDef + Sync + Send),
                     &'a Config,
                     &'a mut State,
                     String,

@@ -1,5 +1,6 @@
 use std::collections::HashMap;
 use std::collections::HashSet;
+use std::sync::Arc;
 
 use anyhow::anyhow;
 use anyhow::Result;
@@ -15,6 +16,7 @@ use serde_json::to_value;
 use std::io::Write;
 use tempfile::NamedTempFile;
 use tokio::process::Command;
+use tokio::sync::RwLock;
 
 use crate::config::Config;
 use crate::method::LoadResp;
@@ -33,8 +35,8 @@ use crate::utils::git;
 
 #[derive(Clone)]
 pub struct GitDiff {
-    files: HashSet<String>,
-    hunks: HashMap<Item, Hunk>,
+    files: Arc<RwLock<HashSet<String>>>,
+    hunks: Arc<RwLock<HashMap<Item, Hunk>>>,
 }
 
 #[derive(Clone)]
@@ -47,22 +49,28 @@ struct Hunk {
 impl GitDiff {
     pub fn new() -> Self {
         GitDiff {
-            files: HashSet::new(),
-            hunks: HashMap::new(),
+            files: Arc::new(RwLock::new(HashSet::new())),
+            hunks: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    pub fn clear(&mut self) {
-        self.hunks.clear();
+    pub async fn clear(&self) {
+        self.hunks.write().await.clear();
     }
 
-    fn hunk_of_item(&self, item: &Item) -> Result<Hunk> {
-        let hunk = self.hunks.get(item).ok_or(anyhow!("wow"))?.clone();
+    async fn hunk_of_item(&self, item: &Item) -> Result<Hunk> {
+        let hunk = self
+            .hunks
+            .read()
+            .await
+            .get(item)
+            .ok_or(anyhow!("wow"))?
+            .clone();
         Ok(hunk)
     }
 
-    fn save_patch_to_temp(&self, item: &Item) -> Result<(NamedTempFile, String)> {
-        let hunk = self.hunk_of_item(item)?;
+    async fn save_patch_to_temp(&self, item: &Item) -> Result<(NamedTempFile, String)> {
+        let hunk = self.hunk_of_item(item).await?;
         let mut temp = NamedTempFile::new()?;
         temp.write_all(&hunk.patch)?;
         let path = temp.path().to_str().unwrap().to_string();
@@ -75,16 +83,18 @@ impl ModeDef for GitDiff {
         "git-diff"
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         _config: &Config,
         _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
-            self.clear();
+            self.clear().await;
 
             let mut items = vec![];
+            let mut files = self.files.write().await;
+            let mut hunks = self.hunks.write().await;
 
             for hunk in git_diff()? {
                 let target_start = hunk.target_start;
@@ -92,8 +102,8 @@ impl ModeDef for GitDiff {
                     file: hunk.new_file.clone(),
                     target_start,
                 };
-                self.files.insert(hunk.new_file.clone());
-                self.hunks.insert(item.clone(), hunk);
+                files.insert(hunk.new_file.clone());
+                hunks.insert(item.clone(), hunk);
                 items.push(item.render());
             }
 
@@ -103,19 +113,19 @@ impl ModeDef for GitDiff {
                     file: hunk.new_file.clone(),
                     target_start,
                 };
-                self.files.insert(hunk.new_file.clone());
-                self.hunks.insert(item.clone(), hunk);
+                files.insert(hunk.new_file.clone());
+                hunks.insert(item.clone(), hunk);
                 items.push(item.render());
             }
 
             git::workingtree_modified_files()?
                 .into_iter()
-                .filter(|s| !self.files.contains(s))
+                .filter(|s| !files.contains(s))
                 .map(|s| Item::UnstagedBinayChange { file: s })
                 .for_each(|item| items.push(item.render()));
             git::index_modified_files()?
                 .into_iter()
-                .filter(|s| !self.files.contains(s))
+                .filter(|s| !files.contains(s))
                 .map(|s| Item::StagedBinayChange { file: s })
                 .for_each(|item| items.push(item.render()));
             git::workingtree_deleted_files()?
@@ -128,7 +138,7 @@ impl ModeDef for GitDiff {
                 .for_each(|item| items.push(item.render()));
             git::index_new_files()?
                 .into_iter()
-                .filter(|s| !self.files.contains(s))
+                .filter(|s| !files.contains(s))
                 .map(|s| Item::AddedBinaryFile { file: s })
                 .for_each(|item| items.push(item.render()));
             git::untracked_files()?
@@ -146,7 +156,6 @@ impl ModeDef for GitDiff {
     fn preview<'a>(
         &'a self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {
@@ -154,12 +163,12 @@ impl ModeDef for GitDiff {
             let item = Item::parse(&item)?;
             match item {
                 Item::StagedHunk { .. } => {
-                    let hunk = self.hunk_of_item(&item)?;
+                    let hunk = self.hunk_of_item(&item).await?;
                     let message = hunk.colorize();
                     Ok(PreviewResp { message })
                 }
                 Item::UnstagedHunk { .. } => {
-                    let hunk = self.hunk_of_item(&item)?;
+                    let hunk = self.hunk_of_item(&item).await?;
                     let message = hunk.colorize();
                     Ok(PreviewResp { message })
                 }
@@ -198,9 +207,9 @@ impl ModeDef for GitDiff {
         .boxed()
     }
     fn execute<'a>(
-        &'a mut self,
-        _config: &Config,
-        state: &'a mut State,
+        &'a self,
+        config: &'a Config,
+        _state: &'a mut State,
         item: String,
         args: serde_json::Value,
     ) -> BoxFuture<'a, Result<()>> {
@@ -222,7 +231,7 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            state.nvim.open(file.into(), nvim_opts).await?;
+                            config.nvim.open(file.into(), nvim_opts).await?;
                         }
                         Item::UnstagedHunk { file, target_start } => {
                             let file = format!("{root}/{file}");
@@ -230,7 +239,7 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            state.nvim.open(file.into(), nvim_opts).await?;
+                            config.nvim.open(file.into(), nvim_opts).await?;
                         }
                         Item::StagedBinayChange { .. } => {
                             // can't open binary file
@@ -253,7 +262,7 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            state.nvim.open(file.into(), nvim_opts).await?;
+                            config.nvim.open(file.into(), nvim_opts).await?;
                         }
                         Item::ConflictedFile { file } => {
                             let file = format!("{root}/{file}");
@@ -261,7 +270,7 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            state.nvim.open(file.into(), nvim_opts).await?;
+                            config.nvim.open(file.into(), nvim_opts).await?;
                         }
                     }
                 }
@@ -281,17 +290,17 @@ impl ModeDef for GitDiff {
                             // already staged
                         }
                         Item::UnstagedHunk { .. } => {
-                            let (_temp, patch) = self.save_patch_to_temp(&item)?;
-                            git_apply(&state.nvim, patch, vec!["--cached"]).await?;
+                            let (_temp, patch) = self.save_patch_to_temp(&item).await?;
+                            git_apply(&config.nvim, patch, vec!["--cached"]).await?;
                         }
                         Item::UnstagedBinayChange { file } => {
-                            git_stage_file(&state.nvim, file).await?;
+                            git_stage_file(&config.nvim, file).await?;
                         }
                         Item::UnstagedFileDeletion { file } => {
-                            git_stage_file(&state.nvim, file).await?;
+                            git_stage_file(&config.nvim, file).await?;
                         }
                         Item::UntrackedFile { file } => {
-                            git_stage_file(&state.nvim, file).await?;
+                            git_stage_file(&config.nvim, file).await?;
                         }
                         Item::ConflictedFile { .. } => {
                             // cannot be staged
@@ -302,17 +311,17 @@ impl ModeDef for GitDiff {
                     let item = Item::parse(&item)?;
                     match item {
                         Item::StagedHunk { .. } => {
-                            let (_temp, patch) = self.save_patch_to_temp(&item)?;
-                            git_apply(&state.nvim, patch, vec!["--reverse", "--cached"]).await?;
+                            let (_temp, patch) = self.save_patch_to_temp(&item).await?;
+                            git_apply(&config.nvim, patch, vec!["--reverse", "--cached"]).await?;
                         }
                         Item::StagedBinayChange { file } => {
-                            git_unstage_file(&state.nvim, file).await?;
+                            git_unstage_file(&config.nvim, file).await?;
                         }
                         Item::StagedFileDeletion { file } => {
-                            git_unstage_file(&state.nvim, file).await?;
+                            git_unstage_file(&config.nvim, file).await?;
                         }
                         Item::AddedBinaryFile { file } => {
-                            git_unstage_file(&state.nvim, file).await?;
+                            git_unstage_file(&config.nvim, file).await?;
                         }
                         Item::UnstagedHunk { .. } => {
                             // already unstaged
@@ -334,35 +343,35 @@ impl ModeDef for GitDiff {
                 ExecOpts::StageFile => {
                     let item = Item::parse(&item)?;
                     let file = item.file();
-                    git_stage_file(&state.nvim, file).await?;
+                    git_stage_file(&config.nvim, file).await?;
                 }
                 ExecOpts::UnstageFile => {
                     let item = Item::parse(&item)?;
                     let file = item.file();
-                    git_unstage_file(&state.nvim, file).await?;
+                    git_unstage_file(&config.nvim, file).await?;
                 }
                 ExecOpts::Discard => {
                     let item = Item::parse(&item)?;
                     match item {
                         Item::StagedHunk { .. } => {
-                            let (_temp, patch) = self.save_patch_to_temp(&item)?;
-                            git_apply(&state.nvim, patch, vec!["--reverse", "--index"]).await?;
+                            let (_temp, patch) = self.save_patch_to_temp(&item).await?;
+                            git_apply(&config.nvim, patch, vec!["--reverse", "--index"]).await?;
                         }
                         Item::UnstagedHunk { .. } => {
-                            let (_temp, patch) = self.save_patch_to_temp(&item)?;
-                            git_apply(&state.nvim, patch, vec!["--reverse"]).await?;
+                            let (_temp, patch) = self.save_patch_to_temp(&item).await?;
+                            git_apply(&config.nvim, patch, vec!["--reverse"]).await?;
                         }
                         Item::StagedBinayChange { .. } => {
-                            git_restore_file(&state.nvim, item.file(), Some("HEAD")).await?;
+                            git_restore_file(&config.nvim, item.file(), Some("HEAD")).await?;
                         }
                         Item::UnstagedBinayChange { .. } => {
-                            git_restore_file(&state.nvim, item.file(), None::<&str>).await?;
+                            git_restore_file(&config.nvim, item.file(), None::<&str>).await?;
                         }
                         Item::StagedFileDeletion { .. } => {
-                            git_restore_file(&state.nvim, item.file(), Some("HEAD")).await?;
+                            git_restore_file(&config.nvim, item.file(), Some("HEAD")).await?;
                         }
                         Item::UnstagedFileDeletion { .. } => {
-                            git_restore_file(&state.nvim, item.file(), None::<&str>).await?;
+                            git_restore_file(&config.nvim, item.file(), None::<&str>).await?;
                         }
                         Item::AddedBinaryFile { .. } => {
                             // TODO git rm?
@@ -376,8 +385,8 @@ impl ModeDef for GitDiff {
                     }
                 }
                 ExecOpts::Commit => {
-                    let _ = state.nvim.hide_floaterm().await;
-                    let nvim = state.nvim.clone();
+                    let _ = config.nvim.hide_floaterm().await;
+                    let nvim = config.nvim.clone();
                     tokio::spawn(async move {
                         let commit = Command::new("git")
                             .arg("commit")
@@ -412,7 +421,7 @@ impl ModeDef for GitDiff {
                         .stderr(std::process::Stdio::null())
                         .output()
                         .await?;
-                    state
+                    config
                         .nvim
                         .notify_command_result("git commit", output)
                         .await?;
@@ -426,7 +435,7 @@ impl ModeDef for GitDiff {
                         .stderr(std::process::Stdio::null())
                         .output()
                         .await?;
-                    state
+                    config
                         .nvim
                         .notify_command_result("git commit", output)
                         .await?;
@@ -446,7 +455,7 @@ impl ModeDef for GitDiff {
                         "git rebase --update-refs --autosquash --autostash -i {}^",
                         commit
                     );
-                    state
+                    config
                         .nvim
                         .notify_command_result("git rebase", output)
                         .await?;

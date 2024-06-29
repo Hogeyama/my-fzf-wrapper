@@ -53,13 +53,13 @@ impl ModeDef for Visits {
         }
     }
     fn load(
-        &mut self,
-        _config: &Config,
-        state: &mut State,
+        &self,
+        config: &Config,
+        _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
-        let nvim = state.nvim.clone();
+        let nvim = config.nvim.clone();
         let kind = self.kind;
         Box::pin(async_stream::stream! {
             let mru_items = get_visits(&nvim, kind).await?;
@@ -69,7 +69,6 @@ impl ModeDef for Visits {
     fn preview(
         &self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -92,15 +91,15 @@ impl ModeDef for Visits {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts { tabedit: false };
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,_config,state,_query,item| {
+                execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts { tabedit: true };
-                    open(state, item, opts).await
+                    open(config, item, opts).await
                 })
             ],
             "ctrl-y" => [
@@ -110,8 +109,8 @@ impl ModeDef for Visits {
                 })
             ],
             "ctrl-x" => [
-                execute_silent!(b, |_mode,_config,state,_query,item| {
-                    state.nvim.eval_lua(
+                execute_silent!(b, |_mode,config,_state,_query,item| {
+                    config.nvim.eval_lua(
                         format!("require'mini.visits'.remove_path('{}')", item)
                     ).await?;
                     Ok(())
@@ -119,11 +118,11 @@ impl ModeDef for Visits {
                 b.reload(),
             ],
             "ctrl-space" => [
-                select_and_execute!{b, |_mode,_config,state,_query,item|
+                select_and_execute!{b, |_mode,config,_state,_query,item|
                     "execute any command" => {
                         let (cmd, output) = edit_and_run(format!(" {item}"))
                             .await?;
-                        state.nvim.notify_command_result(&cmd, output)
+                        config.nvim.notify_command_result(&cmd, output)
                             .await?;
                         Ok(())
                     },
@@ -165,9 +164,9 @@ struct OpenOpts {
     tabedit: bool,
 }
 
-async fn open(state: &mut State, item: String, opts: OpenOpts) -> Result<()> {
+async fn open(config: &Config, item: String, opts: OpenOpts) -> Result<()> {
     let OpenOpts { tabedit } = opts;
-    let nvim = state.nvim.clone();
+    let nvim = config.nvim.clone();
     let nvim_opts = nvim::OpenOpts {
         line: None,
         tabedit,

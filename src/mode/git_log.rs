@@ -32,7 +32,7 @@ impl ModeDef for GitLog {
         }
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         _config: &'a Config,
         _state: &'a mut State,
         _query: String,
@@ -51,7 +51,6 @@ impl ModeDef for GitLog {
     fn preview(
         &self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -110,15 +109,15 @@ impl ModeDef for GitLog {
                 }}
             ],
             "enter" => [
-                select_and_execute!{b, |_mode,_config,state,_query,item|
+                select_and_execute!{b, |_mode,config,_state,_query,item|
                     "diffview" => {
-                        let _ = state.nvim.hide_floaterm().await;
-                        state.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))
+                        let _ = config.nvim.hide_floaterm().await;
+                        config.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))
                             .await?;
                         Ok(())
                     },
                     "interactive rebase" => {
-                        let _ = state.nvim.hide_floaterm().await;
+                        let _ = config.nvim.hide_floaterm().await;
                         let commit = git::parse_short_commit(&item)?;
                         let output = Command::new("git")
                             .arg("rebase")
@@ -128,7 +127,7 @@ impl ModeDef for GitLog {
                             .arg(commit)
                             .output()
                             .await?;
-                        state.nvim.notify_command_result("git rebase", output)
+                        config.nvim.notify_command_result("git rebase", output)
                             .await
                     },
                     "reset" => {
@@ -137,7 +136,7 @@ impl ModeDef for GitLog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        state.nvim.notify_command_result("git reset", output)
+                        config.nvim.notify_command_result("git reset", output)
                             .await
                     },
                     "reset --hard" => {
@@ -147,14 +146,14 @@ impl ModeDef for GitLog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        state.nvim.notify_command_result("git reset", output)
+                        config.nvim.notify_command_result("git reset", output)
                             .await
                     },
                     "push to remote" => {
-                        push_to_remote(&state.nvim, &item, false).await
+                        push_to_remote(&config.nvim, &item, false).await
                     },
                     "push to remote (force)" => {
-                        push_to_remote(&state.nvim, &item, true).await
+                        push_to_remote(&config.nvim, &item, true).await
                     },
                     "revert" => {
                         let output = Command::new("git")
@@ -162,7 +161,7 @@ impl ModeDef for GitLog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        state.nvim.notify_command_result("git revert", output)
+                        config.nvim.notify_command_result("git revert", output)
                             .await
                     },
                     "new branch" => {
@@ -173,7 +172,7 @@ impl ModeDef for GitLog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        state.nvim.notify_command_result("git branch", output)
+                        config.nvim.notify_command_result("git branch", output)
                             .await
                     },
                     "switch-detached" => {
@@ -183,7 +182,7 @@ impl ModeDef for GitLog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        state.nvim.notify_command_result("git switch --detach", output)
+                        config.nvim.notify_command_result("git switch --detach", output)
                             .await?;
                         Ok(())
                     },

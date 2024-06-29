@@ -46,13 +46,13 @@ impl ModeDef for Mark {
         "mark"
     }
     fn load<'a>(
-        &'a mut self,
-        _config: &Config,
-        state: &mut State,
+        &'a self,
+        config: &Config,
+        _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
-        let nvim = state.nvim.clone();
+        let nvim = config.nvim.clone();
         Box::pin(async_stream::stream! {
             let marks = get_nvim_marks(&nvim).await?;
             let items = marks.iter().map(|m| m.render()).collect();
@@ -66,7 +66,6 @@ impl ModeDef for Mark {
     fn preview<'a>(
         &'a self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {
@@ -90,7 +89,7 @@ impl ModeDef for Mark {
             b <= default_bindings(),
             "enter" => [{
                 let self_ = self.clone();
-                b.execute(move |_mode,_config,state,_query,item| {
+                b.execute(move |_mode,config,_state,_query,item| {
                     // https://github.com/rust-lang/rust/issues/68119#issuecomment-1293231676
                     // TODO よく分かってない
                     let self_ = self_.clone();
@@ -99,20 +98,20 @@ impl ModeDef for Mark {
                         let mark = MarkItem::lookup(&marks, &item)
                             .ok_or(anyhow!("invalid item"))?;
                         let opts = ExecOpts::Open { tabedit: false };
-                        exec(mark, state, opts).await
+                        exec(mark, config, opts).await
                     }.boxed()
                 })
             }],
             "ctrl-t" => [{
                 let self_ = self.clone();
-                b.execute(move |_mode,_config,state,_query,item| {
+                b.execute(move |_mode,config,_state,_query,item| {
                     let self_ = self_.clone();
                     async move {
                         let marks = self_.marks.lock().await.clone().ok_or(anyhow!("marks not loaded"))?;
                         let mark = MarkItem::lookup(&marks, &item)
                             .ok_or(anyhow!("invalid item"))?;
                         let opts = ExecOpts::Open { tabedit: true };
-                        exec(mark, state, opts).await
+                        exec(mark, config, opts).await
                     }.boxed()
                 })
             }],
@@ -144,10 +143,10 @@ enum ExecOpts {
     Open { tabedit: bool },
 }
 
-async fn exec(mark: MarkItem, state: &mut State, opts: ExecOpts) -> Result<()> {
+async fn exec(mark: MarkItem, config: &Config, opts: ExecOpts) -> Result<()> {
     match opts {
         ExecOpts::Open { tabedit } => {
-            let nvim = state.nvim.clone();
+            let nvim = config.nvim.clone();
             let nvim_opts = nvim::OpenOpts {
                 line: Some(mark.line as usize),
                 tabedit,

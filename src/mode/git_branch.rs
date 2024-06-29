@@ -26,7 +26,7 @@ impl ModeDef for GitBranch {
         "git-branch"
     }
     fn load(
-        &mut self,
+        &self,
         _config: &Config,
         _state: &mut State,
         _query: String,
@@ -50,7 +50,6 @@ impl ModeDef for GitBranch {
     fn preview(
         &self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         branch: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -66,12 +65,12 @@ impl ModeDef for GitBranch {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,_config,state,_query,branch|
+                select_and_execute!{b, |_mode,config,_state,_query,branch|
                     "push" => {
-                        push_branch_to_remote(&state.nvim, branch, false).await
+                        push_branch_to_remote(&config.nvim, branch, false).await
                     },
                     "push -f" => {
-                        push_branch_to_remote(&state.nvim, branch, true).await
+                        push_branch_to_remote(&config.nvim, branch, true).await
                     },
                     "switch" => {
                         let _ = Command::new("git")
@@ -97,17 +96,17 @@ impl ModeDef for GitBranch {
                             .arg(commit.clone())
                             .output()
                             .await?;
-                        state.nvim.notify_command_result(
+                        config.nvim.notify_command_result(
                             format!("git branch {branch} {commit}"),
                             output,
                         )
                         .await
                     },
                     "delete" => {
-                        delete_branch(&state.nvim, branch, false).await
+                        delete_branch(&config.nvim, branch, false).await
                     },
                     "delete -f" => {
-                        delete_branch(&state.nvim, branch, true).await
+                        delete_branch(&config.nvim, branch, true).await
                     },
                 },
                 b.reload(),
@@ -119,8 +118,8 @@ impl ModeDef for GitBranch {
                 }),
             ],
             "ctrl-p" => [
-                execute!(b, |_mode,_config,state,_query,branch| {
-                    push_branch_to_remote(&state.nvim, branch, true).await
+                execute!(b, |_mode,config,_state,_query,branch| {
+                    push_branch_to_remote(&config.nvim, branch, true).await
                 }),
             ],
         }
