@@ -35,7 +35,7 @@ impl ModeDef for Bookmark {
         "bookmark"
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         config: &Config,
         _state: &mut State,
         _query: String,

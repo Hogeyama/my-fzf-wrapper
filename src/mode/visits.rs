@@ -53,7 +53,7 @@ impl ModeDef for Visits {
         }
     }
     fn load(
-        &mut self,
+        &self,
         config: &Config,
         _state: &mut State,
         _query: String,

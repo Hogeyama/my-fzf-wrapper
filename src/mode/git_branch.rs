@@ -26,7 +26,7 @@ impl ModeDef for GitBranch {
         "git-branch"
     }
     fn load(
-        &mut self,
+        &self,
         _config: &Config,
         _state: &mut State,
         _query: String,

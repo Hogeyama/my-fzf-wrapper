@@ -62,7 +62,7 @@ impl ModeDef for BrowserBookmark {
         "browser-bookmark"
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         _config: &'a Config,
         _state: &'a mut State,
         _query: String,

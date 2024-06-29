@@ -23,7 +23,7 @@ impl ModeDef for GitReflog {
         "git-reflog"
     }
     fn load(
-        &mut self,
+        &self,
         _config: &Config,
         _state: &mut State,
         _query: String,

@@ -148,7 +148,7 @@ pub trait ModeDef {
 
     /// Load items into fzf
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         config: &'a Config,
         state: &'a mut State,
         query: String,
@@ -166,7 +166,7 @@ pub trait ModeDef {
     /// Execute the currently selected item
     /// (Optional. Intended to be used by the callback of fzf_bindings)
     fn execute<'a>(
-        &'a mut self,
+        &'a self,
         _config: &'a Config,
         _state: &'a mut State,
         _item: String,
@@ -202,7 +202,7 @@ impl CallbackMap {
 pub struct LoadCallback {
     pub callback: Box<
         dyn for<'a> Fn(
-                &'a mut (dyn ModeDef + Sync + Send),
+                &'a (dyn ModeDef + Sync + Send),
                 &'a Config,
                 &'a mut State,
                 String,
@@ -231,7 +231,7 @@ pub struct PreviewCallback {
 pub struct ExecuteCallback {
     pub callback: Box<
         dyn for<'a> Fn(
-                &'a mut (dyn ModeDef + Sync + Send),
+                &'a (dyn ModeDef + Sync + Send),
                 &'a Config,
                 &'a mut State,
                 String,
@@ -267,7 +267,7 @@ pub mod config_builder {
         pub fn execute<F>(&mut self, callback: F) -> fzf::Action
         where
             for<'a> F: Fn(
-                    &'a mut (dyn ModeDef + Sync + Send),
+                    &'a (dyn ModeDef + Sync + Send),
                     &'a Config,
                     &'a mut State,
                     String,
@@ -288,7 +288,7 @@ pub mod config_builder {
         pub fn execute_silent<F>(&mut self, callback: F) -> fzf::Action
         where
             for<'a> F: Fn(
-                    &'a mut (dyn ModeDef + Sync + Send),
+                    &'a (dyn ModeDef + Sync + Send),
                     &'a Config,
                     &'a mut State,
                     String,
@@ -313,7 +313,7 @@ pub mod config_builder {
         pub fn reload_with<F>(&mut self, callback: F) -> fzf::Action
         where
             for<'a> F: Fn(
-                    &'a mut (dyn ModeDef + Sync + Send),
+                    &'a (dyn ModeDef + Sync + Send),
                     &'a Config,
                     &'a mut State,
                     String,

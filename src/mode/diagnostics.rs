@@ -45,7 +45,7 @@ impl ModeDef for Diagnostics {
         "diagnostics"
     }
     fn load<'a>(
-        &'a mut self,
+        &'a self,
         config: &Config,
         _state: &'a mut State,
         _query: String,

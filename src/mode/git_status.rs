@@ -26,7 +26,7 @@ impl ModeDef for GitStatus {
         "git-status"
     }
     fn load(
-        &mut self,
+        &self,
         _config: &Config,
         _state: &mut State,
         _query: String,
