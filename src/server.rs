@@ -14,6 +14,7 @@ use serde_json::json;
 use tokio::io::AsyncBufReadExt;
 use tokio::io::AsyncWriteExt;
 use tokio::io::BufReader;
+use tokio::io::WriteHalf;
 use tokio::net::UnixListener;
 use tokio::net::UnixStream;
 use tokio::process::Child;
@@ -115,245 +116,43 @@ async fn handle_one_client(
             "request" => Serde(json!({ "raw": &line, "parsed": &req })),
         );
         match req {
-            Some(method::Request::Load { method, params }) => {
+            Some(method::Request::Load { params, method: _ }) => {
                 if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
                     abort_handle.abort();
                 }
-
                 let (abort_handle, abort_registration) = AbortHandle::new_pair();
                 let handle = tokio::spawn(Abortable::new(
-                    async move {
-                        let mut s = server_state.lock().await;
-                        let s = s.deref_mut();
-
-                        let LoadParam {
-                            registered_name,
-                            query,
-                            item,
-                        } = params;
-
-                        let callback = &mut s
-                            .callbacks
-                            .load
-                            .get_mut(&registered_name)
-                            .unwrap_or_else(|| {
-                                error!("server: execute error";
-                                    "error" => "unknown callback",
-                                    "registered_name" => registered_name
-                                );
-                                panic!("unknown callback");
-                            })
-                            .callback;
-
-                        let mut header = None;
-                        let mut items = vec![];
-                        {
-                            let mut stream = callback(
-                                s.mode.mode_def.as_mut(),
-                                &config,
-                                &mut s.state,
-                                query,
-                                item.unwrap_or_default(),
-                            );
-                            while let Some(resp) = stream.next().await {
-                                let resp = match resp {
-                                    Ok(resp) => resp,
-                                    Err(e) => LoadResp::error(e),
-                                };
-                                header = header.or_else(|| resp.header.clone());
-                                items.extend(resp.items.clone());
-                                let is_last = resp.is_last;
-                                let mut tx = tx.lock().await;
-                                match send_response(&mut *tx, method, resp).await {
-                                    Ok(()) => trace!("server: load done"),
-                                    Err(e) => {
-                                        if e.kind() == std::io::ErrorKind::BrokenPipe {
-                                            error!("server: broken pipe";);
-                                            break;
-                                        }
-                                        error!("server: load error"; "error" => e);
-                                    }
-                                }
-                                if is_last {
-                                    break;
-                                }
-                            }
-                        }
-                        s.state.last_load_resp = Some(LoadResp {
-                            header,
-                            items,
-                            is_last: true,
-                        });
-                    },
+                    handle_load_request(config, server_state, params, tx),
                     abort_registration,
                 ));
-
                 *(current_load_task.lock().await) = Some((handle, abort_handle));
             }
 
             Some(method::Request::Preview {
-                method,
                 params,
                 preview_window,
+                method: _,
             }) => {
-                let mut s = server_state.lock().await;
-                let s = s.deref_mut();
-                let callback = &mut s
-                    .callbacks
-                    .preview
-                    .get_mut("default")
-                    .unwrap_or_else(|| {
-                        panic!("unknown callback");
-                    })
-                    .callback;
-                let resp = callback(
-                    s.mode.mode_def.as_ref(),
-                    &config,
-                    &mut s.state,
-                    &preview_window,
-                    params.item,
-                )
-                .await
-                .unwrap_or_else(PreviewResp::error);
-                let mut tx = tx.lock().await;
-                match send_response(&mut *tx, method, resp).await {
-                    Ok(()) => trace!("server: preview done"),
-                    Err(e) => error!("server: preview error"; "error" => e),
-                }
+                handle_preview_request(config, server_state, params, preview_window, tx).await;
             }
 
-            Some(method::Request::Execute { method, params }) => {
-                let mut s = server_state.lock().await;
-                let s = s.deref_mut();
-                let ExecuteParam {
-                    registered_name,
-                    query,
-                    item,
-                } = params;
-
-                let callback = &mut s
-                    .callbacks
-                    .execute
-                    .get_mut(&registered_name)
-                    .unwrap_or_else(|| {
-                        error!("server: execute error";
-                            "error" => "unknown callback",
-                            "registered_name" => registered_name
-                        );
-                        panic!("unknown callback");
-                    })
-                    .callback;
-
-                match callback(s.mode.mode_def.as_mut(), &config, &mut s.state, query, item).await {
-                    Ok(_) => {}
-                    Err(e) => error!("server: execute error"; "error" => e.to_string()),
-                }
-
-                let mut tx = tx.lock().await;
-                match send_response(&mut *tx, method, ()).await {
-                    Ok(()) => info!("server: execute done"),
-                    Err(e) => error!("server: execute error"; "error" => e),
-                }
+            Some(method::Request::Execute { params, method: _ }) => {
+                handle_execute_request(config, server_state, params, tx).await;
             }
 
-            Some(method::Request::GetLastLoad { method, params: () }) => {
-                let s = server_state.lock().await;
-                let mut tx = tx.lock().await;
-                let resp = match &s.state.last_load_resp {
-                    Some(resp) => resp.clone(),
-                    None => method::LoadResp {
-                        header: Some("".to_string()),
-                        items: vec![],
-                        is_last: true,
-                    },
-                };
-                match send_response(&mut *tx, method, resp).await {
-                    Ok(()) => trace!("server: get-last-load done"),
-                    Err(e) => error!("server: get-last-load error"; "error" => e),
-                }
+            Some(method::Request::GetLastLoad {
+                params: (),
+                method: _,
+            }) => {
+                handle_get_last_load_request(server_state, tx).await;
             }
 
-            Some(method::Request::ChangeMode { method, params }) => {
-                let method::ChangeModeParam {
-                    mode: new_mode,
-                    query,
-                } = params;
-                let mut s = server_state.lock().await;
-                unsafe { libc::kill(s.fzf.id().unwrap() as i32, libc::SIGTERM) };
-
-                let new_mode = config.get_mode(new_mode);
-                let new_callback_map = new_mode.callbacks();
-                let new_fzf_config = new_mode.fzf_config(mode::FzfArgs {
-                    myself: config.myself.clone(),
-                    socket: config.socket.clone(),
-                    log_file: config.log_file.clone(),
-                    initial_query: query.unwrap_or_default(),
-                });
-
-                s.fzf = fzf::new(new_fzf_config)
-                    .stdout(std::process::Stdio::piped())
-                    .spawn()
-                    .expect("Failed to spawn fzf");
-                s.mode = new_mode;
-                s.callbacks = new_callback_map;
-
-                let mut tx = tx.lock().await;
-                match send_response(&mut *tx, method, ()).await {
-                    Ok(()) => trace!("server: change-mode done"),
-                    Err(e) => error!("server: change-mode error"; "error" => e),
-                }
+            Some(method::Request::ChangeMode { params, method: _ }) => {
+                handle_change_mode_request(config, server_state, params, tx).await;
             }
 
-            Some(method::Request::ChangeDirectory { method, params }) => {
-                let s = server_state.lock().await;
-                let dir = match params {
-                    method::ChangeDirectoryParam::ToParent => {
-                        let mut dir = std::env::current_dir().unwrap();
-                        dir.pop();
-                        Ok(dir)
-                    }
-                    method::ChangeDirectoryParam::ToLastFileDir => s
-                        .state
-                        .nvim
-                        .last_opened_file()
-                        .await
-                        .map_err(|e| e.to_string())
-                        .and_then(|path| {
-                            let path = std::fs::canonicalize(path).unwrap();
-                            path.parent()
-                                .ok_or("no parent dir".to_string())
-                                .map(|p| p.to_owned())
-                        }),
-                    method::ChangeDirectoryParam::To(path) => std::fs::canonicalize(path)
-                        .map_err(|e| e.to_string())
-                        .and_then(|path| match std::fs::metadata(&path) {
-                            Ok(metadata) if metadata.is_dir() => Ok(path.to_owned()),
-                            Ok(metadata) if metadata.is_file() => path
-                                .parent()
-                                .ok_or("no parent dir".to_string())
-                                .map(|p| p.to_owned()),
-                            _ => Err(format!("path does not exists: {:?}", path)),
-                        }),
-                };
-
-                match dir {
-                    Ok(dir) => {
-                        std::env::set_current_dir(dir).ok();
-                    }
-                    Err(e) => error!("server: change-directory error"; "error" => e),
-                }
-
-                let mut tx = tx.lock().await;
-                match send_response(&mut *tx, method, ()).await {
-                    Ok(()) => trace!("server: change-mode done"),
-                    Err(e) => {
-                        if e.kind() == std::io::ErrorKind::BrokenPipe {
-                            error!("server: broken pipe";);
-                            Err("broken pipe")?
-                        }
-                        error!("server: change-mode error"; "error" => e);
-                    }
-                }
+            Some(method::Request::ChangeDirectory { params, method: _ }) => {
+                handle_change_directory_request(server_state, params, tx).await;
             }
             _ => {
                 let mut tx = tx.lock().await;
@@ -367,9 +166,293 @@ async fn handle_one_client(
     Ok(())
 }
 
+// ------------------------------------------------------------------------------
+// Load
+
+async fn handle_load_request(
+    config: Arc<Config>,
+    server_state: MutexServerState,
+    params: LoadParam,
+    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
+) {
+    let mut s = server_state.lock().await;
+    let s = s.deref_mut();
+
+    let LoadParam {
+        registered_name,
+        query,
+        item,
+    } = params;
+
+    let callback = &mut s
+        .callbacks
+        .load
+        .get_mut(&registered_name)
+        .unwrap_or_else(|| {
+            error!("server: execute error";
+                "error" => "unknown callback",
+                "registered_name" => registered_name
+            );
+            panic!("unknown callback");
+        })
+        .callback;
+
+    let last_load_resp = {
+        let mut stream = callback(
+            s.mode.mode_def.as_mut(),
+            &config,
+            &mut s.state,
+            query,
+            item.unwrap_or_default(),
+        );
+        send_load_stream(&mut stream, tx).await
+    };
+    s.state.last_load_resp = Some(last_load_resp);
+}
+
+async fn send_load_stream<'a>(
+    stream: &mut mode::LoadStream<'a>,
+    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
+) -> LoadResp {
+    let mut header = None;
+    let mut items = vec![];
+
+    while let Some(resp) = stream.next().await {
+        let resp = match resp {
+            Ok(resp) => resp,
+            Err(e) => LoadResp::error(e),
+        };
+        let is_last = resp.is_last;
+
+        let mut tx = tx.lock().await;
+        match send_response(method::Load, &mut *tx, resp.clone()).await {
+            Ok(()) => trace!("server: load done"),
+            Err(e) => {
+                if e.kind() == std::io::ErrorKind::BrokenPipe {
+                    error!("server: broken pipe";);
+                    break;
+                }
+                error!("server: load error"; "error" => e);
+            }
+        }
+
+        header = header.or_else(|| resp.header.clone());
+        items.extend(resp.items);
+
+        if is_last {
+            break;
+        }
+    }
+
+    LoadResp {
+        header,
+        items,
+        is_last: true,
+    }
+}
+
+// ------------------------------------------------------------------------------
+// Preview
+
+async fn handle_preview_request(
+    config: Arc<Config>,
+    server_state: MutexServerState,
+    params: method::PreviewParam,
+    preview_window: fzf::PreviewWindow,
+    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
+) {
+    let mut s = server_state.lock().await;
+    let s = s.deref_mut();
+    let callback = &mut s
+        .callbacks
+        .preview
+        .get_mut("default")
+        .unwrap_or_else(|| {
+            panic!("unknown callback");
+        })
+        .callback;
+    let resp = callback(
+        s.mode.mode_def.as_ref(),
+        &config,
+        &mut s.state,
+        &preview_window,
+        params.item,
+    )
+    .await
+    .unwrap_or_else(PreviewResp::error);
+    let mut tx = tx.lock().await;
+    match send_response(method::Preview, &mut *tx, resp).await {
+        Ok(()) => trace!("server: preview done"),
+        Err(e) => error!("server: preview error"; "error" => e),
+    }
+}
+
+// ------------------------------------------------------------------------------
+// Execute
+
+async fn handle_execute_request(
+    config: Arc<Config>,
+    server_state: MutexServerState,
+    params: method::ExecuteParam,
+    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
+) {
+    let mut s = server_state.lock().await;
+    let s = s.deref_mut();
+    let ExecuteParam {
+        registered_name,
+        query,
+        item,
+    } = params;
+
+    let callback = &mut s
+        .callbacks
+        .execute
+        .get_mut(&registered_name)
+        .unwrap_or_else(|| {
+            error!("server: execute error";
+                "error" => "unknown callback",
+                "registered_name" => registered_name
+            );
+            panic!("unknown callback");
+        })
+        .callback;
+
+    match callback(s.mode.mode_def.as_mut(), &config, &mut s.state, query, item).await {
+        Ok(_) => {}
+        Err(e) => error!("server: execute error"; "error" => e.to_string()),
+    }
+
+    let mut tx = tx.lock().await;
+    match send_response(method::Execute, &mut *tx, ()).await {
+        Ok(()) => info!("server: execute done"),
+        Err(e) => error!("server: execute error"; "error" => e),
+    }
+}
+
+// ------------------------------------------------------------------------------
+// GetLastLoad
+
+async fn handle_get_last_load_request(
+    server_state: MutexServerState,
+    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
+) {
+    let s = server_state.lock().await;
+    let mut tx = tx.lock().await;
+    let resp = match &s.state.last_load_resp {
+        Some(resp) => resp.clone(),
+        None => method::LoadResp {
+            header: Some("".to_string()),
+            items: vec![],
+            is_last: true,
+        },
+    };
+    match send_response(method::GetLastLoad, &mut *tx, resp).await {
+        Ok(()) => trace!("server: get-last-load done"),
+        Err(e) => error!("server: get-last-load error"; "error" => e),
+    }
+}
+
+// ------------------------------------------------------------------------------
+// ChangeMode
+
+async fn handle_change_mode_request(
+    config: Arc<Config>,
+    server_state: MutexServerState,
+    params: method::ChangeModeParam,
+    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
+) {
+    let method::ChangeModeParam {
+        mode: new_mode,
+        query,
+    } = params;
+
+    let mut s = server_state.lock().await;
+    unsafe { libc::kill(s.fzf.id().unwrap() as i32, libc::SIGTERM) };
+
+    let new_mode = config.get_mode(new_mode);
+    let new_callback_map = new_mode.callbacks();
+    let new_fzf_config = new_mode.fzf_config(mode::FzfArgs {
+        myself: config.myself.clone(),
+        socket: config.socket.clone(),
+        log_file: config.log_file.clone(),
+        initial_query: query.unwrap_or_default(),
+    });
+
+    s.fzf = fzf::new(new_fzf_config)
+        .stdout(std::process::Stdio::piped())
+        .spawn()
+        .expect("Failed to spawn fzf");
+    s.mode = new_mode;
+    s.callbacks = new_callback_map;
+
+    let mut tx = tx.lock().await;
+    match send_response(method::ChangeMode, &mut *tx, ()).await {
+        Ok(()) => trace!("server: change-mode done"),
+        Err(e) => error!("server: change-mode error"; "error" => e),
+    }
+}
+
+// ------------------------------------------------------------------------------
+// ChangeDirectory
+
+async fn handle_change_directory_request(
+    server_state: MutexServerState,
+    params: method::ChangeDirectoryParam,
+    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
+) {
+    let s = server_state.lock().await;
+    let dir = match params {
+        method::ChangeDirectoryParam::ToParent => {
+            let mut dir = std::env::current_dir().unwrap();
+            dir.pop();
+            Ok(dir)
+        }
+        method::ChangeDirectoryParam::ToLastFileDir => s
+            .state
+            .nvim
+            .last_opened_file()
+            .await
+            .map_err(|e| e.to_string())
+            .and_then(|path| {
+                let path = std::fs::canonicalize(path).unwrap();
+                path.parent()
+                    .ok_or("no parent dir".to_string())
+                    .map(|p| p.to_owned())
+            }),
+        method::ChangeDirectoryParam::To(path) => std::fs::canonicalize(path)
+            .map_err(|e| e.to_string())
+            .and_then(|path| match std::fs::metadata(&path) {
+                Ok(metadata) if metadata.is_dir() => Ok(path.to_owned()),
+                Ok(metadata) if metadata.is_file() => path
+                    .parent()
+                    .ok_or("no parent dir".to_string())
+                    .map(|p| p.to_owned()),
+                _ => Err(format!("path does not exists: {:?}", path)),
+            }),
+    };
+
+    match dir {
+        Ok(dir) => {
+            std::env::set_current_dir(dir).ok();
+        }
+        Err(e) => error!("server: change-directory error"; "error" => e),
+    }
+
+    let mut tx = tx.lock().await;
+    match send_response(method::ChangeDirectory, &mut *tx, ()).await {
+        Ok(()) => trace!("server: change-mode done"),
+        Err(e) => {
+            error!("server: change-mode error"; "error" => e);
+        }
+    }
+}
+
+// ------------------------------------------------------------------------------
+// Util
+
 async fn send_response<M: method::Method, TX: AsyncWriteExt + Unpin>(
-    tx: &mut TX,
     _method: M, // 型合わせ用
+    tx: &mut TX,
     resp: <M as Method>::Response,
 ) -> std::io::Result<()> {
     let resp = serde_json::to_string(&resp).unwrap() + "\n";
