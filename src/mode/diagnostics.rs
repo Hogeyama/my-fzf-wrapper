@@ -63,7 +63,6 @@ impl ModeDef for Diagnostics {
     fn preview<'a>(
         &'a self,
         config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {

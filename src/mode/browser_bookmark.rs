@@ -81,7 +81,6 @@ impl ModeDef for BrowserBookmark {
     fn preview(
         &self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {

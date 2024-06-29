@@ -51,7 +51,6 @@ impl ModeDef for Bookmark {
     fn preview<'a>(
         &'a self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {

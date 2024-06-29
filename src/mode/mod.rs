@@ -92,8 +92,8 @@ impl Mode {
         callback_map.preview.insert(
             "default".to_string(),
             PreviewCallback {
-                callback: Box::new(|mode_def, config, state, win, item| {
-                    mode_def.preview(config, state, win, item)
+                callback: Box::new(|mode_def, config, win, item| {
+                    mode_def.preview(config, win, item)
                 }),
             },
         );
@@ -159,7 +159,6 @@ pub trait ModeDef {
     fn preview<'a>(
         &'a self,
         config: &'a Config,
-        state: &'a mut State,
         win: &'a PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>>;
@@ -220,7 +219,6 @@ pub struct PreviewCallback {
         dyn for<'a> Fn(
                 &'a (dyn ModeDef + Sync + Send),
                 &'a Config,
-                &'a mut State,
                 &'a PreviewWindow,
                 String,
             ) -> BoxFuture<'a, Result<PreviewResp>>

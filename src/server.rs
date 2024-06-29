@@ -267,7 +267,6 @@ async fn handle_preview_request(
     let resp = callback(
         s.mode.mode_def.as_ref(),
         &config,
-        &mut s.state,
         &preview_window,
         params.item,
     )

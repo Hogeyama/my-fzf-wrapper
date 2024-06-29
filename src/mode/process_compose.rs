@@ -78,7 +78,6 @@ impl ModeDef for ProcessCompose {
     fn preview<'a>(
         &self,
         _config: &Config,
-        _state: &mut State,
         win: &'a PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {

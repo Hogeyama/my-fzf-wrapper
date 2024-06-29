@@ -61,7 +61,6 @@ impl ModeDef for NeovimSession {
     fn preview(
         &self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {

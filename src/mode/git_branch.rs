@@ -50,7 +50,6 @@ impl ModeDef for GitBranch {
     fn preview(
         &self,
         _config: &Config,
-        _state: &mut State,
         _win: &PreviewWindow,
         branch: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
