@@ -222,7 +222,6 @@ async fn send_load_stream<'a>(
             Ok(resp) => resp,
             Err(e) => LoadResp::error(e),
         };
-        let is_last = resp.is_last;
 
         let mut tx = tx.lock().await;
         match send_response(method::Load, &mut *tx, &resp).await {
@@ -238,10 +237,6 @@ async fn send_load_stream<'a>(
 
         header = header.or(resp.header);
         items.extend(resp.items);
-
-        if is_last {
-            break;
-        }
     }
 
     LoadResp {
