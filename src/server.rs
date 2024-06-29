@@ -225,7 +225,7 @@ async fn send_load_stream<'a>(
         let is_last = resp.is_last;
 
         let mut tx = tx.lock().await;
-        match send_response(method::Load, &mut *tx, resp.clone()).await {
+        match send_response(method::Load, &mut *tx, &resp).await {
             Ok(()) => trace!("server: load done"),
             Err(e) => {
                 if e.kind() == std::io::ErrorKind::BrokenPipe {
@@ -236,7 +236,7 @@ async fn send_load_stream<'a>(
             }
         }
 
-        header = header.or_else(|| resp.header.clone());
+        header = header.or(resp.header);
         items.extend(resp.items);
 
         if is_last {
@@ -281,7 +281,7 @@ async fn handle_preview_request(
     .await
     .unwrap_or_else(PreviewResp::error);
     let mut tx = tx.lock().await;
-    match send_response(method::Preview, &mut *tx, resp).await {
+    match send_response(method::Preview, &mut *tx, &resp).await {
         Ok(()) => trace!("server: preview done"),
         Err(e) => error!("server: preview error"; "error" => e),
     }
@@ -323,7 +323,7 @@ async fn handle_execute_request(
     }
 
     let mut tx = tx.lock().await;
-    match send_response(method::Execute, &mut *tx, ()).await {
+    match send_response(method::Execute, &mut *tx, &()).await {
         Ok(()) => info!("server: execute done"),
         Err(e) => error!("server: execute error"; "error" => e),
     }
@@ -346,7 +346,7 @@ async fn handle_get_last_load_request(
             is_last: true,
         },
     };
-    match send_response(method::GetLastLoad, &mut *tx, resp).await {
+    match send_response(method::GetLastLoad, &mut *tx, &resp).await {
         Ok(()) => trace!("server: get-last-load done"),
         Err(e) => error!("server: get-last-load error"; "error" => e),
     }
@@ -386,7 +386,7 @@ async fn handle_change_mode_request(
     s.callbacks = new_callback_map;
 
     let mut tx = tx.lock().await;
-    match send_response(method::ChangeMode, &mut *tx, ()).await {
+    match send_response(method::ChangeMode, &mut *tx, &()).await {
         Ok(()) => trace!("server: change-mode done"),
         Err(e) => error!("server: change-mode error"; "error" => e),
     }
@@ -439,7 +439,7 @@ async fn handle_change_directory_request(
     }
 
     let mut tx = tx.lock().await;
-    match send_response(method::ChangeDirectory, &mut *tx, ()).await {
+    match send_response(method::ChangeDirectory, &mut *tx, &()).await {
         Ok(()) => trace!("server: change-mode done"),
         Err(e) => {
             error!("server: change-mode error"; "error" => e);
@@ -453,7 +453,7 @@ async fn handle_change_directory_request(
 async fn send_response<M: method::Method, TX: AsyncWriteExt + Unpin>(
     _method: M, // 型合わせ用
     tx: &mut TX,
-    resp: <M as Method>::Response,
+    resp: &<M as Method>::Response,
 ) -> std::io::Result<()> {
     let resp = serde_json::to_string(&resp).unwrap() + "\n";
     tx.write_all(resp.as_bytes()).await?;
