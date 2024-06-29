@@ -51,11 +51,18 @@ pub fn command_output_stream(mut command: Command) -> impl Stream<Item = Result<
                     yield line;
                 }
                 result = child.wait() => {
-                    info!("Child process exited with status: {:?}", result);
+                    match result {
+                        Ok(status) if status.success() => {
+                            // nop
+                        }
+                        _ => {
+                            info!("Child process exited with status: {:?}", result);
+                        }
+                    }
                     break;
                 }
                 _ = signal::ctrl_c() => {
-                    println!("Received SIGINT, terminating child process...");
+                    info!("Received SIGINT, terminating child process...");
                     if let Err(e) = child.kill().await {
                         eprintln!("Failed to kill child process: {}", e);
                     }
