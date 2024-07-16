@@ -53,7 +53,11 @@ impl ModeDef for Diagnostics {
     ) -> super::LoadStream<'a> {
         let nvim = config.nvim.clone();
         Box::pin(async_stream::stream! {
-            let mut diagnostics = DiagnosticsItem::gather(&nvim).await?;
+            let mut diagnostics =
+                DiagnosticsItem::gather(&nvim).await?
+                .into_iter()
+                .filter(|d| !d.file.contains("node_modules"))
+                .collect::<Vec<_>>();
             diagnostics.sort_by(|a, b| a.severity.0.cmp(&b.severity.0));
             let items = DiagnosticsItem::render_list(&diagnostics);
             self.items.lock().await.replace(diagnostics);
