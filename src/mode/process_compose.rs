@@ -62,6 +62,9 @@ impl ModeDef for ProcessCompose {
     ) -> super::LoadStream {
         Box::pin(async_stream::stream! {
             let host = get_host()?;
+            if _query == "delay" {
+                tokio::time::sleep(std::time::Duration::from_secs(1)).await;
+            }
             let processes = reqwest::get(format!("{host}/processes"))
                 .await?
                 .json::<dto::Processes>()
@@ -142,6 +145,9 @@ impl ModeDef for ProcessCompose {
             "right" => [
                 b.reload()
             ],
+            "load" => [
+                b.reload_raw("load default delay {}")
+            ]
         }
     }
 }
