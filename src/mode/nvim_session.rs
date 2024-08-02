@@ -29,6 +29,12 @@ impl ModeDef for NeovimSession {
         bindings! {
             b <= default_bindings(),
             "enter" => [
+                execute!(b, |_mode,config,_state,_query,session| {
+                    session_command(&config.nvim, "read", session).await;
+                    Ok(())
+                })
+            ],
+            "space" => [
                 select_and_execute!{b, |_mode,config,_state,_query,session|
                     "switch" => {
                         session_command(&config.nvim, "read", session).await;
