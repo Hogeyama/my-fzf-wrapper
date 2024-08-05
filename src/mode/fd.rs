@@ -103,7 +103,7 @@ impl ModeDef for Fd {
                 select_and_execute!{b, |_mode,config,_state,_query,item|
                     "new file" => {
                         let cwd = std::env::current_dir().unwrap();
-                        let fname = fzf::input("Enter file name").await?;
+                        let fname = fzf::input_with_placeholder("Enter file name", &item).await?;
                         let fname = fname.trim();
                         let path = format!("{}/{}", cwd.display(), fname);
                         let dir = std::path::Path::new(&path).parent().unwrap();

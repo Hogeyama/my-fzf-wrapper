@@ -182,11 +182,19 @@ pub async fn select_with_header(header: impl AsRef<str>, items: Vec<&str>) -> Re
 }
 
 pub async fn input(header: impl AsRef<str>) -> Result<String> {
+    input_with_placeholder(header, "").await
+}
+
+pub async fn input_with_placeholder(
+    header: impl AsRef<str>,
+    placeholder: impl AsRef<str>,
+) -> Result<String> {
     let fzf = Command::new("fzf")
         .arg("--ansi")
         .args(vec!["--header", header.as_ref()])
         .args(vec!["--layout", "reverse"])
         .args(vec!["--bind", "enter:print-query"])
+        .args(vec!["--query", placeholder.as_ref()])
         .stdin(std::process::Stdio::null())
         .stdout(std::process::Stdio::piped())
         .spawn()?;
