@@ -111,7 +111,6 @@ pub fn new(config: Config) -> Command {
     #[rustfmt::skip]
     let mut args = vec![
         c("--ansi"),
-        c("--no-sort"),
         c("--header-lines"), c("1"),
         c("--layout"), c("reverse"),
         c("--query"), initial_query,

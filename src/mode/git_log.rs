@@ -206,6 +206,9 @@ impl ModeDef for GitLog {
             ],
         }
     }
+    fn fzf_extra_opts(&self) -> Vec<&str> {
+        vec!["--no-sort"]
+    }
 }
 
 async fn push_to_remote(nvim: &Neovim, item: &String, force: bool) -> Result<()> {
