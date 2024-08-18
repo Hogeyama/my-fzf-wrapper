@@ -82,6 +82,27 @@ impl ModeDef for GitReflog {
                             .await?;
                         Ok(())
                     },
+                    "reset" => {
+                        let output = Command::new("git")
+                            .arg("reset")
+                            .arg(git::parse_short_commit(&item)?)
+                            .output()
+                            .await?;
+                        config.nvim.notify_command_result("git reset", output)
+                            .await?;
+                        Ok(())
+                    },
+                    "reset --hard" => {
+                        let output = Command::new("git")
+                            .arg("reset")
+                            .arg("--hard")
+                            .arg(git::parse_short_commit(&item)?)
+                            .output()
+                            .await?;
+                        config.nvim.notify_command_result("git reset --hard", output)
+                            .await?;
+                        Ok(())
+                    },
                 }
             ]
         }
