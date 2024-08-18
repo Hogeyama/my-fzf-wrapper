@@ -14,6 +14,7 @@ use crate::state::State;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
+use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct GitReflog;
@@ -104,7 +105,14 @@ impl ModeDef for GitReflog {
                         Ok(())
                     },
                 }
-            ]
+            ],
+            "ctrl-y" => [
+                execute_silent!{b, |_mode,_config,_state,_query,item| {
+                    let commit = git::parse_short_commit(&item)?;
+                    xsel::yank(commit).await?;
+                    Ok(())
+                }}
+            ],
         }
     }
 }
