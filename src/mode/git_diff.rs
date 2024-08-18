@@ -32,6 +32,7 @@ use crate::utils::bat;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
+use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct GitDiff {
@@ -521,6 +522,14 @@ impl ModeDef for GitDiff {
                 execute_silent!(b, |mode,config,state,_query,item| {
                     let opts = ExecOpts::Discard.value();
                     mode.execute(config, state, item, opts).await
+                }),
+                b.reload()
+            ],
+            "ctrl-y" => [
+                execute_silent!(b, |_mode,_config,_state,_query,item| {
+                    let item = Item::parse(&item)?;
+                    xsel::yank(item.file()).await?;
+                    Ok(())
                 }),
                 b.reload()
             ],
