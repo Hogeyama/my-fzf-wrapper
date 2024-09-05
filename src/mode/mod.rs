@@ -460,7 +460,7 @@ pub mod config_builder {
                 b.change_mode(super::bookmark::Bookmark.name(), false),
             ],
             "ctrl-b" => [
-                b.change_mode(super::visits::Visits::all().name(), false),
+                b.change_mode(super::buffer::Buffer.name(), false),
             ],
             "ctrl-j" => [
                 b.change_mode(super::git_diff::GitDiff::new().name(), false),
@@ -478,13 +478,16 @@ pub mod config_builder {
                 b.change_mode(super::zoxide::Zoxide.name(), false),
             ],
             "alt-h" => [
-                b.change_mode(super::browser_history::BrowserHistory::new().name(), false),
-            ],
-            "alt-n" => [
-                b.change_mode(super::browser_bookmark::BrowserBookmark::new().name(), false),
+                b.change_mode(super::visits::Visits::all().name(), false),
             ],
             "alt-w" => [
                 b.change_mode(super::diagnostics::Diagnostics::new().name(), false),
+            ],
+            "ctrl-alt-h" => [
+                b.change_mode(super::browser_history::BrowserHistory::new().name(), false),
+            ],
+            "ctrl-alt-n" => [
+                b.change_mode(super::browser_bookmark::BrowserBookmark::new().name(), false),
             ],
             "ctrl-u" => [
                 b.execute_silent_raw("change-directory --to-parent"),
