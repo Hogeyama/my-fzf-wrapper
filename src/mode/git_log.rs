@@ -149,6 +149,21 @@ impl ModeDef for GitLog {
                         config.nvim.notify_command_result("git reset", output)
                             .await
                     },
+                    "reword" => {
+                        let _ = config.nvim.hide_floaterm().await;
+                        let commit = git::parse_short_commit(&item)?;
+                        let output = Command::new("git")
+                            .env("GIT_SEQUENCE_EDITOR", r"sed '0,/^\(p\|pick\) /s/^\(p\|pick\) /reword /' -i")
+                            .arg("rebase")
+                            .arg("-i")
+                            .arg("--update-refs")
+                            .arg("--rebase-merges=rebase-cousins")
+                            .arg(format!("{}^", commit))
+                            .output()
+                            .await?;
+                        config.nvim.notify_command_result("git rebase", output)
+                            .await
+                    },
                     "push to remote" => {
                         push_to_remote(&config.nvim, &item, false).await
                     },
