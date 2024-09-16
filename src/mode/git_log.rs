@@ -124,7 +124,7 @@ impl ModeDef for GitLog {
                             .arg("-i")
                             .arg("--update-refs")
                             .arg("--rebase-merges=rebase-cousins")
-                            .arg(commit)
+                            .arg(format!("{}^", commit))
                             .output()
                             .await?;
                         config.nvim.notify_command_result("git rebase", output)
