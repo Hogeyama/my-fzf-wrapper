@@ -123,7 +123,7 @@ impl ModeDef for GitLog {
                             .arg("rebase")
                             .arg("-i")
                             .arg("--update-refs")
-                            .arg("--rebase-merges=rebase-cousins")
+                            .arg("--rebase-merges=no-rebase-cousins")
                             .arg(format!("{}^", commit))
                             .output()
                             .await?;
