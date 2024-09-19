@@ -92,7 +92,7 @@ impl ModeDef for LiveGrep {
                     open(config, item, opts).await
                 })
             ],
-            "ctrl-space" => [
+            "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
                     "neovim" => {
                         let opts = OpenOpts::Neovim { tabedit: false };
@@ -196,7 +196,7 @@ impl ModeDef for LiveGrepF {
                     open(config, item, opts).await
                 })
             ],
-            "ctrl-space" => [
+            "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
                     "neovim" => {
                         let opts = OpenOpts::Neovim { tabedit: false };

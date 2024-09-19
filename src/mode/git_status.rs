@@ -111,7 +111,7 @@ fn fzf_bindings() -> (fzf::Bindings, CallbackMap) {
                 open(config, item, opts).await
             })
         ],
-        "ctrl-space" => [
+        "pgup" => [
             select_and_execute!{b, |_mode,config,_state,_query,item|
                 "neovim" => {
                     let opts = OpenOpts::Neovim { tabedit: false };

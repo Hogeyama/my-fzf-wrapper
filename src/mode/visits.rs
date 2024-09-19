@@ -118,7 +118,7 @@ impl ModeDef for Visits {
                 }),
                 b.reload(),
             ],
-            "ctrl-space" => [
+            "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
                     "new file" => {
                         let cwd = std::env::current_dir().unwrap();

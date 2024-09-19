@@ -547,7 +547,7 @@ impl ModeDef for GitDiff {
                 }),
                 b.reload()
             ],
-            "ctrl-space" => [
+            "pgup" => [
                 select_and_execute!{b, |mode,config,state,_query,item|
                     "commit" => {
                         let opts = ExecOpts::Commit.value();
