@@ -130,6 +130,10 @@ impl ModeDef for Fd {
                         let opts = OpenOpts::BrowseGithub;
                         open(config, item, opts).await
                     },
+                    "xdragon" => {
+                        let opts = OpenOpts::Xdragon;
+                        open(config, item, opts).await
+                    },
                 }
             ]
         }
@@ -140,6 +144,7 @@ enum OpenOpts {
     Neovim { tabedit: bool },
     Vifm,
     BrowseGithub,
+    Xdragon,
 }
 
 async fn open(config: &Config, file: String, opts: OpenOpts) -> Result<()> {
@@ -158,6 +163,9 @@ async fn open(config: &Config, file: String, opts: OpenOpts) -> Result<()> {
         }
         OpenOpts::BrowseGithub => {
             gh::browse_github(file).await?;
+        }
+        OpenOpts::Xdragon => {
+            Command::new("xdragon").arg(&file).spawn()?.wait().await?;
         }
     }
     Ok(())
