@@ -59,9 +59,9 @@ impl ModeDef for BrowserHistory {
             };
             let items = tokio::task::spawn_blocking(move || {
                 sqlite::run_query(db, Some(temp_sqlite_path()), &query, |row| {
-                    let url = row.get(0).unwrap();
-                    let title = row.get(1).unwrap();
-                    let date = row.get(2).unwrap();
+                    let url = row.get(0).unwrap_or("".to_string());
+                    let title = row.get(1).unwrap_or("".to_string());
+                    let date = row.get(2).unwrap_or("".to_string());
                     Ok(Item { url, title, date })
                 })
             })
@@ -138,7 +138,10 @@ fn get_firefox_db_path() -> Result<String> {
         Ok(entries) => {
             let entry = entries
                 .filter_map(|x| x.ok())
-                .find(|x| x.file_name().to_string_lossy().ends_with(".default"))
+                .find(|x| {
+                    x.file_name().to_string_lossy().ends_with(".default")
+                        || x.file_name().to_string_lossy().ends_with(".default-esr")
+                })
                 .ok_or(anyhow!("No firefox history found"))?;
             let dir = entry.path().to_string_lossy().to_string();
             Ok(dir + "/places.sqlite")
