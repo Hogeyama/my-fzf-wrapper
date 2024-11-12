@@ -120,6 +120,15 @@ impl ModeDef for Visits {
             ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
+                    "oil" => {
+                        let cwd = std::env::current_dir().unwrap();
+                        config.nvim.hide_floaterm().await?;
+                        config
+                            .nvim
+                            .command(&format!("Oil --float {}", cwd.display()))
+                            .await?;
+                        Ok(())
+                    },
                     "new file" => {
                         let cwd = std::env::current_dir().unwrap();
                         let fname = fzf::input_with_placeholder("Enter file name", &item).await?;

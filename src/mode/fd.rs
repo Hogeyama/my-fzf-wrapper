@@ -101,6 +101,11 @@ impl ModeDef for Fd {
             ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
+                    "oil" => {
+                        let cwd = std::env::current_dir().unwrap();
+                        let opts = OpenOpts::Oil;
+                        open(config, format!("{}", cwd.display()), opts).await
+                    },
                     "new file" => {
                         let cwd = std::env::current_dir().unwrap();
                         let fname = fzf::input_with_placeholder("Enter file name", &item).await?;
@@ -142,6 +147,7 @@ impl ModeDef for Fd {
 
 enum OpenOpts {
     Neovim { tabedit: bool },
+    Oil,
     Vifm,
     BrowseGithub,
     Xdragon,
@@ -160,6 +166,13 @@ async fn open(config: &Config, file: String, opts: OpenOpts) -> Result<()> {
         OpenOpts::Vifm => {
             let pwd = std::env::current_dir().unwrap().into_os_string();
             Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
+        }
+        OpenOpts::Oil => {
+            config.nvim.hide_floaterm().await?;
+            config
+                .nvim
+                .command(&format!("Oil --float {}", file))
+                .await?;
         }
         OpenOpts::BrowseGithub => {
             gh::browse_github(file).await?;
