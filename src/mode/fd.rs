@@ -20,6 +20,7 @@ use crate::utils::fd;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::gh;
+use crate::utils::vscode;
 use crate::utils::xsel;
 
 #[derive(Clone)]
@@ -77,7 +78,11 @@ impl ModeDef for Fd {
             b <= default_bindings(),
             "enter" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::Neovim { tabedit: false };
+                    let opts = if vscode::in_vscode() {
+                        OpenOpts::VSCode
+                    } else {
+                        OpenOpts::Neovim { tabedit: false }
+                    };
                     open(config, item, opts).await
                 })
             ],
@@ -129,6 +134,7 @@ impl ModeDef for Fd {
 
 enum OpenOpts {
     Neovim { tabedit: bool },
+    VSCode,
     Oil,
     Vifm,
     BrowseGithub,
@@ -144,6 +150,10 @@ async fn open(config: &Config, file: String, opts: OpenOpts) -> Result<()> {
                 tabedit,
             };
             nvim.open(file.into(), nvim_opts).await?
+        }
+        OpenOpts::VSCode => {
+            let output = vscode::open(file, None).await?;
+            config.nvim.notify_command_result("code", output).await?;
         }
         OpenOpts::Vifm => {
             let pwd = std::env::current_dir().unwrap().into_os_string();

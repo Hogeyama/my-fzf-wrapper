@@ -4,7 +4,6 @@ use futures::stream;
 use futures::stream::StreamExt;
 use futures::FutureExt;
 use rmpv::ext::from_value;
-use tokio::process::Command;
 
 use crate::config::Config;
 use crate::method::LoadResp;
@@ -21,6 +20,7 @@ use crate::utils::command::edit_and_run;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::path::to_relpath;
+use crate::utils::vscode;
 use crate::utils::xsel;
 
 #[derive(Clone)]
@@ -93,13 +93,17 @@ impl ModeDef for Visits {
             b <= default_bindings(),
             "enter" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts { tabedit: false };
+                    let opts = if vscode::in_vscode() {
+                        OpenOpts::VSCode
+                    } else {
+                        OpenOpts::Neovim { tabedit: false }
+                    };
                     open(config, item, opts).await
                 })
             ],
             "ctrl-t" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts { tabedit: true };
+                    let opts = OpenOpts::Neovim { tabedit: true };
                     open(config, item, opts).await
                 })
             ],
@@ -173,17 +177,24 @@ async fn get_visits(nvim: &Neovim, kind: VisitsKind) -> Result<Vec<String>> {
     Ok(mrus)
 }
 
-struct OpenOpts {
-    tabedit: bool,
+enum OpenOpts {
+    Neovim { tabedit: bool },
+    VSCode,
 }
 
 async fn open(config: &Config, item: String, opts: OpenOpts) -> Result<()> {
-    let OpenOpts { tabedit } = opts;
-    let nvim = config.nvim.clone();
-    let nvim_opts = nvim::OpenOpts {
-        line: None,
-        tabedit,
-    };
-    nvim.open(item.into(), nvim_opts).await?;
+    match opts {
+        OpenOpts::Neovim { tabedit } => {
+            let nvim_opts = nvim::OpenOpts {
+                line: None,
+                tabedit,
+            };
+            config.nvim.open(item.into(), nvim_opts).await?;
+        }
+        OpenOpts::VSCode => {
+            let output = vscode::open(item.into(), None).await?;
+            config.nvim.notify_command_result("code", output).await?;
+        }
+    }
     Ok(())
 }

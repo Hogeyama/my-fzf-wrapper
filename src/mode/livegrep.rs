@@ -23,6 +23,7 @@ use crate::utils::fzf::PreviewWindow;
 use crate::utils::gh;
 use crate::utils::git;
 use crate::utils::rg;
+use crate::utils::vscode;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Livegrep
@@ -82,7 +83,11 @@ impl ModeDef for LiveGrep {
             ],
             "enter" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::Neovim { tabedit: false };
+                    let opts = if vscode::in_vscode() {
+                        OpenOpts::VSCode
+                    } else {
+                        OpenOpts::Neovim { tabedit: false }
+                    };
                     open(config, item, opts).await
                 })
             ],
@@ -244,6 +249,7 @@ async fn preview(item: String) -> Result<PreviewResp> {
 
 enum OpenOpts {
     Neovim { tabedit: bool },
+    VSCode,
     BrowseGithub,
 }
 
@@ -259,6 +265,11 @@ async fn open(config: &Config, item: String, opts: OpenOpts) -> Result<()> {
                 tabedit,
             };
             nvim.open(file.into(), nvim_opts).await?;
+        }
+        OpenOpts::VSCode => {
+            let line = line.parse::<usize>().ok();
+            let output = vscode::open(file, line).await?;
+            config.nvim.notify_command_result("code", output).await?;
         }
         OpenOpts::BrowseGithub => {
             let revision = git::rev_parse("HEAD")?;

@@ -9,5 +9,6 @@ pub mod glow;
 pub mod path;
 pub mod rg;
 pub mod sqlite;
+pub mod vscode;
 pub mod xsel;
 pub mod zoxide;
