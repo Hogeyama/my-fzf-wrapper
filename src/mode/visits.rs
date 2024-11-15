@@ -4,6 +4,7 @@ use futures::stream;
 use futures::stream::StreamExt;
 use futures::FutureExt;
 use rmpv::ext::from_value;
+use tokio::process::Command;
 
 use crate::config::Config;
 use crate::method::LoadResp;
@@ -132,6 +133,28 @@ impl ModeDef for Visits {
                             .command(&format!("Oil --float {}", cwd.display()))
                             .await?;
                         Ok(())
+                    },
+                    "new file" => {
+                        let cwd = std::env::current_dir().unwrap();
+                        let fname = fzf::input_with_placeholder("Enter file name", &item).await?;
+                        let fname = fname.trim();
+                        let path = format!("{}/{}", cwd.display(), fname);
+                        let dir = std::path::Path::new(&path).parent().unwrap();
+                        Command::new("mkdir")
+                            .arg("-p")
+                            .arg(dir)
+                            .status()
+                            .await?;
+                        Command::new("touch")
+                            .arg(&path)
+                            .status()
+                            .await?;
+                        let opts = if vscode::in_vscode() {
+                            OpenOpts::VSCode
+                        } else {
+                            OpenOpts::Neovim { tabedit: false }
+                        };
+                        open(config, path, opts).await
                     },
                     "execute any command" => {
                         let (cmd, output) = edit_and_run(format!(" {item}"))
