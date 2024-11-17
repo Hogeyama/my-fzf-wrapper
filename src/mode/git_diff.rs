@@ -386,32 +386,12 @@ impl ModeDef for GitDiff {
                     }
                 }
                 ExecOpts::Commit => {
-                    let _ = config.nvim.hide_floaterm().await;
-                    let nvim = config.nvim.clone();
-                    tokio::spawn(async move {
-                        let commit = Command::new("git")
-                            .arg("commit")
-                            .arg("--verbose")
-                            .stdout(std::process::Stdio::null())
-                            .stderr(std::process::Stdio::null())
-                            .output()
-                            .await
-                            .map_err(|e| e.to_string());
-                        match commit {
-                            Ok(output) => {
-                                let _ = nvim
-                                    .notify_command_result("git commit", output)
-                                    .await
-                                    .map_err(|e| e.to_string());
-                            }
-                            Err(e) => {
-                                let _ = nvim
-                                    .notify_error(&e.to_string())
-                                    .await
-                                    .map_err(|e| e.to_string());
-                            }
-                        }
-                    });
+                    Command::new("git")
+                        .arg("commit")
+                        .arg("--verbose")
+                        .spawn()?
+                        .wait()
+                        .await?;
                 }
                 ExecOpts::CommitFixup => {
                     let commit = git::select_commit("target of fixup").await?;
