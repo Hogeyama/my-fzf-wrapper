@@ -32,6 +32,7 @@ use crate::utils::bat;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
+use crate::utils::vscode;
 use crate::utils::xsel;
 
 #[derive(Clone)]
@@ -232,7 +233,11 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            config.nvim.open(file.into(), nvim_opts).await?;
+                            if vscode::in_vscode() {
+                                vscode::open(file, None).await?;
+                            } else {
+                                config.nvim.open(file.into(), nvim_opts).await?;
+                            }
                         }
                         Item::UnstagedHunk { file, target_start } => {
                             let file = format!("{root}/{file}");
@@ -240,7 +245,11 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            config.nvim.open(file.into(), nvim_opts).await?;
+                            if vscode::in_vscode() {
+                                vscode::open(file, None).await?;
+                            } else {
+                                config.nvim.open(file.into(), nvim_opts).await?;
+                            }
                         }
                         Item::StagedBinayChange { .. } => {
                             // can't open binary file
@@ -263,7 +272,11 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            config.nvim.open(file.into(), nvim_opts).await?;
+                            if vscode::in_vscode() {
+                                vscode::open(file, None).await?;
+                            } else {
+                                config.nvim.open(file.into(), nvim_opts).await?;
+                            }
                         }
                         Item::ConflictedFile { file } => {
                             let file = format!("{root}/{file}");
@@ -271,7 +284,11 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            config.nvim.open(file.into(), nvim_opts).await?;
+                            if vscode::in_vscode() {
+                                vscode::open(file, None).await?;
+                            } else {
+                                config.nvim.open(file.into(), nvim_opts).await?;
+                            }
                         }
                     }
                 }
