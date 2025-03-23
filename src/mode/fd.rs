@@ -78,17 +78,19 @@ impl ModeDef for Fd {
             b <= default_bindings(),
             "enter" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = if vscode::in_vscode() {
-                        OpenOpts::VSCode
-                    } else {
-                        OpenOpts::Neovim { tabedit: false }
-                    };
+                    let opts = OpenOpts::Neovim { tabedit: false };
                     open(config, item, opts).await
                 })
             ],
             "ctrl-t" => [
                 execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: true };
+                    open(config, item, opts).await
+                })
+            ],
+            "ctrl-space" => [
+                execute!(b, |_mode,config,_state,_query,item| {
+                    let opts = OpenOpts::VSCode;
                     open(config, item, opts).await
                 })
             ],
