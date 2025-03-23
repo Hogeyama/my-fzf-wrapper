@@ -6,7 +6,9 @@
     # fzf等のバイナリを取り込むためのnixpkgs
     # 互換性のために特定のコミットを指定したくなることがあるため分けている。
     nixpkgs-for-bin.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    fenix.url = "github:nix-community/fenix";
+    # この次の日5/18のコミット49b387d269e31271666c01d42a2763f87bbe62b1を指定すると
+    # RUNPATHが設定されなくて使えなくなる。
+    fenix.url = "github:nix-community/fenix/a2d19ef9305841f26c8ab908b1c09a84ca307e18";
     fenix.inputs.nixpkgs.follows = "nixpkgs";
     naersk.url = "github:nix-community/naersk";
     naersk.inputs.nixpkgs.follows = "nixpkgs";
