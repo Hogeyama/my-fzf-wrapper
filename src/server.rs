@@ -404,7 +404,9 @@ async fn handle_change_mode_request(
     let mut mode = mode.write().await;
     let mut callbacks = callbacks.write().await;
 
-    unsafe { libc::kill(fzf.id().unwrap() as i32, libc::SIGTERM) };
+    if let Err(e) = fzf.kill().await {
+        error!("server: failed to kill fzf process"; "error" => e.to_string());
+    }
 
     let new_mode = config.get_mode(new_mode);
     let new_callback_map = new_mode.callbacks();
