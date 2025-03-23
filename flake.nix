@@ -6,9 +6,7 @@
     # fzf等のバイナリを取り込むためのnixpkgs
     # 互換性のために特定のコミットを指定したくなることがあるため分けている。
     nixpkgs-for-bin.url = "github:nixos/nixpkgs/nixpkgs-unstable";
-    # この次の日5/18のコミット49b387d269e31271666c01d42a2763f87bbe62b1を指定すると
-    # RUNPATHが設定されなくて使えなくなる。
-    fenix.url = "github:nix-community/fenix/a2d19ef9305841f26c8ab908b1c09a84ca307e18";
+    fenix.url = "github:nix-community/fenix";
     fenix.inputs.nixpkgs.follows = "nixpkgs";
     naersk.url = "github:nix-community/naersk";
     naersk.inputs.nixpkgs.follows = "nixpkgs";
@@ -53,6 +51,11 @@
             pkgs.pkg-config
             pkgs.openssl.dev
           ];
+          # +nightly-2024-05-18以降、x86_64-unknown-linux-gnuではrust-lldがデフォルトが使われるようになった。
+          # これが有効になっているとビルド成果物にRUNPATHが設定されず、実行時エラーになるので無効化する。
+          # cf. https://github.com/rust-lang/rust/pull/124129
+          # cf. https://doc.rust-lang.org/nightly/unstable-book/compiler-flags/linker-features.html
+          RUSTFLAGS = "-Zlinker-features=-lld";
         }).overrideAttrs (oldAttrs: {
           # overrideAttrsに書かないと依存関係が毎回ビルドされてしまう
           # cf. https://github.com/nix-community/naersk?tab=readme-ov-file#note-on-overrideattrs
