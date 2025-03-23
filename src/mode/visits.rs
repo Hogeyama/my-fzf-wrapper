@@ -217,7 +217,7 @@ async fn open(config: &Config, item: String, opts: OpenOpts) -> Result<()> {
             config.nvim.open(item.into(), nvim_opts).await?;
         }
         OpenOpts::VSCode => {
-            let output = vscode::open(item.into(), None).await?;
+            let output = vscode::open(item, None).await?;
             config.nvim.notify_command_result("code", output).await?;
         }
     }
