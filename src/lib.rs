@@ -140,11 +140,11 @@ pub async fn tokio_main() -> Result<(), Box<dyn Error>> {
     let args = Cli::parse();
     match args.command {
         None => {
-            let _guard = logger::init(&format!("{}-server.log", args.fzfw_log_file))?;
+            let _guard = logger::init(format!("{}-server.log", args.fzfw_log_file))?;
             init(args).await
         }
         Some(command) => {
-            let _guard = logger::init(&format!("{}-client.log", args.fzfw_log_file))?;
+            let _guard = logger::init(format!("{}-client.log", args.fzfw_log_file))?;
             run_command(command).await
         }
     }

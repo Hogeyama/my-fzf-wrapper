@@ -20,8 +20,8 @@ pub async fn browse_github_line(
 ) -> Result<()> {
     let _: ExitStatus = Command::new("gh")
         .arg("browse")
-        .arg(&format!("{}:{}", file.as_ref(), line))
-        .arg(&format!("--commit={}", revision.as_ref()))
+        .arg(format!("{}:{}", file.as_ref(), line))
+        .arg(format!("--commit={}", revision.as_ref()))
         .spawn()?
         .wait()
         .await?;
