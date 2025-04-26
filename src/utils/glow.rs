@@ -3,6 +3,7 @@ use tokio::process::Command;
 
 use anyhow::Result;
 
+#[allow(dead_code)]
 pub async fn render_markdown(md: String) -> Result<String> {
     let mut glow = Command::new("glow")
         .args(vec!["-s", "dark"])

@@ -24,7 +24,6 @@ use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
-use crate::utils::glow;
 use crate::utils::path::to_relpath;
 
 #[derive(Clone)]
@@ -76,13 +75,10 @@ impl ModeDef for Diagnostics {
             let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
             let item = DiagnosticsItem::lookup(items, item.clone())?;
             let file = nvim.get_buf_name(item.bufnr as usize).await?;
-            let rendered_message =
-                glow::render_markdown(format!("### {}\n{}", item.severity.render(), item.message))
-                    .await?;
             // zero-indexed なので +1 する
             let rendered_file =
                 bat::render_file_with_highlight(&file, item.lnum as isize + 1).await?;
-            let message = format!("{}\n{}", rendered_message, rendered_file);
+            let message = format!("{}\n{}", item.message, rendered_file);
             Ok(PreviewResp { message })
         }
         .boxed()
