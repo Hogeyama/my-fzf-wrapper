@@ -42,10 +42,12 @@ pub type Neovim = nvim_rs::Neovim<TokioCompat<WriteHalf<Connection>>>;
 pub trait NeovimExt {
     async fn setup_nvim_config(&self) -> Result<()>;
 
+    #[allow(dead_code)]
     async fn start_insert(&self) -> Result<()>;
 
     async fn stop_insert(&self) -> Result<()>;
 
+    #[allow(dead_code)]
     async fn move_to_last_win(&self) -> Result<()>;
 
     async fn move_to_last_tab(&self) -> Result<()>;
@@ -58,6 +60,7 @@ pub trait NeovimExt {
 
     async fn notify_info(&self, msg: impl AsRef<str>) -> Result<()>;
 
+    #[allow(dead_code)]
     async fn notify_warn(&self, msg: impl AsRef<str>) -> Result<()>;
 
     async fn notify_error(&self, msg: impl AsRef<str>) -> Result<()>;

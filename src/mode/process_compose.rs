@@ -59,7 +59,7 @@ impl ModeDef for ProcessCompose {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> super::LoadStream {
+    ) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let host = get_host()?;
             if _query == "delay" {

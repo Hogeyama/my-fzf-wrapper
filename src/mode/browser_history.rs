@@ -51,7 +51,7 @@ impl ModeDef for BrowserHistory {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> super::LoadStream {
+    ) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let (db, query) = match self.browser {
                 browser::Browser::Firefox(_) => (get_firefox_db_path()?, firefox_query()),

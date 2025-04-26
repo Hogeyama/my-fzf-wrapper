@@ -67,7 +67,7 @@ impl ModeDef for BrowserBookmark {
         _state: &'a mut State,
         _query: String,
         _item: String,
-    ) -> super::LoadStream {
+    ) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let items = self
                 .load_items()
