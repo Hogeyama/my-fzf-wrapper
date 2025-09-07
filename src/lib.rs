@@ -85,6 +85,10 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     }
 
     fn gen_socket_name() -> String {
+        // テスト用にソケット名を外部から固定できるようにする
+        if let Ok(p) = env::var("FZFW_TEST_SOCKET") {
+            return p;
+        }
         format!(
             "/tmp/{}.sock",
             rand::thread_rng()
