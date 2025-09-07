@@ -188,6 +188,7 @@ impl Severity {
             _ => panic!("unknown severity {}", self.0),
         }
     }
+    #[allow(dead_code)]
     pub fn render(&self) -> String {
         match self.0 {
             1 => "Error".to_string(),
