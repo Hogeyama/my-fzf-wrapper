@@ -101,6 +101,10 @@ impl ModeDef for LiveGrep {
             ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
+                    "vscode" => {
+                        let opts = OpenOpts::VSCode;
+                        open(config, item, opts).await
+                    },
                     "neovim" => {
                         let opts = OpenOpts::Neovim { tabedit: false };
                         open(config, item, opts).await
@@ -197,6 +201,12 @@ impl ModeDef for LiveGrepF {
                     open(config, item, opts).await
                 })
             ],
+            "ctrl-space" => [
+                execute!(b, |_mode,config,_state,_query,item| {
+                    let opts = OpenOpts::VSCode;
+                    open(config, item, opts).await
+                })
+            ],
             "ctrl-t" => [
                 execute!(b, |_mode,config,_state,_query,item| {
                     let opts = OpenOpts::Neovim { tabedit: true };
@@ -205,6 +215,10 @@ impl ModeDef for LiveGrepF {
             ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
+                    "vscode" => {
+                        let opts = OpenOpts::VSCode;
+                        open(config, item, opts).await
+                    },
                     "neovim" => {
                         let opts = OpenOpts::Neovim { tabedit: false };
                         open(config, item, opts).await

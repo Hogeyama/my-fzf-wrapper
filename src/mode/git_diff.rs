@@ -217,7 +217,7 @@ impl ModeDef for GitDiff {
     ) -> BoxFuture<'a, Result<()>> {
         async move {
             match from_value(args)? {
-                ExecOpts::Open { tabedit } => {
+                ExecOpts::Open { tabedit, vscode } => {
                     let root = git::get_repo()?
                         .workdir()
                         .ok_or(anyhow!("wow"))?
@@ -233,8 +233,8 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            if vscode::in_vscode() {
-                                vscode::open(file, None).await?;
+                            if vscode {
+                                vscode::open(file, Some(target_start)).await?;
                             } else {
                                 config.nvim.open(file.into(), nvim_opts).await?;
                             }
@@ -245,8 +245,8 @@ impl ModeDef for GitDiff {
                                 line: Some(target_start),
                                 tabedit,
                             };
-                            if vscode::in_vscode() {
-                                vscode::open(file, None).await?;
+                            if vscode {
+                                vscode::open(file, Some(target_start)).await?;
                             } else {
                                 config.nvim.open(file.into(), nvim_opts).await?;
                             }
@@ -272,7 +272,7 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            if vscode::in_vscode() {
+                            if vscode {
                                 vscode::open(file, None).await?;
                             } else {
                                 config.nvim.open(file.into(), nvim_opts).await?;
@@ -284,7 +284,7 @@ impl ModeDef for GitDiff {
                                 line: None,
                                 tabedit,
                             };
-                            if vscode::in_vscode() {
+                            if vscode {
                                 vscode::open(file, None).await?;
                             } else {
                                 config.nvim.open(file.into(), nvim_opts).await?;
@@ -477,13 +477,13 @@ impl ModeDef for GitDiff {
             b <= default_bindings(),
             "enter" => [
                 execute!(b, |mode,config,state,_query,item| {
-                    let opts = ExecOpts::Open { tabedit: false }.value();
+                    let opts = ExecOpts::Open { tabedit: false, vscode: false }.value();
                     mode.execute(config, state, item, opts).await
                 })
             ],
             "ctrl-t" => [
                 execute!(b, |mode,config,state,_query,item| {
-                    let opts = ExecOpts::Open { tabedit: false }.value();
+                    let opts = ExecOpts::Open { tabedit: false, vscode: false }.value();
                     mode.execute(config, state, item, opts).await
                 })
             ],
@@ -558,6 +558,10 @@ impl ModeDef for GitDiff {
                         let opts = ExecOpts::CommitInstantFixup.value();
                         mode.execute(config, state, item, opts).await
                     },
+                    "vscode" => {
+                        let opts = ExecOpts::Open { tabedit: false, vscode: true }.value();
+                        mode.execute(config, state, item, opts).await
+                    },
                 }
             ]
         }
@@ -577,7 +581,7 @@ enum ExecOpts {
     Commit,
     CommitFixup,
     CommitInstantFixup,
-    Open { tabedit: bool },
+    Open { tabedit: bool, vscode: bool },
     LazyGit,
 }
 
