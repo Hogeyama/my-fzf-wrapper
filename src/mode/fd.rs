@@ -85,6 +85,10 @@ impl ModeDef for Fd {
             ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
+                    "vscode" => {
+                        let opts = OpenOpts::VSCode;
+                        open(config, item, opts).await
+                    },
                     "oil" => {
                         let cwd = std::env::current_dir().unwrap();
                         let opts = OpenOpts::Oil;
