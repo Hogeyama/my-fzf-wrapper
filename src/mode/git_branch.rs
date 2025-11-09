@@ -127,18 +127,35 @@ impl ModeDef for GitBranch {
 }
 
 async fn select_remote(local_branch: impl AsRef<str>) -> Result<String> {
-    let upstream = git::upstream_of(&local_branch).ok();
+    let local_branch = local_branch.as_ref();
+    let upstream = git::upstream_of(local_branch).ok();
     let mut branches = git::remote_branches()?;
-    branches.sort_by(|a, b| {
-        if Some(a) == upstream.as_ref() {
-            std::cmp::Ordering::Less
-        } else if Some(b) == upstream.as_ref() {
-            return std::cmp::Ordering::Greater;
-        } else {
-            return a.cmp(b);
+    let remotes = git::remotes()?;
+    for remote in remotes {
+        let candidate = format!("{remote}/{local_branch}");
+        if !branches.contains(&candidate) {
+            branches.push(candidate);
         }
+    }
+    branches.sort_by(|a, b| {
+        let score = |candidate: &str| -> u8 {
+            if upstream.as_deref() == Some(candidate) {
+                0
+            } else {
+                let matches_local = candidate
+                    .split_once('/')
+                    .map(|(_, name)| name == local_branch)
+                    .unwrap_or_else(|| candidate == local_branch);
+                if matches_local {
+                    1
+                } else {
+                    2
+                }
+            }
+        };
+        score(a).cmp(&score(b)).then_with(|| a.cmp(b))
     });
-    let context = format!("pushing {} => ?", local_branch.as_ref());
+    let context = format!("pushing {} => ?", local_branch);
     fzf::select_with_header(context, branches.iter().map(|s| s.as_str()).collect()).await
 }
 
