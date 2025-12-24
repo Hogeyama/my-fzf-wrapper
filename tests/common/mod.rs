@@ -172,6 +172,9 @@ impl TestHarness {
     pub fn run_client(&self, args: &[&str]) -> Output {
         Command::new(&self.bin)
             .env("PATH", self.path_env())
+            .env("NVIM", self.nvim.sock.to_str().unwrap())
+            .env("FZF_PREVIEW_LINES", "10")
+            .env("FZF_PREVIEW_COLUMNS", "10")
             .args(args)
             .output()
             .expect("failed to run client command")
@@ -185,6 +188,46 @@ impl TestHarness {
             menu,
             query.unwrap_or(""),
             cwd.unwrap_or(""),
+        ])
+    }
+
+    pub fn preview(&self, item: &str) -> Output {
+        self.run_client(&[
+            "preview",
+            "--fzfw-socket",
+            self.sock_path.to_str().unwrap(),
+            item,
+        ])
+    }
+
+    pub fn execute(&self, registered_name: &str, item: &str, query: Option<&str>) -> Output {
+        self.run_client(&[
+            "execute",
+            "--fzfw-socket",
+            self.sock_path.to_str().unwrap(),
+            registered_name,
+            item,
+            query.unwrap_or(""),
+        ])
+    }
+
+    pub fn change_mode(&self, mode: &str, query: Option<&str>) -> Output {
+        self.run_client(&[
+            "change-mode",
+            "--fzfw-socket",
+            self.sock_path.to_str().unwrap(),
+            mode,
+            query.unwrap_or(""),
+        ])
+    }
+
+    pub fn change_directory(&self, path: &str) -> Output {
+        self.run_client(&[
+            "change-directory",
+            "--fzfw-socket",
+            self.sock_path.to_str().unwrap(),
+            "--dir",
+            path,
         ])
     }
 }
