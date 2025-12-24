@@ -200,6 +200,7 @@ impl TestHarness {
         ])
     }
 
+    #[allow(dead_code)]
     pub fn execute(&self, registered_name: &str, item: &str, query: Option<&str>) -> Output {
         self.run_client(&[
             "execute",
