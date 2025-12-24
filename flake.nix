@@ -50,6 +50,7 @@
           buildInputs = [
             pkgs.pkg-config
             pkgs.openssl.dev
+            pkgs.perl
           ];
           # +nightly-2024-05-18以降、x86_64-unknown-linux-gnuではrust-lldがデフォルトが使われるようになった。
           # これが有効になっているとビルド成果物にRUNPATHが設定されず、実行時エラーになるので無効化する。

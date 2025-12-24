@@ -27,10 +27,10 @@ rusqlite = { version = "0.28", features = ["bundled"] }
 ansi_term = "0.12.1"
 libc = "0.2.149"
 shellwords = "1.1.0"
-git2 = "0.18.1"
+git2 = { version = "0.18.1", features = ["vendored-openssl"] }
 tempfile = "3.8.1"
 shellexpand = "3.1.0"
-reqwest = { version = "0.12.2", features = ["json"] }
+reqwest = { version = "0.12.2", default-features = false, features = ["json", "rustls-tls"] }
 unicode-width = "0.1.11"
 anyhow = { version = "1.0.86", features = ["backtrace"] }
 encoding_rs = { version = "0.8.34", features = ["fast-kanji-encode"] }
