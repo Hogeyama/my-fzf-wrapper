@@ -1,3 +1,46 @@
+// log
+#[macro_use(o)]
+extern crate slog;
+extern crate slog_scope;
+
+#[macro_use]
+mod logging_macros {
+    #[macro_export]
+    macro_rules! info {
+        ($($args:tt)*) => {
+            $crate::slog::info!($crate::slog_scope::logger(), $($args)*)
+        }
+    }
+
+    #[macro_export]
+    macro_rules! error {
+        ($($args:tt)*) => {
+            $crate::slog::error!($crate::slog_scope::logger(), $($args)*)
+        }
+    }
+
+    #[macro_export]
+    macro_rules! trace {
+        ($($args:tt)*) => {
+            $crate::slog::trace!($crate::slog_scope::logger(), $($args)*)
+        }
+    }
+
+    #[macro_export]
+    macro_rules! debug {
+        ($($args:tt)*) => {
+            $crate::slog::debug!($crate::slog_scope::logger(), $($args)*)
+        }
+    }
+
+    #[macro_export]
+    macro_rules! warn {
+        ($($args:tt)*) => {
+            $crate::slog::warn!($crate::slog_scope::logger(), $($args)*)
+        }
+    }
+}
+
 mod client;
 mod config;
 mod logger;
@@ -13,12 +56,6 @@ use std::env;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
-
-// log
-#[macro_use(o)]
-extern crate slog;
-#[macro_use]
-extern crate slog_scope;
 
 #[macro_use(json)]
 extern crate serde_json;
