@@ -71,19 +71,11 @@ pub fn command_output_stream_with_encodings(
 
         loop {
             tokio::select! {
-                Some(line) = read_stream.next() => {
-                    yield line;
-                }
-                result = child.wait() => {
-                    match result {
-                        Ok(status) if status.success() => {
-                            // nop
-                        }
-                        _ => {
-                            info!("Child process exited with status: {:?}", result);
-                        }
+                maybe_line = read_stream.next() => {
+                    match maybe_line {
+                        Some(line) => yield line,
+                        None => break,
                     }
-                    break;
                 }
                 _ = signal::ctrl_c() => {
                     info!("Received SIGINT, terminating child process...");
@@ -92,6 +84,14 @@ pub fn command_output_stream_with_encodings(
                     }
                     break;
                 }
+            }
+        }
+        match child.wait().await {
+            Ok(status) if status.success() => {
+                // nop
+            }
+            result => {
+                info!("Child process exited with status: {:?}", result);
             }
         }
     }
