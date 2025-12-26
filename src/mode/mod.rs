@@ -15,6 +15,7 @@ pub mod menu;
 pub mod mru;
 pub mod nvim_session;
 pub mod process_compose;
+pub mod runner;
 pub mod visits;
 pub mod zoxide;
 
@@ -39,6 +40,7 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
             mode_def: Box::new(mode_def),
         }
     }
+    let (runner, runner_commands) = runner::new_modes();
     let modes: Vec<MkMode> = vec![
         Box::pin(|| f(menu::Menu)),
         Box::pin(|| f(fd::Fd)),
@@ -63,6 +65,8 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(visits::Visits::all())),
         Box::pin(|| f(visits::Visits::project())),
         Box::pin(|| f(process_compose::ProcessCompose::new())),
+        Box::pin(move || f(runner.clone())),
+        Box::pin(move || f(runner_commands.clone())),
     ];
     modes
         .into_iter()

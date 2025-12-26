@@ -31,7 +31,10 @@ impl ModeDef for Menu {
                 .get_mode_names()
                 .into_iter()
                 .map(|s| s.to_string())
-                .filter(|s| s != "livegrepf" && s != "menu") // FIXME ad-hoc
+                .filter(|s| s != "menu"
+                      && s != "livegrepf"
+                      && s != "runner_commands"
+                ) // FIXME ad-hoc
                 .collect();
             yield Ok(LoadResp::new_with_default_header(items))
         })
