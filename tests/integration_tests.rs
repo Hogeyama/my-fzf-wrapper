@@ -3,8 +3,7 @@ mod common;
 #[test]
 fn preview_success() {
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     // In 'default' mode (which seems to be the initial mode), preview might return something if configured.
@@ -29,8 +28,7 @@ fn preview_success() {
 #[test]
 fn execute_success() {
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     // Similarly for execute. The "default" callback might or might not handle "execute".
@@ -71,8 +69,7 @@ fn execute_success() {
 #[test]
 fn change_mode_success() {
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     // Change to a mode that likely exists. "fd" was in the menu in menu_load.rs.
@@ -86,8 +83,7 @@ fn change_mode_success() {
 #[test]
 fn load_success() {
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     let output = h.load("default", None, None);
@@ -97,8 +93,7 @@ fn load_success() {
 #[test]
 fn change_directory_success() {
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     let output = h.change_directory("/tmp");

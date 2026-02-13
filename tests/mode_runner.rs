@@ -5,8 +5,7 @@ use std::fs;
 #[test]
 fn runner_mode_files() {
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     let root = h.sock_path.parent().unwrap();
@@ -39,8 +38,7 @@ fn runner_mode_files() {
 #[test]
 fn runner_mode_preview() {
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     let root = h.sock_path.parent().unwrap();
@@ -68,8 +66,7 @@ fn runner_mode_preview() {
 #[test]
 fn runner_commands_mode_flow() {
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     let root = h.sock_path.parent().unwrap();
@@ -84,7 +81,7 @@ fn runner_commands_mode_flow() {
     );
     fs::write(&makefile, &make_content).unwrap();
 
-    let output = h.change_directory(root.to_str().unwrap());
+    let _output = h.change_directory(root.to_str().unwrap());
 
     // 1. Enter runner mode
     h.change_mode("runner", None);
@@ -137,6 +134,4 @@ fn runner_commands_mode_flow() {
     // Let's stick to files and preview first.
     // If I really want to test execution:
     // The previous tests don't seem to test "enter".
-
-    return;
 }

@@ -6,8 +6,7 @@ use std::fs;
 #[test]
 fn load_success() {
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     // Create some files in the temp directory to be found by fd
@@ -63,8 +62,7 @@ fn load_success() {
 #[test]
 fn preview_success() {
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     let root = h.sock_path.parent().unwrap();

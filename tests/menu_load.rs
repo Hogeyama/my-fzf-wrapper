@@ -4,8 +4,7 @@ mod common;
 fn menu_load_success() {
     // ハーネス起動
     let Some(h) = common::TestHarness::spawn() else {
-        assert!(false, "failed to spawn test harness");
-        return;
+        panic!("failed to spawn test harness");
     };
 
     let output = h.load("default", Option::None, Option::None);
