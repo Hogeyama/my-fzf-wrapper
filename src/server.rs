@@ -475,9 +475,9 @@ async fn handle_change_directory_request(
 
     let mut tx = tx.lock().await;
     match send_response(method::ChangeDirectory, &mut *tx, &()).await {
-        Ok(()) => trace!("server: change-mode done"),
+        Ok(()) => trace!("server: change-directory done"),
         Err(e) => {
-            error!("server: change-mode error"; "error" => e);
+            error!("server: change-directory error"; "error" => e);
         }
     }
 }
