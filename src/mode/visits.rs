@@ -127,6 +127,10 @@ impl ModeDef for Visits {
             ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
+                    "vscode" => {
+                        let opts = OpenOpts::VSCode;
+                        open(config, item, opts).await
+                    },
                     "oil" => {
                         let cwd = std::env::current_dir().unwrap();
                         config.nvim.hide_floaterm().await?;
