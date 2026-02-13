@@ -102,6 +102,12 @@ struct ServerState {
 
 type LoadTask = Arc<Mutex<Option<(JoinHandle<Result<(), Aborted>>, AbortHandle)>>>;
 
+async fn abort_current_load_task(task: &LoadTask) {
+    if let Some((_, abort_handle)) = task.lock().await.take() {
+        abort_handle.abort();
+    }
+}
+
 async fn handle_one_client(
     config: Arc<Config>,
     server_state: ServerState,
@@ -120,9 +126,7 @@ async fn handle_one_client(
         );
         match req {
             Some(method::Request::Load { params, method: _ }) => {
-                if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
-                    abort_handle.abort();
-                }
+                abort_current_load_task(&current_load_task).await;
                 let (abort_handle, abort_registration) = AbortHandle::new_pair();
                 let handle = tokio::spawn(Abortable::new(
                     handle_load_request(config, server_state, params, tx),
@@ -140,9 +144,7 @@ async fn handle_one_client(
             }
 
             Some(method::Request::Execute { params, method: _ }) => {
-                if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
-                    abort_handle.abort();
-                }
+                abort_current_load_task(&current_load_task).await;
                 handle_execute_request(config, server_state, params, tx).await;
             }
 
@@ -150,16 +152,12 @@ async fn handle_one_client(
                 params: (),
                 method: _,
             }) => {
-                if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
-                    abort_handle.abort();
-                }
+                abort_current_load_task(&current_load_task).await;
                 handle_get_last_load_request(server_state, tx).await;
             }
 
             Some(method::Request::ChangeMode { params, method: _ }) => {
-                if let Some((_, abort_handle)) = current_load_task.lock().await.take() {
-                    abort_handle.abort();
-                }
+                abort_current_load_task(&current_load_task).await;
                 handle_change_mode_request(config, server_state, params, tx).await;
             }
 
