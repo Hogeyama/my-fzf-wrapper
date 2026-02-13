@@ -21,7 +21,6 @@ use tokio::process::Child;
 use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
-use tokio::time::sleep;
 
 use crate::logger::Serde;
 use crate::method;
@@ -62,6 +61,9 @@ pub async fn server(config: Config, state: State, listener: UnixListener) -> Res
     };
     let current_load_task = Arc::new(Mutex::new(None));
 
+    let mut fzf_check_interval = tokio::time::interval(Duration::from_millis(100));
+    fzf_check_interval.set_missed_tick_behavior(tokio::time::MissedTickBehavior::Skip);
+
     loop {
         tokio::select! {
             s = listener.accept() => {
@@ -77,11 +79,8 @@ pub async fn server(config: Config, state: State, listener: UnixListener) -> Res
                     break;
                 }
             }
-            s = async {
-                sleep(Duration::from_millis(100)).await;
-                server_state.fzf.write().await.try_wait()
-            } => {
-                if let Ok(Some(_)) = s {
+            _ = fzf_check_interval.tick() => {
+                if let Ok(Some(_)) = server_state.fzf.write().await.try_wait() {
                     break; // fzf が死んだのでサーバーも終了
                 }
             }
