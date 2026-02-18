@@ -3,8 +3,7 @@ use tokio::io::AsyncWriteExt;
 use tokio::process::Command;
 
 pub async fn yank(str: impl AsRef<str>) -> Result<()> {
-    let mut glow = Command::new("xsel")
-        .args(vec!["-b"])
+    let mut glow = Command::new("myclip")
         .stdin(std::process::Stdio::piped())
         .spawn()?;
     let mut stdin = glow.stdin.take().unwrap();
