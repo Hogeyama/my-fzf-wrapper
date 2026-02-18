@@ -110,6 +110,10 @@ impl ModeDef for BrowserHistory {
             }],
         }
     }
+
+    fn fzf_extra_opts(&self) -> Vec<&str> {
+        vec!["--no-sort"]
+    }
 }
 
 fn temp_sqlite_path() -> &'static str {
