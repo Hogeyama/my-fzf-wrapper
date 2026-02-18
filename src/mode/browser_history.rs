@@ -122,7 +122,7 @@ fn get_chrome_db_path() -> Result<String> {
         Ok(path) => path,
         Err(_) => {
             let home = std::env::var("HOME").unwrap();
-            let path = format!("{}/.config/google-chrome/Profile 1/History", home);
+            let path = format!("{}/.config/google-chrome/Default/History", home);
             path
         }
     };

@@ -203,7 +203,7 @@ fn chrome_json_path() -> Result<String> {
         }
         Err(_) => {
             let home = std::env::var("HOME").unwrap();
-            let path = format!("{}/.config/google-chrome/Profile 1/Bookmarks", home);
+            let path = format!("{}/.config/google-chrome/Default/Bookmarks", home);
             path
         }
     };
