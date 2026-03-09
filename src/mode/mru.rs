@@ -13,17 +13,16 @@ use crate::config::Config;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
+use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::nvim;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
-use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct Mru;
@@ -80,20 +79,17 @@ impl ModeDef for Mru {
             b <= default_bindings(),
             "enter" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts { tabedit: false };
-                    open(config, item, opts).await
+                    actions::open_in_nvim(config, item, None, false).await
                 })
             ],
             "ctrl-t" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts { tabedit: true };
-                    open(config, item, opts).await
+                    actions::open_in_nvim(config, item, None, true).await
                 })
             ],
             "ctrl-y" => [
                 execute!(b, |_mode,_config,_state,_query,item| {
-                    xsel::yank(item).await?;
-                    Ok(())
+                    actions::yank(item).await
                 })
             ],
         }
@@ -131,18 +127,3 @@ struct MruItem {
     loaded: u64,
 }
 
-struct OpenOpts {
-    tabedit: bool,
-}
-
-async fn open(config: &Config, item: String, opts: OpenOpts) -> Result<()> {
-    let bufnr = ITEM_PATTERN.replace(&item, "$bufnr").into_owned();
-    let OpenOpts { tabedit } = opts;
-    let nvim = config.nvim.clone();
-    let nvim_opts = nvim::OpenOpts {
-        line: None,
-        tabedit,
-    };
-    nvim.open(bufnr.into(), nvim_opts).await?;
-    Ok(())
-}

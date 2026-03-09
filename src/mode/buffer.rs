@@ -11,17 +11,16 @@ use crate::config::Config;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
+use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::nvim;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
-use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct Buffer;
@@ -78,28 +77,40 @@ impl ModeDef for Buffer {
             b <= default_bindings(),
             "enter" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = ExecOpts::Open { tabedit: false };
-                    exec(config, item, opts).await
+                    let bufnr = ITEM_PATTERN
+                        .replace(&item, "$bufnr")
+                        .into_owned()
+                        .parse::<usize>()?;
+                    actions::open_in_nvim(config, bufnr, None, false).await
                 })
             ],
             "ctrl-t" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = ExecOpts::Open { tabedit: true };
-                    exec(config, item, opts).await
+                    let bufnr = ITEM_PATTERN
+                        .replace(&item, "$bufnr")
+                        .into_owned()
+                        .parse::<usize>()?;
+                    actions::open_in_nvim(config, bufnr, None, true).await
                 })
             ],
             "ctrl-x" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = ExecOpts::Delete { force: true };
-                    exec(config, item, opts).await
+                    let bufnr = ITEM_PATTERN
+                        .replace(&item, "$bufnr")
+                        .into_owned()
+                        .parse::<usize>()?;
+                    let r = config.nvim.delete_buffer(bufnr, true).await;
+                    if let Err(e) = r {
+                        error!("buffer: run: nvim_delete_buffer failed"; "error" => e.to_string());
+                    }
+                    Ok(())
                 }),
                 b.reload(),
             ],
             "ctrl-y" => [
                 execute!(b, |_mode,_config,_state,_query,item| {
                     let file = ITEM_PATTERN.replace(&item, "$path");
-                    xsel::yank(file).await?;
-                    Ok(())
+                    actions::yank(file).await
                 })
             ],
         }
@@ -138,35 +149,3 @@ struct BufferItem {
     loaded: u64,
 }
 
-enum ExecOpts {
-    Open { tabedit: bool },
-    Delete { force: bool },
-}
-
-async fn exec(config: &Config, item: String, opts: ExecOpts) -> Result<()> {
-    let bufnr = ITEM_PATTERN
-        .replace(&item, "$bufnr")
-        .into_owned()
-        .parse::<usize>()?;
-    match opts {
-        ExecOpts::Open { tabedit } => {
-            let nvim = config.nvim.clone();
-            let nvim_opts = nvim::OpenOpts {
-                line: None,
-                tabedit,
-            };
-            let r = nvim.open(bufnr.into(), nvim_opts).await;
-            if let Err(e) = r {
-                error!("buffer: run: nvim_open failed"; "error" => e.to_string());
-            }
-        }
-        ExecOpts::Delete { force } => {
-            let nvim = config.nvim.clone();
-            let r = nvim.delete_buffer(bufnr, force).await;
-            if let Err(e) = r {
-                error!("buffer: run: nvim_delete_buffer failed"; "error" => e.to_string());
-            }
-        }
-    }
-    Ok(())
-}
