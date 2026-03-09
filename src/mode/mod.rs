@@ -1,3 +1,5 @@
+pub mod lib;
+
 pub mod bookmark;
 pub mod browser_bookmark;
 pub mod browser_history;
