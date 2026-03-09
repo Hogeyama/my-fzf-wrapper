@@ -7,15 +7,13 @@ use tokio::process::Command;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
+use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::nvim;
-use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
-use crate::utils::gh;
 use crate::utils::git;
 
 #[derive(Clone)]
@@ -89,72 +87,51 @@ fn fzf_bindings() -> (fzf::Bindings, CallbackMap) {
         b <= default_bindings(),
         "enter" => [
             execute!(b, |_mode,config,_state,_query,item| {
-                let opts = OpenOpts::Neovim { tabedit: false };
-                open(config, item, opts).await
+                let workdir = git::workdir()?;
+                let file = format!("{}{}", workdir, item);
+                actions::open_in_nvim(config, file, None, false).await
             })
         ],
         "enter" => [
             execute!(b, |_mode,config,_state,_query,item| {
-                let opts = OpenOpts::Neovim { tabedit: false };
-                open(config, item, opts).await
+                let workdir = git::workdir()?;
+                let file = format!("{}{}", workdir, item);
+                actions::open_in_nvim(config, file, None, false).await
             })
         ],
         "ctrl-t" => [
             execute!(b, |_mode,config,_state,_query,item| {
-                let opts = OpenOpts::Neovim { tabedit: true };
-                open(config, item, opts).await
+                let workdir = git::workdir()?;
+                let file = format!("{}{}", workdir, item);
+                actions::open_in_nvim(config, file, None, true).await
             })
         ],
         "ctrl-v" => [
-            execute!(b, |_mode,config,_state,_query,item| {
-                let opts = OpenOpts::Vifm;
-                open(config, item, opts).await
+            execute!(b, |_mode,_config,_state,_query,_item| {
+                let pwd = std::env::current_dir().unwrap().into_os_string();
+                Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
+                Ok(())
             })
         ],
         "pgup" => [
             select_and_execute!{b, |_mode,config,_state,_query,item|
                 "neovim" => {
-                    let opts = OpenOpts::Neovim { tabedit: false };
-                    open(config, item, opts).await
+                    let workdir = git::workdir()?;
+                    let file = format!("{}{}", workdir, item);
+                    actions::open_in_nvim(config, file, None, false).await
                 },
                 "vifm" => {
-                    let opts = OpenOpts::Vifm;
-                    open(config, item, opts).await
+                    let pwd = std::env::current_dir().unwrap().into_os_string();
+                    Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
+                    Ok(())
                 },
                 "browse-github" => {
-                    let opts = OpenOpts::BrowseGithub;
-                    open(config, item, opts).await
+                    let workdir = git::workdir()?;
+                    let file = format!("{}{}", workdir, item);
+                    actions::browse_github(file).await
                 },
             }
         ]
     }
 }
 
-enum OpenOpts {
-    Neovim { tabedit: bool },
-    Vifm,
-    BrowseGithub,
-}
-
-async fn open(config: &Config, file: String, opts: OpenOpts) -> Result<()> {
-    let workdir = git::workdir()?;
-    let file = format!("{}{}", workdir, file);
-    match opts {
-        OpenOpts::Neovim { tabedit } => {
-            let nvim = config.nvim.clone();
-            let nvim_opts = nvim::OpenOpts {
-                line: None,
-                tabedit,
-            };
-            nvim.open(file.into(), nvim_opts).await?
-        }
-        OpenOpts::Vifm => {
-            let pwd = std::env::current_dir().unwrap().into_os_string();
-            Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
-        }
-        OpenOpts::BrowseGithub => {
-            gh::browse_github(file).await?;
-        }
-    }
-    Ok(())
-}

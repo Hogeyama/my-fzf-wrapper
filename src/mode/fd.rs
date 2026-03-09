@@ -9,10 +9,10 @@ use tokio::process::Command;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
+use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::nvim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::bat;
@@ -21,9 +21,7 @@ use crate::utils::command::edit_and_run;
 use crate::utils::fd;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
-use crate::utils::gh;
 use crate::utils::vscode;
-use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct Fd;
@@ -55,44 +53,44 @@ impl ModeDef for Fd {
             b <= default_bindings(),
             "enter" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::Neovim { tabedit: false };
-                    open(config, item, opts).await
+                    actions::open_in_nvim(config, item, None, false).await
                 })
             ],
             "ctrl-t" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::Neovim { tabedit: true };
-                    open(config, item, opts).await
+                    actions::open_in_nvim(config, item, None, true).await
                 })
             ],
             "ctrl-space" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::VSCode;
-                    open(config, item, opts).await
+                    actions::open_in_vscode(config, item, None).await
                 })
             ],
             "ctrl-v" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::Vifm;
-                    open(config, item, opts).await
+                execute!(b, |_mode,_config,_state,_query,item| {
+                    let pwd = std::env::current_dir().unwrap().into_os_string();
+                    Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
+                    Ok(())
                 })
             ],
             "ctrl-y" => [
                 execute!(b, |_mode,_config,_state,_query,item| {
-                    xsel::yank(item).await?;
-                    Ok(())
+                    actions::yank(item).await
                 })
             ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
                     "vscode" => {
-                        let opts = OpenOpts::VSCode;
-                        open(config, item, opts).await
+                        actions::open_in_vscode(config, item, None).await
                     },
                     "oil" => {
                         let cwd = std::env::current_dir().unwrap();
-                        let opts = OpenOpts::Oil;
-                        open(config, format!("{}", cwd.display()), opts).await
+                        config.nvim.hide_floaterm().await?;
+                        config
+                            .nvim
+                            .command(&format!("Oil --float {}", cwd.display()))
+                            .await?;
+                        Ok(())
                     },
                     "new file" => {
                         let cwd = std::env::current_dir().unwrap();
@@ -109,12 +107,11 @@ impl ModeDef for Fd {
                             .arg(&path)
                             .status()
                             .await?;
-                        let opts = if vscode::in_vscode() {
-                            OpenOpts::VSCode
+                        if vscode::in_vscode() {
+                            actions::open_in_vscode(config, path, None).await
                         } else {
-                            OpenOpts::Neovim { tabedit: false }
-                        };
-                        open(config, path, opts).await
+                            actions::open_in_nvim(config, path, None, false).await
+                        }
                     },
                     "execute any command" => {
                         let (cmd, output) = edit_and_run(format!(" {item}"))
@@ -124,61 +121,16 @@ impl ModeDef for Fd {
                         Ok(())
                     },
                     "browse-github" => {
-                        let opts = OpenOpts::BrowseGithub;
-                        open(config, item, opts).await
+                        actions::browse_github(item).await
                     },
                     "xdragon" => {
-                        let opts = OpenOpts::Xdragon;
-                        open(config, item, opts).await
+                        Command::new("xdragon").arg(&item).spawn()?.wait().await?;
+                        Ok(())
                     },
                 }
             ]
         }
     }
-}
-
-enum OpenOpts {
-    Neovim { tabedit: bool },
-    VSCode,
-    Oil,
-    Vifm,
-    BrowseGithub,
-    Xdragon,
-}
-
-async fn open(config: &Config, file: String, opts: OpenOpts) -> Result<()> {
-    match opts {
-        OpenOpts::Neovim { tabedit } => {
-            let nvim = config.nvim.clone();
-            let nvim_opts = nvim::OpenOpts {
-                line: None,
-                tabedit,
-            };
-            nvim.open(file.into(), nvim_opts).await?
-        }
-        OpenOpts::VSCode => {
-            let output = vscode::open(file, None).await?;
-            config.nvim.notify_command_result("code", output).await?;
-        }
-        OpenOpts::Vifm => {
-            let pwd = std::env::current_dir().unwrap().into_os_string();
-            Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
-        }
-        OpenOpts::Oil => {
-            config.nvim.hide_floaterm().await?;
-            config
-                .nvim
-                .command(&format!("Oil --float {}", file))
-                .await?;
-        }
-        OpenOpts::BrowseGithub => {
-            gh::browse_github(file).await?;
-        }
-        OpenOpts::Xdragon => {
-            Command::new("xdragon").arg(&file).spawn()?.wait().await?;
-        }
-    }
-    Ok(())
 }
 
 pub fn load(command: Command) -> super::LoadStream<'static> {
