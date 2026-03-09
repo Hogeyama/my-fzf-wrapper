@@ -16,17 +16,16 @@ use crate::config::Config;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
+use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::nvim;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
-use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct Mark {
@@ -90,15 +89,13 @@ impl ModeDef for Mark {
             "enter" => [{
                 let self_ = self.clone();
                 b.execute(move |_mode,config,_state,_query,item| {
-                    // https://github.com/rust-lang/rust/issues/68119#issuecomment-1293231676
-                    // TODO よく分かってない
                     let self_ = self_.clone();
                     async move {
                         let marks = self_.marks.lock().await.clone().ok_or(anyhow!("marks not loaded"))?;
                         let mark = MarkItem::lookup(&marks, &item)
                             .ok_or(anyhow!("invalid item"))?;
-                        let opts = ExecOpts::Open { tabedit: false };
-                        exec(mark, config, opts).await
+                        let file = shellexpand::tilde(&mark.file).to_string();
+                        actions::open_in_nvim(config, file, Some(mark.line as usize), false).await
                     }.boxed()
                 })
             }],
@@ -110,16 +107,15 @@ impl ModeDef for Mark {
                         let marks = self_.marks.lock().await.clone().ok_or(anyhow!("marks not loaded"))?;
                         let mark = MarkItem::lookup(&marks, &item)
                             .ok_or(anyhow!("invalid item"))?;
-                        let opts = ExecOpts::Open { tabedit: true };
-                        exec(mark, config, opts).await
+                        let file = shellexpand::tilde(&mark.file).to_string();
+                        actions::open_in_nvim(config, file, Some(mark.line as usize), true).await
                     }.boxed()
                 })
             }],
             "ctrl-y" => [
                 execute!(b, |_mode,_config,_state,_query,item| {
                     let file = ITEM_PATTERN.replace(&item, "$file");
-                    xsel::yank(file).await?;
-                    Ok(())
+                    actions::yank(file).await
                 })
             ],
         }
@@ -139,27 +135,6 @@ async fn get_nvim_marks(nvim: &Neovim) -> Result<Vec<MarkItem>> {
     Ok(marks)
 }
 
-enum ExecOpts {
-    Open { tabedit: bool },
-}
-
-async fn exec(mark: MarkItem, config: &Config, opts: ExecOpts) -> Result<()> {
-    match opts {
-        ExecOpts::Open { tabedit } => {
-            let nvim = config.nvim.clone();
-            let nvim_opts = nvim::OpenOpts {
-                line: Some(mark.line as usize),
-                tabedit,
-            };
-            let file = shellexpand::tilde(&mark.file).to_string();
-            let r = nvim.open(file.into(), nvim_opts).await;
-            if let Err(e) = r {
-                error!("buffer: run: nvim_open failed"; "error" => e.to_string());
-            }
-        }
-    }
-    Ok(())
-}
 
 static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?P<mark>\S+) (?P<file>\S*) (?P<line>\d+)").unwrap());

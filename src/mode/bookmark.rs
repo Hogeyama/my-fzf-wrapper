@@ -8,10 +8,10 @@ use serde::Serialize;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
+use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::nvim;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
@@ -19,7 +19,6 @@ use crate::utils::bat;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::path::to_relpath;
-use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct Bookmark;
@@ -69,22 +68,19 @@ impl ModeDef for Bookmark {
             "enter" => [
                 execute_silent!(b, |_mode,config,_state,_query,item| {
                     let bookmark = BookmarkItem::parse(&item)?;
-                    let opts = ExecOpts::Open { tabedit: false };
-                    open(bookmark, config, opts).await
+                    actions::open_in_nvim(config, bookmark.file, Some(bookmark.line as usize), false).await
                 })
             ],
             "ctrl-t" => [
                 execute_silent!(b, |_mode,config,_state,_query,item| {
                     let bookmark = BookmarkItem::parse(&item)?;
-                    let opts = ExecOpts::Open { tabedit: true };
-                    open(bookmark, config, opts).await
+                    actions::open_in_nvim(config, bookmark.file, Some(bookmark.line as usize), true).await
                 })
             ],
             "ctrl-y" => [
                 execute_silent!(b, |_mode,_config,_state,_query,item| {
                     let bookmark = BookmarkItem::parse(&item)?;
-                    xsel::yank(bookmark.file).await?;
-                    Ok(())
+                    actions::yank(bookmark.file).await
                 })
             ],
         }
@@ -113,26 +109,6 @@ async fn get_bookmarks(nvim: &Neovim) -> Result<Vec<BookmarkItem>> {
     Ok(bookmarks)
 }
 
-enum ExecOpts {
-    Open { tabedit: bool },
-}
-
-async fn open(bookmark: BookmarkItem, config: &Config, opts: ExecOpts) -> Result<()> {
-    match opts {
-        ExecOpts::Open { tabedit } => {
-            let nvim = config.nvim.clone();
-            let nvim_opts = nvim::OpenOpts {
-                line: Some(bookmark.line as usize),
-                tabedit,
-            };
-            let r = nvim.open(bookmark.file.clone().into(), nvim_opts).await;
-            if let Err(e) = r {
-                error!("buffer: run: nvim_open failed"; "error" => e.to_string());
-            }
-        }
-    }
-    Ok(())
-}
 
 #[derive(Debug, Clone, Serialize)]
 struct BookmarkItem {
