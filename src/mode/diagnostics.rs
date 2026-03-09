@@ -14,10 +14,10 @@ use tokio::sync::Mutex;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
+use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::nvim;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
@@ -95,8 +95,8 @@ impl ModeDef for Diagnostics {
                         let items = self_.items.lock().await;
                         let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
                         let item = DiagnosticsItem::lookup(items, item.clone())?;
-                        let opts = OpenOpts { tabedit: false };
-                        open(config, item, opts).await
+                        let file = config.nvim.get_buf_name(item.bufnr as usize).await?;
+                        actions::open_in_nvim(config, file, Some(item.lnum as usize + 1), false).await
                     }.boxed()
                 })
             }],
@@ -108,8 +108,8 @@ impl ModeDef for Diagnostics {
                         let items = self_.items.lock().await;
                         let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
                         let item = DiagnosticsItem::lookup(items, item.clone())?;
-                        let opts = OpenOpts { tabedit: true };
-                        open(config, item, opts).await
+                        let file = config.nvim.get_buf_name(item.bufnr as usize).await?;
+                        actions::open_in_nvim(config, file, Some(item.lnum as usize + 1), true).await
                     }.boxed()
                 })
             }],
@@ -200,23 +200,3 @@ impl Severity {
     }
 }
 
-struct OpenOpts {
-    tabedit: bool,
-}
-
-async fn open(config: &Config, item: DiagnosticsItem, opts: OpenOpts) -> Result<()> {
-    let nvim = config.nvim.clone();
-    let file = nvim.get_buf_name(item.bufnr as usize).await?;
-    let opts = nvim::OpenOpts {
-        line: Some(item.lnum as usize + 1),
-        tabedit: opts.tabedit,
-    };
-    let _ = tokio::spawn(async move {
-        let r = nvim.open(file.into(), opts).await;
-        if let Err(e) = r {
-            error!("diagnostics: run: nvim_open failed"; "error" => e.to_string());
-        }
-    })
-    .await;
-    Ok(())
-}

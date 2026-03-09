@@ -21,10 +21,10 @@ use tokio::sync::RwLock;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
+use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::nvim;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
@@ -32,7 +32,6 @@ use crate::utils::bat;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
-use crate::utils::vscode;
 use crate::utils::xsel;
 
 #[derive(Clone)]
@@ -229,26 +228,18 @@ impl ModeDef for GitDiff {
                     match item {
                         Item::StagedHunk { file, target_start } => {
                             let file = format!("{root}/{file}");
-                            let nvim_opts = nvim::OpenOpts {
-                                line: Some(target_start),
-                                tabedit,
-                            };
                             if vscode {
-                                vscode::open(file, Some(target_start)).await?;
+                                actions::open_in_vscode(config, file, Some(target_start)).await?;
                             } else {
-                                config.nvim.open(file.into(), nvim_opts).await?;
+                                actions::open_in_nvim(config, file, Some(target_start), tabedit).await?;
                             }
                         }
                         Item::UnstagedHunk { file, target_start } => {
                             let file = format!("{root}/{file}");
-                            let nvim_opts = nvim::OpenOpts {
-                                line: Some(target_start),
-                                tabedit,
-                            };
                             if vscode {
-                                vscode::open(file, Some(target_start)).await?;
+                                actions::open_in_vscode(config, file, Some(target_start)).await?;
                             } else {
-                                config.nvim.open(file.into(), nvim_opts).await?;
+                                actions::open_in_nvim(config, file, Some(target_start), tabedit).await?;
                             }
                         }
                         Item::StagedBinayChange { .. } => {
@@ -268,26 +259,18 @@ impl ModeDef for GitDiff {
                         }
                         Item::UntrackedFile { file } => {
                             let file = format!("{root}/{file}");
-                            let nvim_opts = nvim::OpenOpts {
-                                line: None,
-                                tabedit,
-                            };
                             if vscode {
-                                vscode::open(file, None).await?;
+                                actions::open_in_vscode(config, file, None).await?;
                             } else {
-                                config.nvim.open(file.into(), nvim_opts).await?;
+                                actions::open_in_nvim(config, file, None, tabedit).await?;
                             }
                         }
                         Item::ConflictedFile { file } => {
                             let file = format!("{root}/{file}");
-                            let nvim_opts = nvim::OpenOpts {
-                                line: None,
-                                tabedit,
-                            };
                             if vscode {
-                                vscode::open(file, None).await?;
+                                actions::open_in_vscode(config, file, None).await?;
                             } else {
-                                config.nvim.open(file.into(), nvim_opts).await?;
+                                actions::open_in_nvim(config, file, None, tabedit).await?;
                             }
                         }
                     }
