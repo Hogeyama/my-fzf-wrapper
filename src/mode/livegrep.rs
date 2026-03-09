@@ -10,20 +10,17 @@ use crate::config::Config;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
+use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::nvim;
-use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::bat;
 use crate::utils::command;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
-use crate::utils::gh;
 use crate::utils::git;
 use crate::utils::rg;
-use crate::utils::vscode;
 
 ////////////////////////////////////////////////////////////////////////////////
 // Livegrep
@@ -83,35 +80,42 @@ impl ModeDef for LiveGrep {
             ],
             "enter" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::Neovim { tabedit: false };
-                    open(config, item, opts).await
+                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                    actions::open_in_nvim(config, file, line.parse().ok(), false).await
                 })
             ],
             "ctrl-space" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::VSCode;
-                    open(config, item, opts).await
+                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                    actions::open_in_vscode(config, file, line.parse().ok()).await
                 })
             ],
             "ctrl-t" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::Neovim { tabedit: true };
-                    open(config, item, opts).await
+                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                    actions::open_in_nvim(config, file, line.parse().ok(), true).await
                 })
             ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
                     "vscode" => {
-                        let opts = OpenOpts::VSCode;
-                        open(config, item, opts).await
+                        let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                        let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                        actions::open_in_vscode(config, file, line.parse().ok()).await
                     },
                     "neovim" => {
-                        let opts = OpenOpts::Neovim { tabedit: false };
-                        open(config, item, opts).await
+                        let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                        let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                        actions::open_in_nvim(config, file, line.parse().ok(), false).await
                     },
                     "browse-github" => {
-                        let opts = OpenOpts::BrowseGithub;
-                        open(config, item, opts).await
+                        let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                        let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                        let revision = git::rev_parse("HEAD")?;
+                        actions::browse_github_line(file, &revision, line.parse::<usize>().unwrap()).await
                     },
                 }
             ]
@@ -197,35 +201,42 @@ impl ModeDef for LiveGrepF {
             b <= default_bindings(),
             "enter" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::Neovim { tabedit: false };
-                    open(config, item, opts).await
+                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                    actions::open_in_nvim(config, file, line.parse().ok(), false).await
                 })
             ],
             "ctrl-space" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::VSCode;
-                    open(config, item, opts).await
+                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                    actions::open_in_vscode(config, file, line.parse().ok()).await
                 })
             ],
             "ctrl-t" => [
                 execute!(b, |_mode,config,_state,_query,item| {
-                    let opts = OpenOpts::Neovim { tabedit: true };
-                    open(config, item, opts).await
+                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                    actions::open_in_nvim(config, file, line.parse().ok(), true).await
                 })
             ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
                     "vscode" => {
-                        let opts = OpenOpts::VSCode;
-                        open(config, item, opts).await
+                        let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                        let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                        actions::open_in_vscode(config, file, line.parse().ok()).await
                     },
                     "neovim" => {
-                        let opts = OpenOpts::Neovim { tabedit: false };
-                        open(config, item, opts).await
+                        let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                        let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                        actions::open_in_nvim(config, file, line.parse().ok(), false).await
                     },
                     "browse-github" => {
-                        let opts = OpenOpts::BrowseGithub;
-                        open(config, item, opts).await
+                        let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
+                        let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
+                        let revision = git::rev_parse("HEAD")?;
+                        actions::browse_github_line(file, &revision, line.parse::<usize>().unwrap()).await
                     },
                 }
             ]
@@ -263,35 +274,3 @@ async fn preview(item: String) -> Result<PreviewResp> {
     }
 }
 
-enum OpenOpts {
-    Neovim { tabedit: bool },
-    VSCode,
-    BrowseGithub,
-}
-
-async fn open(config: &Config, item: String, opts: OpenOpts) -> Result<()> {
-    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
-    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-
-    match opts {
-        OpenOpts::Neovim { tabedit } => {
-            let nvim = config.nvim.clone();
-            let nvim_opts = nvim::OpenOpts {
-                line: line.parse::<usize>().ok(),
-                tabedit,
-            };
-            nvim.open(file.into(), nvim_opts).await?;
-        }
-        OpenOpts::VSCode => {
-            let line = line.parse::<usize>().ok();
-            let output = vscode::open(file, line).await?;
-            config.nvim.notify_command_result("code", output).await?;
-        }
-        OpenOpts::BrowseGithub => {
-            let revision = git::rev_parse("HEAD")?;
-            gh::browse_github_line(file, &revision, line.parse::<usize>().unwrap()).await?;
-        }
-    }
-
-    Ok(())
-}
