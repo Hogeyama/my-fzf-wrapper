@@ -38,6 +38,15 @@
             toolchain
             pkgs.pkg-config
             pkgs.openssl.dev
+            pkgs-for-bin.bat
+            pkgs-for-bin.eza
+            pkgs-for-bin.fd
+            pkgs-for-bin.fzf
+            pkgs-for-bin.gh
+            pkgs-for-bin.git
+            pkgs-for-bin.glow
+            pkgs-for-bin.lazygit
+            pkgs-for-bin.ripgrep
           ];
           CARGO_FPATH = "${toolchain}/share/zsh/site-functions/";
           # `MANPATH=$FZF_MANPATH man fzf` でこのバージョンのfzfのマニュアルを見る
