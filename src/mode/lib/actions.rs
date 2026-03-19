@@ -44,3 +44,35 @@ pub async fn browse_github_line(
 ) -> Result<()> {
     gh::browse_github_line(file, revision, line).await
 }
+
+pub async fn oil(config: &Config) -> Result<()> {
+    let cwd = std::env::current_dir().unwrap();
+    config.nvim.hide_floaterm().await?;
+    config
+        .nvim
+        .command(&format!("Oil --float {}", cwd.display()))
+        .await?;
+    Ok(())
+}
+
+pub async fn new_file(config: &Config, item: &str) -> Result<()> {
+    use tokio::process::Command;
+    let cwd = std::env::current_dir().unwrap();
+    let fname = crate::utils::fzf::input_with_placeholder("Enter file name", item).await?;
+    let fname = fname.trim();
+    let path = format!("{}/{}", cwd.display(), fname);
+    let dir = std::path::Path::new(&path).parent().unwrap();
+    Command::new("mkdir").arg("-p").arg(dir).status().await?;
+    Command::new("touch").arg(&path).status().await?;
+    if vscode::in_vscode() {
+        open_in_vscode(config, path, None).await
+    } else {
+        open_in_nvim(config, path, None, false).await
+    }
+}
+
+pub async fn execute_command(config: &Config, item: &str) -> Result<()> {
+    let (cmd, output) = crate::utils::command::edit_and_run(format!(" {item}")).await?;
+    config.nvim.notify_command_result(&cmd, output).await?;
+    Ok(())
+}

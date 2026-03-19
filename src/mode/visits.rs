@@ -4,7 +4,6 @@ use futures::stream;
 use futures::stream::StreamExt;
 use futures::FutureExt;
 use rmpv::ext::from_value;
-use tokio::process::Command;
 
 use super::lib::actions;
 use super::lib::item::FilePathItem;
@@ -18,11 +17,9 @@ use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::bat;
-use crate::utils::command::edit_and_run;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::path::to_relpath;
-use crate::utils::vscode;
 
 #[derive(Clone)]
 pub struct Visits {
@@ -111,41 +108,13 @@ impl ModeDef for Visits {
                         actions::open_in_vscode(config, item, None).await
                     },
                     "oil" => {
-                        let cwd = std::env::current_dir().unwrap();
-                        config.nvim.hide_floaterm().await?;
-                        config
-                            .nvim
-                            .command(&format!("Oil --float {}", cwd.display()))
-                            .await?;
-                        Ok(())
+                        actions::oil(config).await
                     },
                     "new file" => {
-                        let cwd = std::env::current_dir().unwrap();
-                        let fname = fzf::input_with_placeholder("Enter file name", &item).await?;
-                        let fname = fname.trim();
-                        let path = format!("{}/{}", cwd.display(), fname);
-                        let dir = std::path::Path::new(&path).parent().unwrap();
-                        Command::new("mkdir")
-                            .arg("-p")
-                            .arg(dir)
-                            .status()
-                            .await?;
-                        Command::new("touch")
-                            .arg(&path)
-                            .status()
-                            .await?;
-                        if vscode::in_vscode() {
-                            actions::open_in_vscode(config, path, None).await
-                        } else {
-                            actions::open_in_nvim(config, path, None, false).await
-                        }
+                        actions::new_file(config, &item).await
                     },
                     "execute any command" => {
-                        let (cmd, output) = edit_and_run(format!(" {item}"))
-                            .await?;
-                        config.nvim.notify_command_result(&cmd, output)
-                            .await?;
-                        Ok(())
+                        actions::execute_command(config, &item).await
                     },
                 }
             ]
