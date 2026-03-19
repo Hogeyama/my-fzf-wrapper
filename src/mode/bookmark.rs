@@ -5,10 +5,10 @@ use futures::FutureExt;
 use rmpv::ext::from_value;
 use serde::Serialize;
 
+use super::lib::actions;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
-use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
@@ -108,7 +108,6 @@ async fn get_bookmarks(nvim: &Neovim) -> Result<Vec<BookmarkItem>> {
         .collect::<Vec<_>>();
     Ok(bookmarks)
 }
-
 
 #[derive(Debug, Clone, Serialize)]
 struct BookmarkItem {

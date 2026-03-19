@@ -11,10 +11,10 @@ use serde::Serialize;
 use std::sync::Arc;
 use tokio::sync::Mutex;
 
+use super::lib::actions;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
-use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
@@ -199,4 +199,3 @@ impl Severity {
         }
     }
 }
-

@@ -9,11 +9,11 @@ use rmpv::ext::from_value;
 use serde::Deserialize;
 use serde::Serialize;
 
+use super::lib::actions;
 use crate::config::Config;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
-use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
@@ -126,4 +126,3 @@ struct MruItem {
     hidden: u64,
     loaded: u64,
 }
-

@@ -12,11 +12,11 @@ use serde::Deserialize;
 use serde::Serialize;
 use tokio::sync::Mutex;
 
+use super::lib::actions;
 use crate::config::Config;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
-use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
@@ -134,7 +134,6 @@ async fn get_nvim_marks(nvim: &Neovim) -> Result<Vec<MarkItem>> {
     trace!("mark: get_nvim_marks: marks"; "marks" => Serde(marks.clone()));
     Ok(marks)
 }
-
 
 static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?P<mark>\S+) (?P<file>\S*) (?P<line>\d+)").unwrap());

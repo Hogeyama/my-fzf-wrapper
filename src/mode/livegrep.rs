@@ -6,11 +6,11 @@ use futures::StreamExt as _;
 use once_cell::sync::Lazy;
 use regex::Regex;
 
+use super::lib::actions;
 use crate::config::Config;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
-use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
@@ -273,4 +273,3 @@ async fn preview(item: String) -> Result<PreviewResp> {
         }
     }
 }
-

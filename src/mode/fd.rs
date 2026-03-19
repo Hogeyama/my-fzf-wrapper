@@ -6,10 +6,10 @@ use futures::FutureExt;
 use futures::StreamExt as _;
 use tokio::process::Command;
 
+use super::lib::actions;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
-use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;

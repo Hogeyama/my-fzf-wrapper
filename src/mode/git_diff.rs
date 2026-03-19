@@ -18,10 +18,10 @@ use tempfile::NamedTempFile;
 use tokio::process::Command;
 use tokio::sync::RwLock;
 
+use super::lib::actions;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
-use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
@@ -231,7 +231,8 @@ impl ModeDef for GitDiff {
                             if vscode {
                                 actions::open_in_vscode(config, file, Some(target_start)).await?;
                             } else {
-                                actions::open_in_nvim(config, file, Some(target_start), tabedit).await?;
+                                actions::open_in_nvim(config, file, Some(target_start), tabedit)
+                                    .await?;
                             }
                         }
                         Item::UnstagedHunk { file, target_start } => {
@@ -239,7 +240,8 @@ impl ModeDef for GitDiff {
                             if vscode {
                                 actions::open_in_vscode(config, file, Some(target_start)).await?;
                             } else {
-                                actions::open_in_nvim(config, file, Some(target_start), tabedit).await?;
+                                actions::open_in_nvim(config, file, Some(target_start), tabedit)
+                                    .await?;
                             }
                         }
                         Item::StagedBinayChange { .. } => {

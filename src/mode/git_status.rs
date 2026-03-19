@@ -4,10 +4,10 @@ use futures::FutureExt;
 use git2::Status;
 use tokio::process::Command;
 
+use super::lib::actions;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
-use super::lib::actions;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
@@ -134,4 +134,3 @@ fn fzf_bindings() -> (fzf::Bindings, CallbackMap) {
         ]
     }
 }
-
