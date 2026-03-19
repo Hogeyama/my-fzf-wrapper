@@ -10,6 +10,7 @@ pub async fn render_markdown(md: String) -> Result<String> {
         .args(vec!["-"])
         .stdin(std::process::Stdio::piped())
         .stdout(std::process::Stdio::piped())
+        .stderr(std::process::Stdio::null())
         .spawn()?;
     let mut stdin = glow.stdin.take().unwrap();
     stdin.write_all(md.as_bytes()).await.unwrap();
