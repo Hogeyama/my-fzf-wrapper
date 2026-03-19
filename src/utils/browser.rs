@@ -1,3 +1,6 @@
+use anyhow::Result;
+use tokio::process::Command;
+
 #[derive(Clone)]
 pub enum Browser {
     Firefox(String),
@@ -26,4 +29,16 @@ pub fn get_browser() -> Browser {
     } else {
         Browser::Firefox("firefox".to_string())
     }
+}
+
+pub async fn open(url: impl AsRef<str>) -> Result<()> {
+    Command::new(get_browser().as_ref())
+        .arg(url.as_ref())
+        .stdin(std::process::Stdio::null())
+        .stdout(std::process::Stdio::null())
+        .stderr(std::process::Stdio::null())
+        .spawn()?
+        .wait()
+        .await?;
+    Ok(())
 }
