@@ -67,7 +67,7 @@ impl ModeDef for Fd {
                 })
             ],
             "ctrl-v" => [
-                execute!(b, |_mode,_config,_state,_query,item| {
+                execute!(b, |_mode,_config,_state,_query,_item| {
                     let pwd = std::env::current_dir().unwrap().into_os_string();
                     Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
                     Ok(())

@@ -21,7 +21,6 @@ use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::Neovim;
-use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf;
