@@ -123,6 +123,9 @@ impl ModeDef for GhPr {
                     let number = parse_pr_number(&item)?;
                     Command::new("gh")
                         .args(["pr", "view", "--web", &number])
+                        .stdin(std::process::Stdio::null())
+                        .stdout(std::process::Stdio::null())
+                        .stderr(std::process::Stdio::null())
                         .spawn()?
                         .wait()
                         .await?;
@@ -135,6 +138,9 @@ impl ModeDef for GhPr {
                         let number = parse_pr_number(&item)?;
                         Command::new("gh")
                             .args(["pr", "view", "--web", &number])
+                            .stdin(std::process::Stdio::null())
+                            .stdout(std::process::Stdio::null())
+                            .stderr(std::process::Stdio::null())
                             .spawn()?
                             .wait()
                             .await?;
