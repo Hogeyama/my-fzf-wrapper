@@ -32,6 +32,10 @@ impl Bindings {
         self.0.extend(other.0);
         self
     }
+    pub fn remove_key(mut self, key: &str) -> Self {
+        self.0.remove(key);
+        self
+    }
 }
 
 pub enum Action {

@@ -72,36 +72,13 @@ impl ModeDef for LiveGrep {
     fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
         use config_builder::*;
         bindings! {
-            b <= default_bindings(),
+            b <= livegrep_common_bindings(),
             "change" => [
                 b.reload(),
             ],
             "esc" => [
                 b.change_mode(LiveGrepF.name(), false),
             ],
-            "enter" => [ b.open_nvim(LIVEGREP_ITEM, false) ],
-            "ctrl-space" => [ b.open_vscode(LIVEGREP_ITEM) ],
-            "ctrl-t" => [ b.open_nvim(LIVEGREP_ITEM, true) ],
-            "pgup" => [
-                select_and_execute!{b, |_mode,config,_state,_query,item|
-                    "vscode" => {
-                        let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
-                        let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                        actions::open_in_vscode(config, file, line.parse().ok()).await
-                    },
-                    "neovim" => {
-                        let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
-                        let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                        actions::open_in_nvim(config, file, line.parse().ok(), false).await
-                    },
-                    "browse-github" => {
-                        let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
-                        let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                        let revision = git::rev_parse("HEAD")?;
-                        actions::browse_github_line(file, &revision, line.parse::<usize>().unwrap()).await
-                    },
-                }
-            ]
         }
     }
     fn fzf_extra_opts(&self) -> Vec<&str> {
@@ -179,14 +156,25 @@ impl ModeDef for LiveGrepF {
         async move { preview(item).await }.boxed()
     }
     fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
-        use config_builder::*;
-        bindings! {
-            b <= default_bindings(),
-            "enter" => [ b.open_nvim(LIVEGREP_ITEM, false) ],
-            "ctrl-space" => [ b.open_vscode(LIVEGREP_ITEM) ],
-            "ctrl-t" => [ b.open_nvim(LIVEGREP_ITEM, true) ],
-            "pgup" => [
-                select_and_execute!{b, |_mode,config,_state,_query,item|
+        livegrep_common_bindings()
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+// Common
+////////////////////////////////////////////////////////////////////////////////
+
+/// LiveGrep / LiveGrepF 共通のバインディング
+fn livegrep_common_bindings() -> (fzf::Bindings, super::CallbackMap) {
+    use config_builder::*;
+    bindings! {
+        b <= default_bindings(),
+        "enter" => [ b.open_nvim(LIVEGREP_ITEM, false) ],
+        "ctrl-space" => [ b.open_vscode(LIVEGREP_ITEM) ],
+        "ctrl-t" => [ b.open_nvim(LIVEGREP_ITEM, true) ],
+        "pgup" => [
+            b.execute(|_mode,config,_state,_query,item| async move {
+                match &*fzf::select(vec!["vscode", "neovim", "browse-github"]).await? {
                     "vscode" => {
                         let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
                         let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
@@ -203,15 +191,12 @@ impl ModeDef for LiveGrepF {
                         let revision = git::rev_parse("HEAD")?;
                         actions::browse_github_line(file, &revision, line.parse::<usize>().unwrap()).await
                     },
+                    _ => Ok(()),
                 }
-            ]
-        }
+            }.boxed())
+        ]
     }
 }
-
-////////////////////////////////////////////////////////////////////////////////
-// Common
-////////////////////////////////////////////////////////////////////////////////
 
 static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?P<file>[^:]*):(?P<line>\d+):(?P<col>\d+):.*").unwrap());

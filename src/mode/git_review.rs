@@ -208,75 +208,61 @@ impl ModeDef for GitReview {
                     actions::open_in_nvim(config, file, Some(thread.line_start), false).await
                 }}
             ],
-            "ctrl-y" => [{
-                let threads = self.threads.clone();
-                b.execute(move |_mode, _config, _state, _query, item| {
-                    let threads = threads.clone();
-                    async move {
-                        let parsed = parse_thread_item(&item)?;
-                        let thread = threads.with(|threads| {
-                            threads.iter().find(|t| t.id == parsed.id).cloned()
-                        }).await
-                        .ok()
-                        .flatten()
-                        .unwrap_or(parsed);
-                        let text = compose_yank_text(&thread).await?;
-                        xsel::yank(&text).await?;
-                        Ok(())
-                    }.boxed()
+            "ctrl-y" => [
+                execute!(b, |mode, _config, _state, _query, item| {
+                    let parsed = parse_thread_item(&item)?;
+                    let thread = mode.threads.with(|threads| {
+                        threads.iter().find(|t| t.id == parsed.id).cloned()
+                    }).await
+                    .ok()
+                    .flatten()
+                    .unwrap_or(parsed);
+                    let text = compose_yank_text(&thread).await?;
+                    xsel::yank(&text).await?;
+                    Ok(())
                 })
-            }],
-            "pgup" => [{
-                let threads = self.threads.clone();
-                b.execute_silent(move |_mode, _config, _state, _query, item| {
-                    let threads = threads.clone();
-                    async move {
-                        let parsed = parse_thread_item(&item)?;
-                        let resolve_label = if parsed.is_resolved {
-                            "unresolve"
-                        } else {
-                            "resolve"
-                        };
-                        match &*fzf::select(vec!["browse", "reply", resolve_label]).await? {
-                            "reply" => {
-                                let thread = threads.with(|threads| {
-                                    threads.iter().find(|t| t.id == parsed.id).cloned()
-                                }).await
-                                .ok()
-                                .flatten()
-                                .unwrap_or(parsed);
-                                reply_to_thread(&thread).await
-                            }
-                            "resolve" => {
-                                resolve_thread(&parsed.id).await
-                            }
-                            "unresolve" => {
-                                unresolve_thread(&parsed.id).await
-                            }
-                            "browse" => {
-                                browser::open(&parsed.url).await
-                            }
-                            _ => Ok(()),
+            ],
+            "pgup" => [
+                execute_silent!(b, |mode, _config, _state, _query, item| {
+                    let parsed = parse_thread_item(&item)?;
+                    let resolve_label = if parsed.is_resolved {
+                        "unresolve"
+                    } else {
+                        "resolve"
+                    };
+                    match &*fzf::select(vec!["browse", "reply", resolve_label]).await? {
+                        "reply" => {
+                            let thread = mode.threads.with(|threads| {
+                                threads.iter().find(|t| t.id == parsed.id).cloned()
+                            }).await
+                            .ok()
+                            .flatten()
+                            .unwrap_or(parsed);
+                            reply_to_thread(&thread).await
                         }
-                    }.boxed()
-                })
-            }, b.reload()],
-            "ctrl-x" => [{
-                let unresolved_only = self.unresolved_only.clone();
-                b.execute_silent(move |_mode, _config, _state, _query, _item| {
-                    let unresolved_only = unresolved_only.clone();
-                    async move {
-                        let current = unresolved_only.get().await.unwrap_or(false);
-                        unresolved_only.set(!current).await;
-                        Ok(())
-                    }.boxed()
-                })
-            }, {
-                let unresolved_only = self.unresolved_only.clone();
-                let threads = self.threads.clone();
-                b.reload_with(move |_mode, _config, _state, _query, _item| {
-                    let unresolved_only = unresolved_only.clone();
-                    let threads = threads.clone();
+                        "resolve" => {
+                            resolve_thread(&parsed.id).await
+                        }
+                        "unresolve" => {
+                            unresolve_thread(&parsed.id).await
+                        }
+                        "browse" => {
+                            browser::open(&parsed.url).await
+                        }
+                        _ => Ok(()),
+                    }
+                }),
+                b.reload()
+            ],
+            "ctrl-x" => [
+                execute_silent!(b, |mode, _config, _state, _query, _item| {
+                    let current = mode.unresolved_only.get().await.unwrap_or(false);
+                    mode.unresolved_only.set(!current).await;
+                    Ok(())
+                }),
+                b.reload_with_as::<Self, _>(|mode, _config, _state, _query, _item| {
+                    let unresolved_only = mode.unresolved_only.clone();
+                    let threads = mode.threads.clone();
                     Box::pin(async_stream::stream! {
                         let threads = threads.get().await.unwrap_or_default();
                         let flag = unresolved_only.get().await.unwrap_or(false);
@@ -287,7 +273,7 @@ impl ModeDef for GitReview {
                         yield Ok(LoadResp::new_with_default_header(items));
                     })
                 })
-            }],
+            ],
         }
     }
 

@@ -78,32 +78,24 @@ impl ModeDef for Mark {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [{
-                let marks = self.marks.clone();
-                b.execute(move |_mode,config,_state,_query,item| {
-                    let marks = marks.clone();
-                    async move {
-                        let marks = marks.get().await?;
-                        let mark = MarkItem::lookup(&marks, &item)
-                            .ok_or(anyhow!("invalid item"))?;
-                        let file = shellexpand::tilde(&mark.file).to_string();
-                        actions::open_in_nvim(config, file, Some(mark.line as usize), false).await
-                    }.boxed()
+            "enter" => [
+                execute!(b, |mode, config, _state, _query, item| {
+                    let marks = mode.marks.get().await?;
+                    let mark = MarkItem::lookup(&marks, &item)
+                        .ok_or(anyhow!("invalid item"))?;
+                    let file = shellexpand::tilde(&mark.file).to_string();
+                    actions::open_in_nvim(config, file, Some(mark.line as usize), false).await
                 })
-            }],
-            "ctrl-t" => [{
-                let marks = self.marks.clone();
-                b.execute(move |_mode,config,_state,_query,item| {
-                    let marks = marks.clone();
-                    async move {
-                        let marks = marks.get().await?;
-                        let mark = MarkItem::lookup(&marks, &item)
-                            .ok_or(anyhow!("invalid item"))?;
-                        let file = shellexpand::tilde(&mark.file).to_string();
-                        actions::open_in_nvim(config, file, Some(mark.line as usize), true).await
-                    }.boxed()
+            ],
+            "ctrl-t" => [
+                execute!(b, |mode, config, _state, _query, item| {
+                    let marks = mode.marks.get().await?;
+                    let mark = MarkItem::lookup(&marks, &item)
+                        .ok_or(anyhow!("invalid item"))?;
+                    let file = shellexpand::tilde(&mark.file).to_string();
+                    actions::open_in_nvim(config, file, Some(mark.line as usize), true).await
                 })
-            }],
+            ],
             "ctrl-y" => [
                 execute!(b, |_mode,_config,_state,_query,item| {
                     let file = ITEM_PATTERN.replace(&item, "$file");

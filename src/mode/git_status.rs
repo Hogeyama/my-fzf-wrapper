@@ -46,7 +46,50 @@ impl ModeDef for GitStatus {
         preview(item)
     }
     fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
-        fzf_bindings()
+        use config_builder::*;
+        bindings! {
+            b <= default_bindings(),
+            "enter" => [
+                execute!(b, |_mode,config,_state,_query,item| {
+                    let workdir = git::workdir()?;
+                    let file = format!("{}{}", workdir, item);
+                    actions::open_in_nvim(config, file, None, false).await
+                })
+            ],
+            "ctrl-t" => [
+                execute!(b, |_mode,config,_state,_query,item| {
+                    let workdir = git::workdir()?;
+                    let file = format!("{}{}", workdir, item);
+                    actions::open_in_nvim(config, file, None, true).await
+                })
+            ],
+            "ctrl-v" => [
+                execute!(b, |_mode,_config,_state,_query,_item| {
+                    let pwd = std::env::current_dir().unwrap().into_os_string();
+                    Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
+                    Ok(())
+                })
+            ],
+            "pgup" => [
+                select_and_execute!{b, |_mode,config,_state,_query,item|
+                    "neovim" => {
+                        let workdir = git::workdir()?;
+                        let file = format!("{}{}", workdir, item);
+                        actions::open_in_nvim(config, file, None, false).await
+                    },
+                    "vifm" => {
+                        let pwd = std::env::current_dir().unwrap().into_os_string();
+                        Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
+                        Ok(())
+                    },
+                    "browse-github" => {
+                        let workdir = git::workdir()?;
+                        let file = format!("{}{}", workdir, item);
+                        actions::browse_github(file).await
+                    },
+                }
+            ]
+        }
     }
 }
 
@@ -79,58 +122,4 @@ fn preview(path: String) -> BoxFuture<'static, Result<PreviewResp>> {
         Ok(PreviewResp { message })
     }
     .boxed()
-}
-
-fn fzf_bindings() -> (fzf::Bindings, CallbackMap) {
-    use config_builder::*;
-    bindings! {
-        b <= default_bindings(),
-        "enter" => [
-            execute!(b, |_mode,config,_state,_query,item| {
-                let workdir = git::workdir()?;
-                let file = format!("{}{}", workdir, item);
-                actions::open_in_nvim(config, file, None, false).await
-            })
-        ],
-        "enter" => [
-            execute!(b, |_mode,config,_state,_query,item| {
-                let workdir = git::workdir()?;
-                let file = format!("{}{}", workdir, item);
-                actions::open_in_nvim(config, file, None, false).await
-            })
-        ],
-        "ctrl-t" => [
-            execute!(b, |_mode,config,_state,_query,item| {
-                let workdir = git::workdir()?;
-                let file = format!("{}{}", workdir, item);
-                actions::open_in_nvim(config, file, None, true).await
-            })
-        ],
-        "ctrl-v" => [
-            execute!(b, |_mode,_config,_state,_query,_item| {
-                let pwd = std::env::current_dir().unwrap().into_os_string();
-                Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
-                Ok(())
-            })
-        ],
-        "pgup" => [
-            select_and_execute!{b, |_mode,config,_state,_query,item|
-                "neovim" => {
-                    let workdir = git::workdir()?;
-                    let file = format!("{}{}", workdir, item);
-                    actions::open_in_nvim(config, file, None, false).await
-                },
-                "vifm" => {
-                    let pwd = std::env::current_dir().unwrap().into_os_string();
-                    Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
-                    Ok(())
-                },
-                "browse-github" => {
-                    let workdir = git::workdir()?;
-                    let file = format!("{}{}", workdir, item);
-                    actions::browse_github(file).await
-                },
-            }
-        ]
-    }
 }

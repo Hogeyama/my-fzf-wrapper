@@ -36,6 +36,15 @@ use crate::state::State;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 
+pub trait AsAny: 'static {
+    fn as_any(&self) -> &dyn std::any::Any;
+}
+impl<T: 'static> AsAny for T {
+    fn as_any(&self) -> &dyn std::any::Any {
+        self
+    }
+}
+
 pub type MkMode = Pin<Box<dyn (Fn() -> Mode) + Send + Sync>>;
 
 pub fn all_modes() -> Vec<(String, MkMode)> {
@@ -141,7 +150,7 @@ impl Mode {
 
 pub type LoadStream<'a> = Pin<Box<dyn Stream<Item = Result<LoadResp>> + Send + 'a>>;
 
-pub trait ModeDef {
+pub trait ModeDef: AsAny {
     /// The name of the mode
     fn name(&self) -> &'static str;
 
@@ -393,6 +402,69 @@ pub mod config_builder {
             fzf::Action::Raw(cmd.into())
         }
 
+        pub fn execute_as<M, F>(&mut self, callback: F) -> fzf::Action
+        where
+            M: ModeDef + Send + Sync + 'static,
+            F: for<'a> Fn(
+                    &'a M,
+                    &'a Config,
+                    &'a mut State,
+                    String,
+                    String,
+                ) -> BoxFuture<'a, Result<()>>
+                + Send
+                + Sync
+                + 'static,
+        {
+            self.execute(move |mode_dyn, config, state, query, item| {
+                let mode = mode_dyn
+                    .as_any()
+                    .downcast_ref::<M>()
+                    .expect("ConfigBuilder type mismatch: callback registered for wrong mode");
+                callback(mode, config, state, query, item)
+            })
+        }
+
+        pub fn execute_silent_as<M, F>(&mut self, callback: F) -> fzf::Action
+        where
+            M: ModeDef + Send + Sync + 'static,
+            F: for<'a> Fn(
+                    &'a M,
+                    &'a Config,
+                    &'a mut State,
+                    String,
+                    String,
+                ) -> BoxFuture<'a, Result<()>>
+                + Send
+                + Sync
+                + 'static,
+        {
+            self.execute_silent(move |mode_dyn, config, state, query, item| {
+                let mode = mode_dyn
+                    .as_any()
+                    .downcast_ref::<M>()
+                    .expect("ConfigBuilder type mismatch: callback registered for wrong mode");
+                callback(mode, config, state, query, item)
+            })
+        }
+
+        pub fn reload_with_as<M, F>(&mut self, callback: F) -> fzf::Action
+        where
+            M: ModeDef + Send + Sync + 'static,
+            for<'a> F: Fn(&'a M, &'a Config, &'a mut State, String, String) -> super::LoadStream<'a>
+                + Send
+                + Sync
+                + 'static,
+        {
+            self.reload_with(move |mode_dyn, config, state, query, item| {
+                let mode = mode_dyn
+                    .as_any()
+                    .downcast_ref::<M>()
+                    .expect("ConfigBuilder type mismatch: callback registered for wrong mode");
+                callback(mode, config, state, query, item)
+            })
+        }
+
         fn gen_name(&mut self) -> String {
             self.callback_counter += 1;
             format!("callback{}", self.callback_counter)
@@ -472,7 +544,9 @@ pub mod config_builder {
     #[macro_export]
     macro_rules! execute {
         ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
-            $builder.execute(|$mode, $config, $state, $query, $item| async move { $v }.boxed())
+            $builder.execute_as::<Self, _>(
+                |$mode, $config, $state, $query, $item| async move { $v }.boxed(),
+            )
         };
     }
     pub use execute;
@@ -480,8 +554,9 @@ pub mod config_builder {
     #[macro_export]
     macro_rules! execute_silent {
         ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
-            $builder
-                .execute_silent(|$mode, $config, $state, $query, $item| async move { $v }.boxed())
+            $builder.execute_silent_as::<Self, _>(
+                |$mode, $config, $state, $query, $item| async move { $v }.boxed(),
+            )
         };
     }
     pub use execute_silent;
@@ -490,7 +565,7 @@ pub mod config_builder {
     macro_rules! select_and_execute {
         ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident|
          $($k:expr => $v:expr),* $(,)?) => {
-            $builder.execute(|$mode, $config, $state, $query, $item| async move {
+            $builder.execute_as::<Self, _>(|$mode, $config, $state, $query, $item| async move {
                 match &*$crate::utils::fzf::select(vec![$($k),*]).await? {
                     $($k => { $v })*
                     _ => { Ok(()) }

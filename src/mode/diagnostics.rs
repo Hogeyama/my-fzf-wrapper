@@ -84,30 +84,22 @@ impl ModeDef for Diagnostics {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [{
-                let items = self.items.clone();
-                b.execute(move |_mode,config,_state,_query,item| {
-                    let items = items.clone();
-                    async move {
-                        let items = items.get().await?;
-                        let item = DiagnosticsItem::lookup(&items, item.clone())?;
-                        let file = config.nvim.get_buf_name(item.bufnr as usize).await?;
-                        actions::open_in_nvim(config, file, Some(item.lnum as usize + 1), false).await
-                    }.boxed()
+            "enter" => [
+                execute!(b, |mode, config, _state, _query, item| {
+                    let items = mode.items.get().await?;
+                    let item = DiagnosticsItem::lookup(&items, item.clone())?;
+                    let file = config.nvim.get_buf_name(item.bufnr as usize).await?;
+                    actions::open_in_nvim(config, file, Some(item.lnum as usize + 1), false).await
                 })
-            }],
-            "ctrl-t" => [{
-                let items = self.items.clone();
-                b.execute(move |_mode,config,_state,_query,item| {
-                    let items = items.clone();
-                    async move {
-                        let items = items.get().await?;
-                        let item = DiagnosticsItem::lookup(&items, item.clone())?;
-                        let file = config.nvim.get_buf_name(item.bufnr as usize).await?;
-                        actions::open_in_nvim(config, file, Some(item.lnum as usize + 1), true).await
-                    }.boxed()
+            ],
+            "ctrl-t" => [
+                execute!(b, |mode, config, _state, _query, item| {
+                    let items = mode.items.get().await?;
+                    let item = DiagnosticsItem::lookup(&items, item.clone())?;
+                    let file = config.nvim.get_buf_name(item.bufnr as usize).await?;
+                    actions::open_in_nvim(config, file, Some(item.lnum as usize + 1), true).await
                 })
-            }],
+            ],
         }
     }
 }

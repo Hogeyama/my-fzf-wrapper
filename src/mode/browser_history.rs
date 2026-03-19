@@ -91,23 +91,19 @@ impl ModeDef for BrowserHistory {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [{
-                let self_ = self.clone();
-                b.execute(move |_mode,_config,_state,_query,item| {
-                    let self_ = self_.clone();
-                    async move {
-                        let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
-                        Command::new(self_.browser.as_ref())
-                            .arg(&url)
-                            .spawn()
-                            .expect("browser_history: open")
-                            .wait()
-                            .await
-                            .expect("browser_history: open");
-                        Ok(())
-                    }.boxed()
+            "enter" => [
+                execute!(b, |mode, _config, _state, _query, item| {
+                    let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
+                    Command::new(mode.browser.as_ref())
+                        .arg(&url)
+                        .spawn()
+                        .expect("browser_history: open")
+                        .wait()
+                        .await
+                        .expect("browser_history: open");
+                    Ok(())
                 })
-            }],
+            ],
         }
     }
 

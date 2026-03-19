@@ -90,16 +90,10 @@ impl ModeDef for Runner {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                {
-                    let state = self.state.clone();
-                    b.execute_silent(move |_mode, _config, _state, _query, item| {
-                        let state = state.clone();
-                        async move {
-                            state.lock().await.target_file = Some(item);
-                            Ok(())
-                        }.boxed()
-                    })
-                },
+                execute_silent!(b, |mode, _config, _state, _query, item| {
+                    mode.state.lock().await.target_file = Some(item);
+                    Ok(())
+                }),
                 b.change_mode("runner_commands", false),
             ],
         }
@@ -160,41 +154,30 @@ impl ModeDef for RunnerCommands {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [{
-                let state = self.state.clone();
-                b.execute(move |_mode, config, _state, _query, item| {
-                     let state = state.clone();
-                     async move {
-                         let file = state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
-                         let (cmd, output) = run_target(&file, &item).await?;
-                         config.nvim.notify_command_result(&cmd, output).await
-                     }.boxed()
+            "enter" => [
+                execute!(b, |mode, config, _state, _query, item| {
+                    let file = mode.state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
+                    let (cmd, output) = run_target(&file, &item).await?;
+                    config.nvim.notify_command_result(&cmd, output).await
                 })
-            }],
-            "pgup" => [{
-                let state = self.state.clone();
-                b.execute(move |_mode, config, _state, _query, item| {
-                     let state = state.clone();
-                     async move {
-                        match &*fzf::select(vec!["execute", "execute with arguments"]).await? {
-                            "execute" => {
-                                let file = state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
-                                let (cmd, output) = run_target(&file, &item).await?;
-                                config.nvim.notify_command_result(&cmd, output).await?;
-                                Ok(())
-                            },
-                            "execute with arguments" => {
-                                let file = state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
-                                let cmd = build_command(&file, &item);
-                                let (cmd, output) = edit_and_run(cmd).await?;
-                                config.nvim.notify_command_result(&cmd, output).await?;
-                                Ok(())
-                            },
-                            _ => Ok(()),
-                        }
-                     }.boxed()
-                })
-            }],
+            ],
+            "pgup" => [
+                select_and_execute!{b, |mode, config, _state, _query, item|
+                    "execute" => {
+                        let file = mode.state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
+                        let (cmd, output) = run_target(&file, &item).await?;
+                        config.nvim.notify_command_result(&cmd, output).await?;
+                        Ok(())
+                    },
+                    "execute with arguments" => {
+                        let file = mode.state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
+                        let cmd = build_command(&file, &item);
+                        let (cmd, output) = edit_and_run(cmd).await?;
+                        config.nvim.notify_command_result(&cmd, output).await?;
+                        Ok(())
+                    },
+                }
+            ],
         }
     }
 }
