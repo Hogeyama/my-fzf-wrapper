@@ -80,7 +80,7 @@ pub async fn server(config: Config, state: State, listener: UnixListener) -> Res
                 }
             }
             _ = fzf_check_interval.tick() => {
-                if let Ok(Some(_)) = server_state.fzf.write().await.try_wait() {
+                if server_state.check_fzf_alive().await {
                     break; // fzf が死んだのでサーバーも終了
                 }
             }
@@ -90,13 +90,68 @@ pub async fn server(config: Config, state: State, listener: UnixListener) -> Res
     Ok(())
 }
 
-// field order is the lock order
+/// ロック順序: fzf → mode → state → callbacks
+/// フィールドを非公開にし、ロック取得はメソッド経由で行うことで順序を強制する。
 #[derive(Clone)]
 struct ServerState {
     fzf: Arc<RwLock<Child>>,
     mode: Arc<RwLock<Mode>>,
     state: Arc<RwLock<State>>,
     callbacks: Arc<RwLock<mode::CallbackMap>>,
+}
+
+use tokio::sync::{RwLockReadGuard, RwLockWriteGuard};
+
+impl ServerState {
+    /// Load/Execute 用: mode(read), state(write), callbacks(read)
+    async fn lock_for_load_or_execute(
+        &self,
+    ) -> (
+        RwLockReadGuard<'_, Mode>,
+        RwLockWriteGuard<'_, State>,
+        RwLockReadGuard<'_, mode::CallbackMap>,
+    ) {
+        let mode = self.mode.read().await;
+        let state = self.state.write().await;
+        let callbacks = self.callbacks.read().await;
+        (mode, state, callbacks)
+    }
+
+    /// Preview 用: mode(read), callbacks(read)
+    async fn lock_for_preview(
+        &self,
+    ) -> (
+        RwLockReadGuard<'_, Mode>,
+        RwLockReadGuard<'_, mode::CallbackMap>,
+    ) {
+        let mode = self.mode.read().await;
+        let callbacks = self.callbacks.read().await;
+        (mode, callbacks)
+    }
+
+    /// GetLastLoad 用: state(read)
+    async fn lock_for_get_last_load(&self) -> RwLockReadGuard<'_, State> {
+        self.state.read().await
+    }
+
+    /// ChangeMode 用: fzf(write), mode(write), callbacks(write)
+    async fn lock_for_change_mode(
+        &self,
+    ) -> (
+        RwLockWriteGuard<'_, Child>,
+        RwLockWriteGuard<'_, Mode>,
+        RwLockWriteGuard<'_, mode::CallbackMap>,
+    ) {
+        let fzf = self.fzf.write().await;
+        let mode = self.mode.write().await;
+        let callbacks = self.callbacks.write().await;
+        (fzf, mode, callbacks)
+    }
+
+    /// fzf プロセスの生存確認用
+    async fn check_fzf_alive(&self) -> bool {
+        matches!(self.fzf.write().await.try_wait(), Ok(Some(_)))
+    }
 }
 
 type LoadTask = Arc<Mutex<Option<(JoinHandle<Result<(), Aborted>>, AbortHandle)>>>;
@@ -191,16 +246,7 @@ async fn handle_load_request(
         item,
     } = params;
 
-    let ServerState {
-        mode,
-        state,
-        callbacks,
-        ..
-    } = server_state;
-
-    let mode = mode.read().await;
-    let mut state = state.write().await;
-    let callbacks = callbacks.read().await;
+    let (mode, mut state, callbacks) = server_state.lock_for_load_or_execute().await;
 
     let callback = &callbacks
         .load
@@ -270,12 +316,7 @@ async fn handle_preview_request(
     preview_window: fzf::PreviewWindow,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let ServerState {
-        mode, callbacks, ..
-    } = server_state;
-
-    let mode = mode.read().await;
-    let callbacks = callbacks.read().await;
+    let (mode, callbacks) = server_state.lock_for_preview().await;
 
     let callback = &callbacks
         .preview
@@ -316,16 +357,7 @@ async fn handle_execute_request(
         item,
     } = params;
 
-    let ServerState {
-        mode,
-        state,
-        callbacks,
-        ..
-    } = server_state;
-
-    let mode = mode.read().await;
-    let mut state = state.write().await;
-    let callbacks = callbacks.read().await;
+    let (mode, mut state, callbacks) = server_state.lock_for_load_or_execute().await;
 
     let callback = &callbacks
         .execute
@@ -358,8 +390,7 @@ async fn handle_get_last_load_request(
     server_state: ServerState,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let ServerState { state, .. } = server_state;
-    let state = state.read().await;
+    let state = server_state.lock_for_get_last_load().await;
 
     let mut tx = tx.lock().await;
     let resp = match &state.last_load_resp {
@@ -390,16 +421,7 @@ async fn handle_change_mode_request(
         query,
     } = params;
 
-    let ServerState {
-        mode,
-        callbacks,
-        fzf,
-        ..
-    } = server_state;
-
-    let mut fzf = fzf.write().await;
-    let mut mode = mode.write().await;
-    let mut callbacks = callbacks.write().await;
+    let (mut fzf, mut mode, mut callbacks) = server_state.lock_for_change_mode().await;
 
     if let Err(e) = fzf.kill().await {
         error!("server: failed to kill fzf process"; "error" => e.to_string());
