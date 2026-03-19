@@ -40,8 +40,8 @@ struct GhAuthor {
 impl ModeDef for GhPr {
     fn name(&self) -> &'static str {
         match self {
-            GhPr::Open => "gh-pr",
-            GhPr::All => "gh-pr(all)",
+            GhPr::Open => "git-pr(open)",
+            GhPr::All => "git-pr(all)",
         }
     }
 
@@ -87,10 +87,19 @@ impl ModeDef for GhPr {
         async move {
             let number = parse_pr_number(&item)?;
             let output = Command::new("gh")
-                .args(["pr", "view", &number])
+                .args(gh_pr_view_body_args(&number))
                 .output()
                 .await?;
-            let message = String::from_utf8_lossy(&output.stdout).to_string();
+            if !output.status.success() {
+                let stderr = String::from_utf8_lossy(&output.stderr);
+                return Err(anyhow!("gh pr view body failed: {}", stderr));
+            }
+            let body = String::from_utf8_lossy(&output.stdout).trim().to_string();
+            let message = if body.is_empty() {
+                "(No description)".to_string()
+            } else {
+                body
+            };
             Ok(PreviewResp { message })
         }
         .boxed()
@@ -148,4 +157,42 @@ fn parse_pr_number(item: &str) -> Result<String> {
         .and_then(|s| s.strip_prefix('#'))
         .map(|s| s.to_string())
         .ok_or_else(|| anyhow!("Failed to parse PR number from: {}", item))
+}
+
+fn gh_pr_view_body_args(number: &str) -> Vec<String> {
+    vec![
+        "pr".to_string(),
+        "view".to_string(),
+        number.to_string(),
+        "--json".to_string(),
+        "body".to_string(),
+        "--jq".to_string(),
+        ".body".to_string(),
+    ]
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mode_name_is_git_pr_open_for_open_variant() {
+        assert_eq!(GhPr::Open.name(), "git-pr(open)");
+    }
+
+    #[test]
+    fn mode_name_is_git_pr_all_for_all_variant() {
+        assert_eq!(GhPr::All.name(), "git-pr(all)");
+    }
+
+    #[test]
+    fn preview_command_fetches_only_pr_body() {
+        assert_eq!(
+            gh_pr_view_body_args("123"),
+            vec!["pr", "view", "123", "--json", "body", "--jq", ".body"]
+                .into_iter()
+                .map(ToString::to_string)
+                .collect::<Vec<_>>()
+        );
+    }
 }
