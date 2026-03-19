@@ -37,6 +37,26 @@ struct GhAuthor {
     login: String,
 }
 
+fn state_icon(state: &str) -> &'static str {
+    match state {
+        "OPEN" => "⬜",
+        "MERGED" => "✅",
+        "CLOSED" => "❌",
+        _ => "❓",
+    }
+}
+
+fn render_pr_item(pr: &GhPrItem) -> String {
+    format!(
+        "{}#{} {} by {} {}",
+        state_icon(&pr.state),
+        pr.number,
+        pr.title,
+        pr.author.login,
+        pr.head_ref_name
+    )
+}
+
 impl ModeDef for GhPr {
     fn name(&self) -> &'static str {
         match self {
@@ -65,15 +85,7 @@ impl ModeDef for GhPr {
                 return;
             }
             let prs: Vec<GhPrItem> = serde_json::from_slice(&output.stdout)?;
-            let items: Vec<String> = prs
-                .iter()
-                .map(|pr| {
-                    format!(
-                        "#{}\t{}\t{}\t{}\t[{}]",
-                        pr.number, pr.state, pr.head_ref_name, pr.title, pr.author.login
-                    )
-                })
-                .collect();
+            let items: Vec<String> = prs.iter().map(render_pr_item).collect();
             yield Ok(LoadResp::new_with_default_header(items))
         })
     }
@@ -152,9 +164,24 @@ impl ModeDef for GhPr {
 }
 
 fn parse_pr_number(item: &str) -> Result<String> {
-    item.split('\t')
+    item.split_whitespace()
         .next()
-        .and_then(|s| s.strip_prefix('#'))
+        .and_then(|s| s.split('#').nth(1))
+        .and_then(|s| s.parse::<u64>().ok())
+        .map(|n| n.to_string())
+        .or_else(|| {
+            item.split('\t')
+                .next()
+                .and_then(|s| s.strip_prefix('#'))
+                .and_then(|s| s.parse::<u64>().ok())
+                .map(|n| n.to_string())
+        })
+        .or_else(|| {
+            item.split_whitespace()
+                .find_map(|tok| tok.strip_prefix('#'))
+                .and_then(|s| s.parse::<u64>().ok())
+                .map(|n| n.to_string())
+        })
         .map(|s| s.to_string())
         .ok_or_else(|| anyhow!("Failed to parse PR number from: {}", item))
 }
@@ -194,5 +221,28 @@ mod tests {
                 .map(ToString::to_string)
                 .collect::<Vec<_>>()
         );
+    }
+
+    #[test]
+    fn parse_pr_number_from_new_format() {
+        assert_eq!(
+            parse_pr_number("⬜#157 refs #502625 suppressMissing by Tom feat/502625").unwrap(),
+            "157"
+        );
+    }
+
+    #[test]
+    fn parse_pr_number_ignores_by_inside_author_or_title() {
+        assert_eq!(
+            parse_pr_number("✅#88 Fix by keyword handling by John by smith feat/by-safe").unwrap(),
+            "88"
+        );
+    }
+
+    #[test]
+    fn state_icon_mapping() {
+        assert_eq!(state_icon("OPEN"), "⬜");
+        assert_eq!(state_icon("MERGED"), "✅");
+        assert_eq!(state_icon("CLOSED"), "❌");
     }
 }
