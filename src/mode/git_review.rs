@@ -1,14 +1,12 @@
-use std::sync::Arc;
-
 use anyhow::anyhow;
 use anyhow::Result;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 use serde::Deserialize;
 use tokio::process::Command;
-use tokio::sync::Mutex;
 
 use super::lib::actions;
+use super::lib::cache::ModeCache;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
@@ -25,15 +23,15 @@ use crate::utils::xsel;
 
 #[derive(Clone)]
 pub struct GitReview {
-    threads: Arc<Mutex<Vec<ReviewThreadItem>>>,
-    unresolved_only: Arc<Mutex<bool>>,
+    threads: ModeCache<Vec<ReviewThreadItem>>,
+    unresolved_only: ModeCache<bool>,
 }
 
 impl GitReview {
     pub fn new() -> Self {
         Self {
-            threads: Arc::new(Mutex::new(Vec::new())),
-            unresolved_only: Arc::new(Mutex::new(false)),
+            threads: ModeCache::new(),
+            unresolved_only: ModeCache::new(),
         }
     }
 }
@@ -141,12 +139,12 @@ impl ModeDef for GitReview {
     ) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let threads = fetch_review_threads().await?;
-            let unresolved_only = *self.unresolved_only.lock().await;
+            let unresolved_only = self.unresolved_only.get().await.unwrap_or(false);
             let items = threads.iter()
                 .filter(|t| !unresolved_only || !t.is_resolved)
                 .map(render_thread_item)
                 .collect::<Vec<_>>();
-            *self.threads.lock().await = threads;
+            self.threads.set(threads).await;
             yield Ok(LoadResp::new_with_default_header(items));
         })
     }
@@ -160,13 +158,15 @@ impl ModeDef for GitReview {
         let win = *win;
         async move {
             let parsed = parse_thread_item(&item)?;
-            let threads = self.threads.lock().await;
-            let thread = threads
-                .iter()
-                .find(|t| t.id == parsed.id)
-                .cloned()
-                .unwrap_or(parsed);
-            drop(threads);
+            let thread = self.threads.with(|threads| {
+                threads
+                    .iter()
+                    .find(|t| t.id == parsed.id)
+                    .cloned()
+            }).await
+            .ok()
+            .flatten()
+            .unwrap_or(parsed);
 
             let git_ref = format!("{}:{}", thread.revision, thread.path);
             let git_output = Command::new("git")
@@ -214,13 +214,12 @@ impl ModeDef for GitReview {
                     let threads = threads.clone();
                     async move {
                         let parsed = parse_thread_item(&item)?;
-                        let threads = threads.lock().await;
-                        let thread = threads
-                            .iter()
-                            .find(|t| t.id == parsed.id)
-                            .cloned()
-                            .unwrap_or(parsed);
-                        drop(threads);
+                        let thread = threads.with(|threads| {
+                            threads.iter().find(|t| t.id == parsed.id).cloned()
+                        }).await
+                        .ok()
+                        .flatten()
+                        .unwrap_or(parsed);
                         let text = compose_yank_text(&thread).await?;
                         xsel::yank(&text).await?;
                         Ok(())
@@ -240,13 +239,12 @@ impl ModeDef for GitReview {
                         };
                         match &*fzf::select(vec!["browse", "reply", resolve_label]).await? {
                             "reply" => {
-                                let threads_guard = threads.lock().await;
-                                let thread = threads_guard
-                                    .iter()
-                                    .find(|t| t.id == parsed.id)
-                                    .cloned()
-                                    .unwrap_or(parsed);
-                                drop(threads_guard);
+                                let thread = threads.with(|threads| {
+                                    threads.iter().find(|t| t.id == parsed.id).cloned()
+                                }).await
+                                .ok()
+                                .flatten()
+                                .unwrap_or(parsed);
                                 reply_to_thread(&thread).await
                             }
                             "resolve" => {
@@ -268,8 +266,8 @@ impl ModeDef for GitReview {
                 b.execute_silent(move |_mode, _config, _state, _query, _item| {
                     let unresolved_only = unresolved_only.clone();
                     async move {
-                        let mut flag = unresolved_only.lock().await;
-                        *flag = !*flag;
+                        let current = unresolved_only.get().await.unwrap_or(false);
+                        unresolved_only.set(!current).await;
                         Ok(())
                     }.boxed()
                 })
@@ -280,8 +278,8 @@ impl ModeDef for GitReview {
                     let unresolved_only = unresolved_only.clone();
                     let threads = threads.clone();
                     Box::pin(async_stream::stream! {
-                        let threads = threads.lock().await;
-                        let flag = *unresolved_only.lock().await;
+                        let threads = threads.get().await.unwrap_or_default();
+                        let flag = unresolved_only.get().await.unwrap_or(false);
                         let items = threads.iter()
                             .filter(|t| !flag || !t.is_resolved)
                             .map(render_thread_item)

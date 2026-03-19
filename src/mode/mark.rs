@@ -1,5 +1,4 @@
 use std::collections::HashMap;
-use std::sync::Arc;
 
 use anyhow::anyhow;
 use anyhow::Result;
@@ -10,9 +9,9 @@ use regex::Regex;
 use rmpv::ext::from_value;
 use serde::Deserialize;
 use serde::Serialize;
-use tokio::sync::Mutex;
 
 use super::lib::actions;
+use super::lib::cache::ModeCache;
 use crate::config::Config;
 use crate::logger::Serde;
 use crate::method::LoadResp;
@@ -28,13 +27,13 @@ use crate::utils::fzf::PreviewWindow;
 
 #[derive(Clone)]
 pub struct Mark {
-    marks: Arc<Mutex<Option<HashMap<String, MarkItem>>>>,
+    marks: ModeCache<HashMap<String, MarkItem>>,
 }
 
 impl Mark {
     pub fn new() -> Self {
         Mark {
-            marks: Arc::new(Mutex::new(None)),
+            marks: ModeCache::new(),
         }
     }
 }
@@ -55,9 +54,8 @@ impl ModeDef for Mark {
             let marks = get_nvim_marks(&nvim).await?;
             let items = marks.iter().map(|m| m.render()).collect();
             self.marks
-                .lock()
-                .await
-                .replace(marks.into_iter().map(|b| (b.mark.clone(), b)).collect());
+                .set(marks.into_iter().map(|b| (b.mark.clone(), b)).collect())
+                .await;
             yield Ok(LoadResp::new_with_default_header(items))
         })
     }
@@ -68,12 +66,7 @@ impl ModeDef for Mark {
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {
         async move {
-            let marks = self
-                .marks
-                .lock()
-                .await
-                .clone()
-                .ok_or(anyhow!("marks not loaded"))?;
+            let marks = self.marks.get().await?;
             let item = MarkItem::lookup(&marks, &item).ok_or(anyhow!("invalid item"))?;
             let file = shellexpand::tilde(&item.file).to_string();
             let message = bat::render_file_with_highlight(file, item.line as isize).await?;
@@ -86,11 +79,11 @@ impl ModeDef for Mark {
         bindings! {
             b <= default_bindings(),
             "enter" => [{
-                let self_ = self.clone();
+                let marks = self.marks.clone();
                 b.execute(move |_mode,config,_state,_query,item| {
-                    let self_ = self_.clone();
+                    let marks = marks.clone();
                     async move {
-                        let marks = self_.marks.lock().await.clone().ok_or(anyhow!("marks not loaded"))?;
+                        let marks = marks.get().await?;
                         let mark = MarkItem::lookup(&marks, &item)
                             .ok_or(anyhow!("invalid item"))?;
                         let file = shellexpand::tilde(&mark.file).to_string();
@@ -99,11 +92,11 @@ impl ModeDef for Mark {
                 })
             }],
             "ctrl-t" => [{
-                let self_ = self.clone();
+                let marks = self.marks.clone();
                 b.execute(move |_mode,config,_state,_query,item| {
-                    let self_ = self_.clone();
+                    let marks = marks.clone();
                     async move {
-                        let marks = self_.marks.lock().await.clone().ok_or(anyhow!("marks not loaded"))?;
+                        let marks = marks.get().await?;
                         let mark = MarkItem::lookup(&marks, &item)
                             .ok_or(anyhow!("invalid item"))?;
                         let file = shellexpand::tilde(&mark.file).to_string();

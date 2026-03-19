@@ -8,10 +8,8 @@ use regex::Regex;
 use rmpv::ext::from_value;
 use serde::Deserialize;
 use serde::Serialize;
-use std::sync::Arc;
-use tokio::sync::Mutex;
-
 use super::lib::actions;
+use super::lib::cache::ModeCache;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
@@ -28,13 +26,13 @@ use crate::utils::path::to_relpath;
 
 #[derive(Clone)]
 pub struct Diagnostics {
-    items: Arc<Mutex<Option<Vec<DiagnosticsItem>>>>,
+    items: ModeCache<Vec<DiagnosticsItem>>,
 }
 
 impl Diagnostics {
     pub fn new() -> Self {
         Self {
-            items: Arc::new(Mutex::new(None)),
+            items: ModeCache::new(),
         }
     }
 }
@@ -59,7 +57,7 @@ impl ModeDef for Diagnostics {
                 .collect::<Vec<_>>();
             diagnostics.sort_by(|a, b| a.severity.0.cmp(&b.severity.0));
             let items = DiagnosticsItem::render_list(&diagnostics);
-            self.items.lock().await.replace(diagnostics);
+            self.items.set(diagnostics).await;
             yield Ok(LoadResp::new_with_default_header(items))
         })
     }
@@ -71,9 +69,8 @@ impl ModeDef for Diagnostics {
     ) -> BoxFuture<'a, Result<PreviewResp>> {
         let nvim = config.nvim.clone();
         async move {
-            let items = self.items.lock().await;
-            let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
-            let item = DiagnosticsItem::lookup(items, item.clone())?;
+            let items = self.items.get().await?;
+            let item = DiagnosticsItem::lookup(&items, item.clone())?;
             let file = nvim.get_buf_name(item.bufnr as usize).await?;
             // zero-indexed なので +1 する
             let rendered_file =
@@ -88,26 +85,24 @@ impl ModeDef for Diagnostics {
         bindings! {
             b <= default_bindings(),
             "enter" => [{
-                let self_ = self.clone();
+                let items = self.items.clone();
                 b.execute(move |_mode,config,_state,_query,item| {
-                    let self_ = self_.clone();
+                    let items = items.clone();
                     async move {
-                        let items = self_.items.lock().await;
-                        let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
-                        let item = DiagnosticsItem::lookup(items, item.clone())?;
+                        let items = items.get().await?;
+                        let item = DiagnosticsItem::lookup(&items, item.clone())?;
                         let file = config.nvim.get_buf_name(item.bufnr as usize).await?;
                         actions::open_in_nvim(config, file, Some(item.lnum as usize + 1), false).await
                     }.boxed()
                 })
             }],
             "ctrl-t" => [{
-                let self_ = self.clone();
+                let items = self.items.clone();
                 b.execute(move |_mode,config,_state,_query,item| {
-                    let self_ = self_.clone();
+                    let items = items.clone();
                     async move {
-                        let items = self_.items.lock().await;
-                        let items = items.as_ref().ok_or(anyhow!("diagnostics not loaded"))?;
-                        let item = DiagnosticsItem::lookup(items, item.clone())?;
+                        let items = items.get().await?;
+                        let item = DiagnosticsItem::lookup(&items, item.clone())?;
                         let file = config.nvim.get_buf_name(item.bufnr as usize).await?;
                         actions::open_in_nvim(config, file, Some(item.lnum as usize + 1), true).await
                     }.boxed()
