@@ -7,6 +7,7 @@ use futures::StreamExt as _;
 use tokio::process::Command;
 
 use super::lib::actions;
+use super::lib::item::FilePathItem;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
@@ -51,21 +52,9 @@ impl ModeDef for Fd {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    actions::open_in_nvim(config, item, None, false).await
-                })
-            ],
-            "ctrl-t" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    actions::open_in_nvim(config, item, None, true).await
-                })
-            ],
-            "ctrl-space" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    actions::open_in_vscode(config, item, None).await
-                })
-            ],
+            "enter" => [ b.open_nvim(FilePathItem, false) ],
+            "ctrl-t" => [ b.open_nvim(FilePathItem, true) ],
+            "ctrl-space" => [ b.open_vscode(FilePathItem) ],
             "ctrl-v" => [
                 execute!(b, |_mode,_config,_state,_query,_item| {
                     let pwd = std::env::current_dir().unwrap().into_os_string();
@@ -73,11 +62,7 @@ impl ModeDef for Fd {
                     Ok(())
                 })
             ],
-            "ctrl-y" => [
-                execute!(b, |_mode,_config,_state,_query,item| {
-                    actions::yank(item).await
-                })
-            ],
+            "ctrl-y" => [ b.yank_file(FilePathItem) ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
                     "vscode" => {

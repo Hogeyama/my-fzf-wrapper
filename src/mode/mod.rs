@@ -256,11 +256,14 @@ pub struct ExecuteCallback {
 pub mod config_builder {
     #![allow(dead_code)]
     use crate::config::Config;
+    use crate::mode::lib::actions;
+    use crate::mode::lib::item::ItemExtractor;
     use crate::mode::ModeDef;
     use crate::state::State;
     use crate::utils::fzf;
     use anyhow::Result;
     use futures::future::BoxFuture;
+    use futures::FutureExt;
 
     pub struct ConfigBuilder {
         pub callback_map: super::CallbackMap,
@@ -393,6 +396,57 @@ pub mod config_builder {
         fn gen_name(&mut self) -> String {
             self.callback_counter += 1;
             format!("callback{}", self.callback_counter)
+        }
+
+        /// Neovim でファイルを開く execute アクションを生成
+        pub fn open_nvim<E: ItemExtractor>(&mut self, extractor: E, tabedit: bool) -> fzf::Action {
+            self.execute(move |_mode, config, _state, _query, item| {
+                let e = extractor.clone();
+                async move {
+                    let file = e.file(&item)?;
+                    let line = e.line(&item);
+                    actions::open_in_nvim(config, file, line, tabedit).await
+                }
+                .boxed()
+            })
+        }
+
+        /// Neovim でファイルを開く execute_silent アクションを生成
+        pub fn open_nvim_silent<E: ItemExtractor>(
+            &mut self,
+            extractor: E,
+            tabedit: bool,
+        ) -> fzf::Action {
+            self.execute_silent(move |_mode, config, _state, _query, item| {
+                let e = extractor.clone();
+                async move {
+                    let file = e.file(&item)?;
+                    let line = e.line(&item);
+                    actions::open_in_nvim(config, file, line, tabedit).await
+                }
+                .boxed()
+            })
+        }
+
+        /// VSCode でファイルを開く execute アクションを生成
+        pub fn open_vscode<E: ItemExtractor>(&mut self, extractor: E) -> fzf::Action {
+            self.execute(move |_mode, config, _state, _query, item| {
+                let e = extractor.clone();
+                async move {
+                    let file = e.file(&item)?;
+                    let line = e.line(&item);
+                    actions::open_in_vscode(config, file, line).await
+                }
+                .boxed()
+            })
+        }
+
+        /// ファイルパスを yank する execute_silent アクションを生成
+        pub fn yank_file<E: ItemExtractor>(&mut self, extractor: E) -> fzf::Action {
+            self.execute_silent(move |_mode, _config, _state, _query, item| {
+                let e = extractor.clone();
+                async move { actions::yank(e.file(&item)?).await }.boxed()
+            })
         }
     }
 

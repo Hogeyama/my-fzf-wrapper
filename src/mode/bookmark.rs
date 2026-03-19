@@ -5,7 +5,7 @@ use futures::FutureExt;
 use rmpv::ext::from_value;
 use serde::Serialize;
 
-use super::lib::actions;
+use super::lib::item::ItemExtractor;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
@@ -64,24 +64,9 @@ impl ModeDef for Bookmark {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [
-                execute_silent!(b, |_mode,config,_state,_query,item| {
-                    let bookmark = BookmarkItem::parse(&item)?;
-                    actions::open_in_nvim(config, bookmark.file, Some(bookmark.line as usize), false).await
-                })
-            ],
-            "ctrl-t" => [
-                execute_silent!(b, |_mode,config,_state,_query,item| {
-                    let bookmark = BookmarkItem::parse(&item)?;
-                    actions::open_in_nvim(config, bookmark.file, Some(bookmark.line as usize), true).await
-                })
-            ],
-            "ctrl-y" => [
-                execute_silent!(b, |_mode,_config,_state,_query,item| {
-                    let bookmark = BookmarkItem::parse(&item)?;
-                    actions::yank(bookmark.file).await
-                })
-            ],
+            "enter" => [ b.open_nvim_silent(BookmarkExtractor, false) ],
+            "ctrl-t" => [ b.open_nvim_silent(BookmarkExtractor, true) ],
+            "ctrl-y" => [ b.yank_file(BookmarkExtractor) ],
         }
     }
 }
@@ -123,5 +108,18 @@ impl BookmarkItem {
         let file = file.to_string();
         let line = line.parse().ok().ok_or(anyhow!("invalid item"))?;
         Ok(BookmarkItem { file, line })
+    }
+}
+
+/// bookmark のアイテム文字列 ("file:line") からファイルと行番号を抽出する
+#[derive(Clone)]
+struct BookmarkExtractor;
+
+impl ItemExtractor for BookmarkExtractor {
+    fn file(&self, item: &str) -> Result<String> {
+        Ok(BookmarkItem::parse(item)?.file)
+    }
+    fn line(&self, item: &str) -> Option<usize> {
+        BookmarkItem::parse(item).ok().map(|b| b.line as usize)
     }
 }

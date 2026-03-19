@@ -7,6 +7,7 @@ use rmpv::ext::from_value;
 use tokio::process::Command;
 
 use super::lib::actions;
+use super::lib::item::FilePathItem;
 use crate::config::Config;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
@@ -91,26 +92,10 @@ impl ModeDef for Visits {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    actions::open_in_nvim(config, item, None, false).await
-                })
-            ],
-            "ctrl-space" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    actions::open_in_vscode(config, item, None).await
-                })
-            ],
-            "ctrl-t" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    actions::open_in_nvim(config, item, None, true).await
-                })
-            ],
-            "ctrl-y" => [
-                execute!(b, |_mode,_config,_state,_query,item| {
-                    actions::yank(item).await
-                })
-            ],
+            "enter" => [ b.open_nvim(FilePathItem, false) ],
+            "ctrl-space" => [ b.open_vscode(FilePathItem) ],
+            "ctrl-t" => [ b.open_nvim(FilePathItem, true) ],
+            "ctrl-y" => [ b.yank_file(FilePathItem) ],
             "ctrl-x" => [
                 execute_silent!(b, |_mode,config,_state,_query,item| {
                     config.nvim.eval_lua(

@@ -7,6 +7,7 @@ use once_cell::sync::Lazy;
 use regex::Regex;
 
 use super::lib::actions;
+use super::lib::item::RegexItem;
 use crate::config::Config;
 use crate::logger::Serde;
 use crate::method::LoadResp;
@@ -78,27 +79,9 @@ impl ModeDef for LiveGrep {
             "esc" => [
                 b.change_mode(LiveGrepF.name(), false),
             ],
-            "enter" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
-                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                    actions::open_in_nvim(config, file, line.parse().ok(), false).await
-                })
-            ],
-            "ctrl-space" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
-                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                    actions::open_in_vscode(config, file, line.parse().ok()).await
-                })
-            ],
-            "ctrl-t" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
-                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                    actions::open_in_nvim(config, file, line.parse().ok(), true).await
-                })
-            ],
+            "enter" => [ b.open_nvim(LIVEGREP_ITEM, false) ],
+            "ctrl-space" => [ b.open_vscode(LIVEGREP_ITEM) ],
+            "ctrl-t" => [ b.open_nvim(LIVEGREP_ITEM, true) ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
                     "vscode" => {
@@ -199,27 +182,9 @@ impl ModeDef for LiveGrepF {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
-                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                    actions::open_in_nvim(config, file, line.parse().ok(), false).await
-                })
-            ],
-            "ctrl-space" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
-                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                    actions::open_in_vscode(config, file, line.parse().ok()).await
-                })
-            ],
-            "ctrl-t" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
-                    let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                    actions::open_in_nvim(config, file, line.parse().ok(), true).await
-                })
-            ],
+            "enter" => [ b.open_nvim(LIVEGREP_ITEM, false) ],
+            "ctrl-space" => [ b.open_vscode(LIVEGREP_ITEM) ],
+            "ctrl-t" => [ b.open_nvim(LIVEGREP_ITEM, true) ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
                     "vscode" => {
@@ -250,6 +215,12 @@ impl ModeDef for LiveGrepF {
 
 static ITEM_PATTERN: Lazy<Regex> =
     Lazy::new(|| Regex::new(r"(?P<file>[^:]*):(?P<line>\d+):(?P<col>\d+):.*").unwrap());
+
+static LIVEGREP_ITEM: RegexItem = RegexItem {
+    pattern: &ITEM_PATTERN,
+    file_group: "$file",
+    line_group: Some("$line"),
+};
 
 async fn preview(item: String) -> Result<PreviewResp> {
     let file = ITEM_PATTERN.replace(&item, "$file").into_owned();

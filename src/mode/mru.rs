@@ -9,7 +9,7 @@ use rmpv::ext::from_value;
 use serde::Deserialize;
 use serde::Serialize;
 
-use super::lib::actions;
+use super::lib::item::FilePathItem;
 use crate::config::Config;
 use crate::logger::Serde;
 use crate::method::LoadResp;
@@ -76,21 +76,9 @@ impl ModeDef for Mru {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
-            "enter" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    actions::open_in_nvim(config, item, None, false).await
-                })
-            ],
-            "ctrl-t" => [
-                execute!(b, |_mode,config,_state,_query,item| {
-                    actions::open_in_nvim(config, item, None, true).await
-                })
-            ],
-            "ctrl-y" => [
-                execute!(b, |_mode,_config,_state,_query,item| {
-                    actions::yank(item).await
-                })
-            ],
+            "enter" => [ b.open_nvim(FilePathItem, false) ],
+            "ctrl-t" => [ b.open_nvim(FilePathItem, true) ],
+            "ctrl-y" => [ b.yank_file(FilePathItem) ],
         }
     }
 }
