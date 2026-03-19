@@ -15,6 +15,7 @@ use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
+use crate::utils::glow;
 
 #[derive(Clone)]
 pub enum GhPr {
@@ -106,12 +107,8 @@ impl ModeDef for GhPr {
                 let stderr = String::from_utf8_lossy(&output.stderr);
                 return Err(anyhow!("gh pr view body failed: {}", stderr));
             }
-            let body = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let message = if body.is_empty() {
-                "(No description)".to_string()
-            } else {
-                body
-            };
+            let body = String::from_utf8_lossy(&output.stdout).to_string();
+            let message = glow::render_markdown(preview_body_text(&body)).await?;
             Ok(PreviewResp { message })
         }
         .boxed()
@@ -198,6 +195,15 @@ fn gh_pr_view_body_args(number: &str) -> Vec<String> {
     ]
 }
 
+fn preview_body_text(body: &str) -> String {
+    let body = body.trim();
+    if body.is_empty() {
+        "(No description)".to_string()
+    } else {
+        body.to_string()
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -244,5 +250,11 @@ mod tests {
         assert_eq!(state_icon("OPEN"), "⬜");
         assert_eq!(state_icon("MERGED"), "✅");
         assert_eq!(state_icon("CLOSED"), "❌");
+    }
+
+    #[test]
+    fn preview_body_fallback_text_when_empty() {
+        assert_eq!(preview_body_text(""), "(No description)");
+        assert_eq!(preview_body_text("   "), "(No description)");
     }
 }
