@@ -64,11 +64,7 @@ pub async fn new_file(config: &Config, item: &str) -> Result<()> {
     let dir = std::path::Path::new(&path).parent().unwrap();
     Command::new("mkdir").arg("-p").arg(dir).status().await?;
     Command::new("touch").arg(&path).status().await?;
-    if vscode::in_vscode() {
-        open_in_vscode(config, path, None).await
-    } else {
-        open_in_nvim(config, path, None, false).await
-    }
+    open_in_nvim(config, path, None, false).await
 }
 
 pub async fn execute_command(config: &Config, item: &str) -> Result<()> {

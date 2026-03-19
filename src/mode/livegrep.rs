@@ -174,22 +174,22 @@ fn livegrep_common_bindings() -> (fzf::Bindings, super::CallbackMap) {
         "ctrl-t" => [ b.open_nvim(LIVEGREP_ITEM, true) ],
         "pgup" => [
             b.execute(|_mode,config,_state,_query,item| async move {
-                match &*fzf::select(vec!["vscode", "neovim", "browse-github"]).await? {
-                    "vscode" => {
+                match &*fzf::select(vec!["browse-github", "neovim", "vscode"]).await? {
+                    "browse-github" => {
                         let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
                         let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                        actions::open_in_vscode(config, file, line.parse().ok()).await
+                        let revision = git::rev_parse("HEAD")?;
+                        actions::browse_github_line(file, &revision, line.parse::<usize>().unwrap()).await
                     },
                     "neovim" => {
                         let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
                         let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
                         actions::open_in_nvim(config, file, line.parse().ok(), false).await
                     },
-                    "browse-github" => {
+                    "vscode" => {
                         let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
                         let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                        let revision = git::rev_parse("HEAD")?;
-                        actions::browse_github_line(file, &revision, line.parse::<usize>().unwrap()).await
+                        actions::open_in_vscode(config, file, line.parse().ok()).await
                     },
                     _ => Ok(()),
                 }

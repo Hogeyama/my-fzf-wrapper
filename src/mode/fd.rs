@@ -51,7 +51,6 @@ impl ModeDef for Fd {
             b <= default_bindings(),
             "enter" => [ b.open_nvim(FilePathItem, false) ],
             "ctrl-t" => [ b.open_nvim(FilePathItem, true) ],
-            "ctrl-space" => [ b.open_vscode(FilePathItem) ],
             "ctrl-v" => [
                 execute!(b, |_mode,_config,_state,_query,_item| {
                     let pwd = std::env::current_dir().unwrap().into_os_string();
@@ -62,9 +61,6 @@ impl ModeDef for Fd {
             "ctrl-y" => [ b.yank_file(FilePathItem) ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
-                    "vscode" => {
-                        actions::open_in_vscode(config, item, None).await
-                    },
                     "oil" => {
                         actions::oil(config).await
                     },
@@ -80,6 +76,9 @@ impl ModeDef for Fd {
                     "xdragon" => {
                         Command::new("xdragon").arg(&item).spawn()?.wait().await?;
                         Ok(())
+                    },
+                    "vscode" => {
+                        actions::open_in_vscode(config, item, None).await
                     },
                 }
             ]

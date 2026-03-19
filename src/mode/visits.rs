@@ -90,7 +90,6 @@ impl ModeDef for Visits {
         bindings! {
             b <= default_bindings(),
             "enter" => [ b.open_nvim(FilePathItem, false) ],
-            "ctrl-space" => [ b.open_vscode(FilePathItem) ],
             "ctrl-t" => [ b.open_nvim(FilePathItem, true) ],
             "ctrl-y" => [ b.yank_file(FilePathItem) ],
             "ctrl-x" => [
@@ -104,9 +103,6 @@ impl ModeDef for Visits {
             ],
             "pgup" => [
                 select_and_execute!{b, |_mode,config,_state,_query,item|
-                    "vscode" => {
-                        actions::open_in_vscode(config, item, None).await
-                    },
                     "oil" => {
                         actions::oil(config).await
                     },
@@ -115,6 +111,9 @@ impl ModeDef for Visits {
                     },
                     "execute any command" => {
                         actions::execute_command(config, &item).await
+                    },
+                    "vscode" => {
+                        actions::open_in_vscode(config, item, None).await
                     },
                 }
             ]
