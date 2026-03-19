@@ -10,6 +10,7 @@ pub mod git_branch;
 pub mod git_diff;
 pub mod git_log;
 pub mod git_reflog;
+pub mod git_review;
 pub mod git_status;
 pub mod livegrep;
 pub mod mark;
@@ -59,6 +60,7 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(git_log::GitLog::Head)),
         Box::pin(|| f(git_log::GitLog::All)),
         Box::pin(|| f(git_reflog::GitReflog)),
+        Box::pin(|| f(git_review::GitReview::new())),
         Box::pin(|| f(git_status::GitStatus)),
         Box::pin(|| f(git_diff::GitDiff::new())),
         Box::pin(|| f(nvim_session::NeovimSession)),
