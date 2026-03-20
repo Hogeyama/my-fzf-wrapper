@@ -153,11 +153,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
 
     let myself = args.fzfw_self.unwrap_or(get_program_path());
     let config = config::new(myself.clone(), socket_name.clone(), args.fzfw_log_file);
-    let initial_mode = config.initial_mode.clone();
-    let env = env::Env { config, nvim };
-    let state = state::State::new(initial_mode, true);
-
-    server::server(env, state, socket)
+    server::server(config, nvim, socket)
         .await
         .unwrap_or_else(|e| {
             error!("server: error"; "error" => e);

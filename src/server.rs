@@ -23,8 +23,10 @@ use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
+use crate::config::Config;
 use crate::config::ModeEntry;
 use crate::env::Env;
+use crate::env::ModeInfo;
 use crate::logger::Serde;
 use crate::method;
 use crate::method::ExecuteParam;
@@ -33,34 +35,64 @@ use crate::method::LoadResp;
 use crate::method::Method;
 use crate::method::PreviewResp;
 use crate::mode;
+use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::fzf;
 
-pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<(), String> {
-    let initial_mode_name = env.config.initial_mode.clone();
+pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Result<(), String> {
+    let initial_mode_name = config.initial_mode.clone();
 
     // 全モードのコールバックと rendered_bindings を事前に構築
-    let all_modes = Arc::new(env.config.build_all_modes());
+    let all_modes = Arc::new(config.build_all_modes());
 
     // fzf の --listen 用 Unix ソケットパス
-    // fzf は .sock で終わるパスのみ Unix ソケットとして認識する
-    let fzf_listen_socket = env.config.socket.replace(".sock", "-fzf-listen.sock");
+    let fzf_listen_socket = config.socket.replace(".sock", "-fzf-listen.sock");
 
     // 統合バインディングを構築 (全モードの全キーを transform dispatch に)
-    let unified_bindings = env.config.build_unified_bindings(&all_modes);
+    let unified_bindings = config.build_unified_bindings(&all_modes);
 
     // 初期モードの prompt を取得
     let initial_entry = all_modes.get(&initial_mode_name).unwrap_or_else(|| {
         panic!("unknown initial mode: {}", initial_mode_name);
     });
     let initial_prompt = initial_entry.mode.mode_def.fzf_prompt();
+    let initial_sort = initial_entry.mode.mode_def.wants_sort();
+
+    // モード切替用メタデータを事前計算
+    let mode_infos: HashMap<String, ModeInfo> = all_modes
+        .iter()
+        .map(|(name, entry)| {
+            let def = entry.mode.mode_def.as_ref();
+            let enter_actions = def.mode_enter_actions();
+            (
+                name.clone(),
+                ModeInfo {
+                    prompt: def.fzf_prompt(),
+                    wants_sort: def.wants_sort(),
+                    disable_search: enter_actions
+                        .iter()
+                        .any(|a| matches!(a, fzf::Action::DisableSearch)),
+                    custom_preview_window: enter_actions.into_iter().find_map(|a| match a {
+                        fzf::Action::ChangePreviewWindow(spec) => Some(spec),
+                        _ => None,
+                    }),
+                },
+            )
+        })
+        .collect();
+
+    // FzfClient を作成
+    let fzf_client = Arc::new(fzf::FzfClient::new(
+        &fzf_listen_socket,
+        config.myself.clone(),
+    ));
 
     // 統合 fzf 設定で起動 (--no-sort + --multi を付与)
     let fzf_config = fzf::Config {
-        myself: env.config.myself.clone(),
-        socket: env.config.socket.clone(),
-        log_file: env.config.log_file.clone(),
+        myself: config.myself.clone(),
+        socket: config.socket.clone(),
+        log_file: config.log_file.clone(),
         load: vec![
             "load".to_string(),
             "default".to_string(),
@@ -70,14 +102,20 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
         initial_prompt,
         initial_query: "".to_string(),
         bindings: unified_bindings,
-        extra_opts: vec![
-            "--no-sort".to_string(),
-            "--multi".to_string(),
-        ],
-        listen_socket: Some(fzf_listen_socket.clone()),
+        extra_opts: vec!["--no-sort".to_string(), "--multi".to_string()],
+        listen_socket: Some(fzf_listen_socket),
     };
 
-    let env = Arc::new(env);
+    // Env を構築
+    let env = Arc::new(Env {
+        config,
+        nvim,
+        fzf_client: fzf_client.clone(),
+        mode_infos: Arc::new(mode_infos),
+    });
+
+    // State を構築
+    let state = State::new(initial_mode_name, initial_sort);
 
     let server_state = ServerState {
         fzf: Arc::new(RwLock::new(
@@ -86,7 +124,7 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
                 .spawn()
                 .expect("Failed to spawn fzf"),
         )),
-        fzf_client: Arc::new(fzf::FzfClient::new(&fzf_listen_socket, env.config.myself.clone())),
+        fzf_client,
         all_modes,
         state: Arc::new(RwLock::new(state)),
     };
