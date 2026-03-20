@@ -62,7 +62,7 @@ impl ModeDef for GitLog {
         }
         .boxed()
     }
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (super::ModeBindings, CallbackMap) {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
@@ -85,9 +85,9 @@ impl ModeDef for GitLog {
                     // git-branch に切り替え、選択したブランチを query にセット
                     mode::do_change_mode(env, state, "git-branch", !query.is_empty()).await?;
                     if !query.is_empty() {
-                        env.fzf_client.post_actions(&[
-                            fzf::Action::ClearQuery,
-                            fzf::Action::Raw(format!("change-query({})", query)),
+                        env.post_fzf_actions(&[
+                            mode::ModeAction::Fzf(fzf::Action::ClearQuery),
+                            mode::ModeAction::Fzf(fzf::Action::Raw(format!("change-query({})", query))),
                         ]).await?;
                     }
                     Ok(())

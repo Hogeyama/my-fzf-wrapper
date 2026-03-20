@@ -194,7 +194,7 @@ impl ModeDef for GitReview {
         .boxed()
     }
 
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (super::ModeBindings, CallbackMap) {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),

@@ -13,7 +13,6 @@ use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::NeovimExt;
 use crate::state::State;
-use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::glow;
 
@@ -114,7 +113,7 @@ impl ModeDef for GhPr {
         .boxed()
     }
 
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (super::ModeBindings, CallbackMap) {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
