@@ -9,7 +9,6 @@ use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::state::State;
-use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 
 #[derive(Clone)]
@@ -52,7 +51,7 @@ impl ModeDef for Menu {
         }
         .boxed()
     }
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (super::ModeBindings, CallbackMap) {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
@@ -68,13 +67,17 @@ impl ModeDef for Menu {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::utils::fzf;
 
     #[test]
     fn menu_enter_binding_is_execute_callback() {
         let menu = Menu;
         let (bindings, callbacks) = menu.fzf_bindings();
-        let rendered = fzf::render_bindings(&bindings, "fzfw");
+        let config = crate::config::new(
+            "fzfw".to_string(),
+            "/tmp/test.sock".to_string(),
+            "/tmp/test.log".to_string(),
+        );
+        let rendered = config.render_mode_bindings(&bindings);
         let enter = rendered.get("enter").unwrap();
         assert!(
             enter.contains("execute"),

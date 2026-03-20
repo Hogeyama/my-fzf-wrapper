@@ -28,12 +28,64 @@ use futures::FutureExt;
 use futures::Stream;
 use std::pin::Pin;
 
+use std::collections::HashMap;
+
 use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::state::State;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
+
+// ---------------------------------------------------------------------------
+// ModeAction / ModeBindings: モード実装で使うアクション型
+
+#[derive(Clone)]
+pub enum ModeAction {
+    /// load コールバックを呼ぶ (reload)
+    Reload(String),
+    /// execute コールバックを呼ぶ (execute, fzf が終了を待つ)
+    Execute(String),
+    /// execute コールバックを呼ぶ (execute-silent, fzf が終了を待たない)
+    ExecuteSilent(String),
+    /// 純粋な fzf アクション
+    Fzf(fzf::Action),
+}
+
+impl ModeAction {
+    /// myself と CLI 引数構造を組み立てて fzf::Action に変換
+    pub fn into_fzf_action(self, myself: &str) -> fzf::Action {
+        match self {
+            ModeAction::Reload(name) => {
+                fzf::Action::Reload(format!("{myself} load {name} {{q}} {{}}"))
+            }
+            ModeAction::Execute(name) => {
+                fzf::Action::Execute(format!("{myself} execute {name} {{q}} {{}}"))
+            }
+            ModeAction::ExecuteSilent(name) => {
+                fzf::Action::ExecuteSilent(format!("{myself} execute {name} {{q}} {{}}"))
+            }
+            ModeAction::Fzf(a) => a,
+        }
+    }
+}
+
+pub struct ModeBindings(pub HashMap<String, Vec<ModeAction>>);
+
+impl ModeBindings {
+    pub fn empty() -> Self {
+        ModeBindings(HashMap::new())
+    }
+    pub fn merge(mut self, other: Self) -> Self {
+        self.0.extend(other.0);
+        self
+    }
+    #[allow(dead_code)]
+    pub fn remove_key(mut self, key: &str) -> Self {
+        self.0.remove(key);
+        self
+    }
+}
 
 pub trait AsAny: 'static {
     fn as_any(&self) -> &dyn std::any::Any;
@@ -108,7 +160,7 @@ pub trait ModeDef: AsAny {
         format!("{}>", self.name())
     }
 
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (ModeBindings, CallbackMap) {
         config_builder::default_bindings()
     }
 
@@ -225,36 +277,36 @@ pub async fn do_change_mode(
 
     state.set_current_mode_name(mode_name.to_string());
 
-    let mut actions: Vec<fzf::Action> = vec![
-        fzf::Action::Reload("load default '' ''".to_string()),
-        fzf::Action::ChangePrompt(mode_info.prompt.clone()),
+    let mut actions: Vec<ModeAction> = vec![
+        ModeAction::Reload("default".to_string()),
+        ModeAction::Fzf(fzf::Action::ChangePrompt(mode_info.prompt.clone())),
     ];
 
     if !keep_query {
-        actions.push(fzf::Action::ClearQuery);
+        actions.push(ModeAction::Fzf(fzf::Action::ClearQuery));
     }
 
     if state.sort_enabled() != mode_info.wants_sort {
-        actions.push(fzf::Action::ToggleSort);
+        actions.push(ModeAction::Fzf(fzf::Action::ToggleSort));
     }
     state.set_sort_enabled(mode_info.wants_sort);
 
     if mode_info.disable_search {
-        actions.push(fzf::Action::DisableSearch);
+        actions.push(ModeAction::Fzf(fzf::Action::DisableSearch));
     } else {
-        actions.push(fzf::Action::EnableSearch);
+        actions.push(ModeAction::Fzf(fzf::Action::EnableSearch));
     }
 
-    actions.push(fzf::Action::ChangePreviewWindow(
+    actions.push(ModeAction::Fzf(fzf::Action::ChangePreviewWindow(
         mode_info
             .custom_preview_window
             .clone()
             .unwrap_or_else(|| "right:50%:noborder".to_string()),
-    ));
+    )));
 
-    actions.push(fzf::Action::DeselectAll);
+    actions.push(ModeAction::Fzf(fzf::Action::DeselectAll));
 
-    env.fzf_client.post_actions(&actions).await
+    env.post_fzf_actions(&actions).await
 }
 
 pub mod config_builder {
@@ -262,6 +314,7 @@ pub mod config_builder {
     use crate::env::Env;
     use crate::mode::lib::actions;
     use crate::mode::lib::item::ItemExtractor;
+    use crate::mode::ModeAction;
     use crate::mode::ModeDef;
     use crate::nvim::NeovimExt;
     use crate::state::State;
@@ -289,7 +342,7 @@ pub mod config_builder {
             }
         }
 
-        pub fn execute<F>(&mut self, callback: F) -> fzf::Action
+        pub fn execute<F>(&mut self, callback: F) -> ModeAction
         where
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
@@ -307,10 +360,10 @@ pub mod config_builder {
             self.callback_map
                 .execute
                 .insert(name.clone(), super::ExecuteCallback { callback });
-            fzf::Action::Execute(format!("execute {name} {{q}} {{}}"))
+            ModeAction::Execute(name)
         }
 
-        pub fn execute_silent<F>(&mut self, callback: F) -> fzf::Action
+        pub fn execute_silent<F>(&mut self, callback: F) -> ModeAction
         where
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
@@ -328,14 +381,14 @@ pub mod config_builder {
             self.callback_map
                 .execute
                 .insert(name.clone(), super::ExecuteCallback { callback });
-            fzf::Action::ExecuteSilent(format!("execute {name} {{q}} {{}}"))
+            ModeAction::ExecuteSilent(name)
         }
 
-        pub fn reload(&mut self) -> fzf::Action {
-            self.reload_raw("load default {q} {}")
+        pub fn reload(&mut self) -> ModeAction {
+            ModeAction::Reload("default".to_string())
         }
 
-        pub fn reload_with<F>(&mut self, callback: F) -> fzf::Action
+        pub fn reload_with<F>(&mut self, callback: F) -> ModeAction
         where
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
@@ -353,22 +406,10 @@ pub mod config_builder {
             self.callback_map
                 .load
                 .insert(name.clone(), super::LoadCallback { callback });
-            self.reload_raw(format!("load {name} {{q}} {{}}"))
+            ModeAction::Reload(name)
         }
 
-        pub fn reload_raw(&self, cmd: impl AsRef<str>) -> fzf::Action {
-            fzf::Action::Reload(cmd.as_ref().to_string())
-        }
-
-        pub fn execute_silent_raw(&self, cmd: impl Into<String>) -> fzf::Action {
-            fzf::Action::ExecuteSilent(cmd.into())
-        }
-
-        pub fn execute_raw(&self, cmd: impl Into<String>) -> fzf::Action {
-            fzf::Action::Execute(cmd.into())
-        }
-
-        pub fn change_mode(&mut self, mode: impl Into<String>, keep_query: bool) -> fzf::Action {
+        pub fn change_mode(&mut self, mode: impl Into<String>, keep_query: bool) -> ModeAction {
             let mode_name = mode.into();
             self.execute_silent(move |_mode_def, env, state, _query, _item| {
                 let mode_name = mode_name.clone();
@@ -377,35 +418,35 @@ pub mod config_builder {
             })
         }
 
-        pub fn change_prompt(&self, prompt: impl Into<String>) -> fzf::Action {
-            fzf::Action::ChangePrompt(prompt.into())
+        pub fn change_prompt(&self, prompt: impl Into<String>) -> ModeAction {
+            ModeAction::Fzf(fzf::Action::ChangePrompt(prompt.into()))
         }
 
-        pub fn toggle_sort(&self) -> fzf::Action {
-            fzf::Action::ToggleSort
+        pub fn toggle_sort(&self) -> ModeAction {
+            ModeAction::Fzf(fzf::Action::ToggleSort)
         }
 
-        pub fn clear_query(&self) -> fzf::Action {
-            fzf::Action::ClearQuery
+        pub fn clear_query(&self) -> ModeAction {
+            ModeAction::Fzf(fzf::Action::ClearQuery)
         }
 
-        pub fn clear_screen(&self) -> fzf::Action {
-            fzf::Action::ClearScreen
+        pub fn clear_screen(&self) -> ModeAction {
+            ModeAction::Fzf(fzf::Action::ClearScreen)
         }
 
-        pub fn first(&self) -> fzf::Action {
-            fzf::Action::First
+        pub fn first(&self) -> ModeAction {
+            ModeAction::Fzf(fzf::Action::First)
         }
 
-        pub fn toggle(&self) -> fzf::Action {
-            fzf::Action::Toggle
+        pub fn toggle(&self) -> ModeAction {
+            ModeAction::Fzf(fzf::Action::Toggle)
         }
 
-        pub fn raw(&self, cmd: impl Into<String>) -> fzf::Action {
-            fzf::Action::Raw(cmd.into())
+        pub fn raw(&self, cmd: impl Into<String>) -> ModeAction {
+            ModeAction::Fzf(fzf::Action::Raw(cmd.into()))
         }
 
-        pub fn execute_as<M, F>(&mut self, callback: F) -> fzf::Action
+        pub fn execute_as<M, F>(&mut self, callback: F) -> ModeAction
         where
             M: ModeDef + Send + Sync + 'static,
             F: for<'a> Fn(
@@ -428,7 +469,7 @@ pub mod config_builder {
             })
         }
 
-        pub fn execute_silent_as<M, F>(&mut self, callback: F) -> fzf::Action
+        pub fn execute_silent_as<M, F>(&mut self, callback: F) -> ModeAction
         where
             M: ModeDef + Send + Sync + 'static,
             F: for<'a> Fn(
@@ -451,7 +492,7 @@ pub mod config_builder {
             })
         }
 
-        pub fn reload_with_as<M, F>(&mut self, callback: F) -> fzf::Action
+        pub fn reload_with_as<M, F>(&mut self, callback: F) -> ModeAction
         where
             M: ModeDef + Send + Sync + 'static,
             for<'a> F: Fn(&'a M, &'a Env, &'a mut State, String, String) -> super::LoadStream<'a>
@@ -473,7 +514,7 @@ pub mod config_builder {
         }
 
         /// Neovim でファイルを開く execute アクションを生成
-        pub fn open_nvim<E: ItemExtractor>(&mut self, extractor: E, tabedit: bool) -> fzf::Action {
+        pub fn open_nvim<E: ItemExtractor>(&mut self, extractor: E, tabedit: bool) -> ModeAction {
             self.execute(move |_mode, config, _state, _query, item| {
                 let e = extractor.clone();
                 async move {
@@ -490,7 +531,7 @@ pub mod config_builder {
             &mut self,
             extractor: E,
             tabedit: bool,
-        ) -> fzf::Action {
+        ) -> ModeAction {
             self.execute_silent(move |_mode, config, _state, _query, item| {
                 let e = extractor.clone();
                 async move {
@@ -503,7 +544,7 @@ pub mod config_builder {
         }
 
         /// VSCode でファイルを開く execute アクションを生成
-        pub fn open_vscode<E: ItemExtractor>(&mut self, extractor: E) -> fzf::Action {
+        pub fn open_vscode<E: ItemExtractor>(&mut self, extractor: E) -> ModeAction {
             self.execute(move |_mode, config, _state, _query, item| {
                 let e = extractor.clone();
                 async move {
@@ -516,7 +557,7 @@ pub mod config_builder {
         }
 
         /// ファイルパスを yank する execute_silent アクションを生成
-        pub fn yank_file<E: ItemExtractor>(&mut self, extractor: E) -> fzf::Action {
+        pub fn yank_file<E: ItemExtractor>(&mut self, extractor: E) -> ModeAction {
             self.execute_silent(move |_mode, _config, _state, _query, item| {
                 let e = extractor.clone();
                 async move { actions::yank(e.file(&item)?).await }.boxed()
@@ -532,7 +573,7 @@ pub mod config_builder {
             let mut $builder = $crate::mode::config_builder::ConfigBuilder::new();
             $builder.callback_map = callback_map;
             let bindings = bindings.merge(
-                $crate::utils::fzf::Bindings(core::convert::From::from([$(
+                $crate::mode::ModeBindings(core::convert::From::from([$(
                     ($k.to_string(), vec![$($v),*]),
                 )*]))
             );
@@ -575,9 +616,9 @@ pub mod config_builder {
     }
     pub use select_and_execute;
 
-    pub fn default_bindings() -> (fzf::Bindings, super::CallbackMap) {
+    pub fn default_bindings() -> (super::ModeBindings, super::CallbackMap) {
         bindings! {
-            b <= (fzf::Bindings::empty(), super::CallbackMap::empty()),
+            b <= (super::ModeBindings::empty(), super::CallbackMap::empty()),
             "change" => [ b.first() ],
             "ctrl-s" => [ b.toggle_sort() ],
             "ctrl-r" => [
