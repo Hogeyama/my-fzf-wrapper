@@ -214,6 +214,71 @@ mod tests {
     use super::*;
 
     #[test]
+    fn render_pr_item_format() {
+        let pr = GhPrItem {
+            number: 42,
+            title: "Fix login bug".into(),
+            author: GhAuthor {
+                login: "alice".into(),
+            },
+            head_ref_name: "fix/login".into(),
+            state: "OPEN".into(),
+        };
+        assert_eq!(
+            render_pr_item(&pr),
+            "⬜#42 Fix login bug by alice fix/login"
+        );
+    }
+
+    #[test]
+    fn render_pr_item_merged() {
+        let pr = GhPrItem {
+            number: 100,
+            title: "Add feature".into(),
+            author: GhAuthor {
+                login: "bob".into(),
+            },
+            head_ref_name: "feat/new".into(),
+            state: "MERGED".into(),
+        };
+        assert_eq!(
+            render_pr_item(&pr),
+            "✅#100 Add feature by bob feat/new"
+        );
+    }
+
+    #[test]
+    fn state_icon_unknown() {
+        assert_eq!(state_icon("DRAFT"), "❓");
+    }
+
+    #[test]
+    fn parse_pr_number_simple() {
+        assert_eq!(parse_pr_number("⬜#42 title by author branch").unwrap(), "42");
+    }
+
+    #[test]
+    fn parse_pr_number_fails_on_garbage() {
+        assert!(parse_pr_number("no number here").is_err());
+    }
+
+    #[test]
+    fn preview_body_non_empty() {
+        assert_eq!(preview_body_text("Hello world"), "Hello world");
+    }
+
+    #[test]
+    fn preview_body_with_whitespace() {
+        assert_eq!(preview_body_text("  Hello  "), "Hello");
+    }
+
+    #[test]
+    fn wants_sort_is_false() {
+        assert!(!GhPr::Open.wants_sort());
+        assert!(!GhPr::All.wants_sort());
+    }
+
+    #[test]
     fn mode_name_is_git_pr_open_for_open_variant() {
         assert_eq!(GhPr::Open.name(), "git-pr(open)");
     }

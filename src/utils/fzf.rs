@@ -238,3 +238,59 @@ impl FzfClient {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn render_reload() {
+        assert_eq!(Action::Reload("cmd".into()).render(), "reload[cmd]");
+    }
+
+    #[test]
+    fn render_execute() {
+        assert_eq!(Action::Execute("cmd".into()).render(), "execute[cmd]");
+    }
+
+    #[test]
+    fn render_execute_silent() {
+        assert_eq!(
+            Action::ExecuteSilent("cmd".into()).render(),
+            "execute-silent[cmd]"
+        );
+    }
+
+    #[test]
+    fn render_change_prompt() {
+        assert_eq!(
+            Action::ChangePrompt("foo>".into()).render(),
+            "change-prompt[foo>]"
+        );
+    }
+
+    #[test]
+    fn render_simple_actions() {
+        assert_eq!(Action::ToggleSort.render(), "toggle-sort");
+        assert_eq!(Action::EnableSearch.render(), "enable-search");
+        assert_eq!(Action::DisableSearch.render(), "disable-search");
+        assert_eq!(Action::DeselectAll.render(), "deselect-all");
+        assert_eq!(Action::ClearQuery.render(), "clear-query");
+        assert_eq!(Action::ClearScreen.render(), "clear-screen");
+        assert_eq!(Action::First.render(), "first");
+        assert_eq!(Action::Toggle.render(), "toggle");
+    }
+
+    #[test]
+    fn render_change_preview_window() {
+        assert_eq!(
+            Action::ChangePreviewWindow("right:50%".into()).render(),
+            "change-preview-window[right:50%]"
+        );
+    }
+
+    #[test]
+    fn render_raw() {
+        assert_eq!(Action::Raw("custom-action".into()).render(), "custom-action");
+    }
+}

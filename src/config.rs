@@ -139,3 +139,95 @@ pub fn new(myself: String, socket: String, log_file: String) -> Config {
         modes,
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::fzf;
+
+    fn test_config() -> Config {
+        new("fzfw".into(), "/tmp/test.sock".into(), "/tmp/test.log".into())
+    }
+
+    #[test]
+    fn get_mode_names_includes_menu() {
+        let config = test_config();
+        let names = config.get_mode_names();
+        assert!(names.contains(&"menu"));
+    }
+
+    #[test]
+    fn get_mode_names_includes_fd() {
+        let config = test_config();
+        let names = config.get_mode_names();
+        assert!(names.contains(&"fd"));
+    }
+
+    #[test]
+    fn render_mode_bindings_single_action() {
+        let config = test_config();
+        let bindings = ModeBindings(std::collections::HashMap::from([(
+            "enter".to_string(),
+            vec![ModeAction::Fzf(fzf::Action::First)],
+        )]));
+        let rendered = config.render_mode_bindings(&bindings);
+        assert_eq!(rendered.get("enter").unwrap(), "first");
+    }
+
+    #[test]
+    fn render_mode_bindings_multiple_actions_joined_with_plus() {
+        let config = test_config();
+        let bindings = ModeBindings(std::collections::HashMap::from([(
+            "ctrl-r".to_string(),
+            vec![
+                ModeAction::Reload("default".into()),
+                ModeAction::Fzf(fzf::Action::ClearScreen),
+            ],
+        )]));
+        let rendered = config.render_mode_bindings(&bindings);
+        let value = rendered.get("ctrl-r").unwrap();
+        assert!(value.contains("reload["));
+        assert!(value.contains("+clear-screen"));
+    }
+
+    #[test]
+    fn build_all_modes_registers_default_callbacks() {
+        let config = test_config();
+        let all = config.build_all_modes();
+        for (name, entry) in &all {
+            assert!(
+                entry.callbacks.load.contains_key("default"),
+                "mode {} should have default load callback",
+                name
+            );
+            assert!(
+                entry.callbacks.preview.contains_key("default"),
+                "mode {} should have default preview callback",
+                name
+            );
+        }
+    }
+
+    #[test]
+    fn build_unified_bindings_includes_shift_right() {
+        let config = test_config();
+        let all = config.build_all_modes();
+        let unified = config.build_unified_bindings(&all);
+        assert!(unified.0.contains_key("shift-right"));
+    }
+
+    #[test]
+    fn build_unified_bindings_dispatches_via_execute_silent() {
+        let config = test_config();
+        let all = config.build_all_modes();
+        let unified = config.build_unified_bindings(&all);
+        // "enter" は多くのモードで使われるはず
+        if let Some(actions) = unified.0.get("enter") {
+            assert_eq!(actions.len(), 1);
+            match &actions[0] {
+                ModeAction::ExecuteSilent(name) => assert_eq!(name, "_key:enter"),
+                other => panic!("expected ExecuteSilent, got {:?}", std::mem::discriminant(other)),
+            }
+        }
+    }
+}

@@ -87,6 +87,91 @@ impl ModeBindings {
     }
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn mode_action_reload_into_fzf_action() {
+        let action = ModeAction::Reload("default".into());
+        let rendered = action.into_fzf_action("fzfw").render();
+        assert_eq!(rendered, "reload[fzfw load default {q} {}]");
+    }
+
+    #[test]
+    fn mode_action_execute_into_fzf_action() {
+        let action = ModeAction::Execute("cb0".into());
+        let rendered = action.into_fzf_action("fzfw").render();
+        assert_eq!(rendered, "execute[fzfw execute cb0 {q} {}]");
+    }
+
+    #[test]
+    fn mode_action_execute_silent_into_fzf_action() {
+        let action = ModeAction::ExecuteSilent("cb1".into());
+        let rendered = action.into_fzf_action("fzfw").render();
+        assert_eq!(rendered, "execute-silent[fzfw execute cb1 {q} {}]");
+    }
+
+    #[test]
+    fn mode_action_fzf_passthrough() {
+        let action = ModeAction::Fzf(fzf::Action::ToggleSort);
+        let rendered = action.into_fzf_action("fzfw").render();
+        assert_eq!(rendered, "toggle-sort");
+    }
+
+    #[test]
+    fn mode_bindings_empty() {
+        let bindings = ModeBindings::empty();
+        assert!(bindings.0.is_empty());
+    }
+
+    #[test]
+    fn mode_bindings_merge() {
+        let a = ModeBindings(HashMap::from([(
+            "enter".to_string(),
+            vec![ModeAction::Fzf(fzf::Action::First)],
+        )]));
+        let b = ModeBindings(HashMap::from([(
+            "ctrl-s".to_string(),
+            vec![ModeAction::Fzf(fzf::Action::ToggleSort)],
+        )]));
+        let merged = a.merge(b);
+        assert!(merged.0.contains_key("enter"));
+        assert!(merged.0.contains_key("ctrl-s"));
+    }
+
+    #[test]
+    fn mode_bindings_remove_key() {
+        let bindings = ModeBindings(HashMap::from([(
+            "enter".to_string(),
+            vec![ModeAction::Fzf(fzf::Action::First)],
+        )]));
+        let bindings = bindings.remove_key("enter");
+        assert!(!bindings.0.contains_key("enter"));
+    }
+
+    #[test]
+    fn all_modes_has_unique_names() {
+        let modes = all_modes();
+        let mut seen = std::collections::HashSet::new();
+        for (name, _) in &modes {
+            assert!(seen.insert(name.clone()), "duplicate mode name: {}", name);
+        }
+    }
+
+    #[test]
+    fn all_modes_contains_menu() {
+        let modes = all_modes();
+        assert!(modes.iter().any(|(name, _)| name == "menu"));
+    }
+
+    #[test]
+    fn all_modes_contains_fd() {
+        let modes = all_modes();
+        assert!(modes.iter().any(|(name, _)| name == "fd"));
+    }
+}
+
 pub trait AsAny: 'static {
     fn as_any(&self) -> &dyn std::any::Any;
 }
