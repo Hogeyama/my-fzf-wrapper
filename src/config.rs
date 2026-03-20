@@ -3,9 +3,10 @@ use std::collections::HashMap;
 use crate::mode;
 use crate::mode::CallbackMap;
 use crate::mode::MkMode;
+use crate::mode::ModeAction;
+use crate::mode::ModeBindings;
 use crate::mode::Mode;
 use crate::mode::ModeDef;
-use crate::utils::fzf;
 
 pub struct Config {
     pub myself: String,
@@ -26,6 +27,22 @@ pub struct ModeEntry {
 impl Config {
     pub fn get_mode_names(&self) -> Vec<&str> {
         self.modes.iter().map(|(name, _)| name.as_str()).collect()
+    }
+
+    /// ModeBindings を myself 付きでレンダリングする
+    pub fn render_mode_bindings(&self, bindings: &ModeBindings) -> HashMap<String, String> {
+        bindings
+            .0
+            .iter()
+            .map(|(key, actions)| {
+                let rendered = actions
+                    .iter()
+                    .map(|a| a.clone().into_fzf_action(&self.myself).render())
+                    .collect::<Vec<_>>()
+                    .join("+");
+                (key.clone(), rendered)
+            })
+            .collect()
     }
 
     /// 全モードを構築し、CallbackMap と rendered_bindings も生成する
@@ -54,7 +71,7 @@ impl Config {
                     },
                 );
 
-                let rendered_bindings = fzf::render_bindings(&bindings, &self.myself);
+                let rendered_bindings = self.render_mode_bindings(&bindings);
 
                 (
                     name.clone(),
@@ -69,7 +86,10 @@ impl Config {
     }
 
     /// 全モードの全キーを集約し、execute-silent 経由の統合バインディングを生成
-    pub fn build_unified_bindings(&self, all_modes: &HashMap<String, ModeEntry>) -> fzf::Bindings {
+    pub fn build_unified_bindings(
+        &self,
+        all_modes: &HashMap<String, ModeEntry>,
+    ) -> ModeBindings {
         use std::collections::HashSet;
 
         // 全モードで使われるキーを収集
@@ -88,9 +108,9 @@ impl Config {
         // 固定バインディング: shift-right
         bindings.insert(
             "shift-right".to_string(),
-            vec![fzf::Action::Raw(
+            vec![ModeAction::Fzf(crate::utils::fzf::Action::Raw(
                 "change-preview-window[bottom:90%:border-top|right:50%:noborder]".to_string(),
-            )],
+            ))],
         );
 
         // 全モード依存キーを execute-silent 経由で dispatch
@@ -100,14 +120,11 @@ impl Config {
             }
             bindings.insert(
                 key.clone(),
-                vec![fzf::Action::ExecuteSilent(format!(
-                    "execute _key:{} {{q}} {{}}",
-                    key
-                ))],
+                vec![ModeAction::ExecuteSilent(format!("_key:{}", key))],
             );
         }
 
-        fzf::Bindings(bindings)
+        ModeBindings(bindings)
     }
 }
 

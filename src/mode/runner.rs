@@ -20,7 +20,6 @@ use crate::nvim::NeovimExt;
 use crate::mode::fd as mode_fd;
 use crate::utils::command::edit_and_run;
 use crate::utils::fd;
-use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use std::process::Output;
 
@@ -85,7 +84,7 @@ impl ModeDef for Runner {
         .boxed()
     }
 
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (super::ModeBindings, CallbackMap) {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),
@@ -150,7 +149,7 @@ impl ModeDef for RunnerCommands {
         .boxed()
     }
 
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (super::ModeBindings, CallbackMap) {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),

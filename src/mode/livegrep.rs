@@ -69,7 +69,7 @@ impl ModeDef for LiveGrep {
     ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move { preview(item).await }.boxed()
     }
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (super::ModeBindings, CallbackMap) {
         use config_builder::*;
         bindings! {
             b <= livegrep_common_bindings(),
@@ -158,7 +158,7 @@ impl ModeDef for LiveGrepF {
     ) -> BoxFuture<'static, Result<PreviewResp>> {
         async move { preview(item).await }.boxed()
     }
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (super::ModeBindings, CallbackMap) {
         livegrep_common_bindings()
     }
 }
@@ -168,7 +168,7 @@ impl ModeDef for LiveGrepF {
 ////////////////////////////////////////////////////////////////////////////////
 
 /// LiveGrep / LiveGrepF 共通のバインディング
-fn livegrep_common_bindings() -> (fzf::Bindings, super::CallbackMap) {
+fn livegrep_common_bindings() -> (super::ModeBindings, super::CallbackMap) {
     use config_builder::*;
     bindings! {
         b <= default_bindings(),

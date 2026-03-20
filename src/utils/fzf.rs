@@ -11,38 +11,19 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::UnixStream;
 use tokio::process::Command;
 
-// TODO 多くを mode/mod.rs に移動させる。myself を知っているのはおかしい
-
 pub struct Config {
-    pub myself: String,
+    pub default_command: String,
+    pub preview_command: String,
     pub socket: String,
     pub log_file: String,
-    pub load: Vec<String>,
     pub initial_prompt: String,
     pub initial_query: String,
-    pub bindings: Bindings,
+    pub rendered_bindings: HashMap<String, String>,
     pub extra_opts: Vec<String>,
     pub listen_socket: Option<String>,
 }
 
-pub type Key = String;
-
-pub struct Bindings(pub HashMap<Key, Vec<Action>>);
-
-impl Bindings {
-    pub fn empty() -> Self {
-        Bindings(HashMap::new())
-    }
-    pub fn merge(mut self, other: Self) -> Self {
-        self.0.extend(other.0);
-        self
-    }
-    pub fn remove_key(mut self, key: &str) -> Self {
-        self.0.remove(key);
-        self
-    }
-}
-
+#[derive(Clone)]
 pub enum Action {
     Reload(String),
     Execute(String),
@@ -61,11 +42,11 @@ pub enum Action {
 }
 
 impl Action {
-    pub fn render(&self, myself: &str) -> String {
+    pub fn render(&self) -> String {
         match self {
-            Action::Reload(cmd) => format!("reload[{myself} {cmd}]"),
-            Action::Execute(cmd) => format!("execute[{myself} {cmd}]"),
-            Action::ExecuteSilent(cmd) => format!("execute-silent[{myself} {cmd}]"),
+            Action::Reload(cmd) => format!("reload[{cmd}]"),
+            Action::Execute(cmd) => format!("execute[{cmd}]"),
+            Action::ExecuteSilent(cmd) => format!("execute-silent[{cmd}]"),
             Action::ChangePrompt(prompt) => format!("change-prompt[{prompt}]"),
             Action::ToggleSort => "toggle-sort".to_string(),
             Action::EnableSearch => "enable-search".to_string(),
@@ -81,23 +62,6 @@ impl Action {
             Action::Raw(s) => s.to_string(),
         }
     }
-}
-
-/// Bindings を fzf アクション文字列に変換する
-/// key → "action1+action2+..." の形式
-pub fn render_bindings(bindings: &Bindings, myself: &str) -> HashMap<String, String> {
-    bindings
-        .0
-        .iter()
-        .map(|(key, actions)| {
-            let rendered = actions
-                .iter()
-                .map(|a| a.render(myself))
-                .collect::<Vec<_>>()
-                .join("+");
-            (key.clone(), rendered)
-        })
-        .collect()
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]
@@ -116,30 +80,20 @@ impl PreviewWindow {
 
 pub fn new(config: Config) -> Command {
     let Config {
-        myself,
+        default_command,
+        preview_command,
         socket,
         log_file,
-        load,
         initial_prompt,
         initial_query,
-        bindings,
+        rendered_bindings,
         extra_opts,
         listen_socket,
     } = config;
     let mut fzf = Command::new("fzf");
     fzf.kill_on_drop(true);
 
-    // Envirionment variables
-    fzf.env(
-        "FZF_DEFAULT_COMMAND",
-        shellwords::join(
-            &[
-                vec![myself.as_ref()],
-                load.iter().map(|s| s.as_ref()).collect::<Vec<_>>(),
-            ]
-            .concat(),
-        ),
-    );
+    fzf.env("FZF_DEFAULT_COMMAND", default_command);
     fzf.env("FZFW_LOG_FILE", log_file);
     fzf.env("FZFW_SOCKET", socket);
 
@@ -151,19 +105,15 @@ pub fn new(config: Config) -> Command {
         c("--header-lines"), c("1"),
         c("--layout"), c("reverse"),
         c("--query"), initial_query,
-        c("--preview"), format!("{myself} preview {{}}"),
+        c("--preview"), preview_command,
         c("--preview-window"), c("right:50%:noborder"),
         c("--prompt"), initial_prompt
     ];
 
-    bindings.0.iter().for_each(|(key, actions)| {
-        let actions = actions
-            .iter()
-            .map(|action| action.render(&myself))
-            .collect::<Vec<_>>();
+    for (key, actions) in &rendered_bindings {
         args.push("--bind".to_string());
-        args.push(format!("{}:{}", key, actions.join("+")));
-    });
+        args.push(format!("{key}:{actions}"));
+    }
 
     if let Some(ref listen_socket) = listen_socket {
         args.push(format!("--listen={}", listen_socket));
@@ -251,14 +201,12 @@ pub async fn input_with_placeholder(
 
 pub struct FzfClient {
     socket_path: PathBuf,
-    myself: String,
 }
 
 impl FzfClient {
-    pub fn new(socket_path: impl Into<PathBuf>, myself: impl Into<String>) -> Self {
+    pub fn new(socket_path: impl Into<PathBuf>) -> Self {
         Self {
             socket_path: socket_path.into(),
-            myself: myself.into(),
         }
     }
 
@@ -266,22 +214,8 @@ impl FzfClient {
         &self.socket_path
     }
 
-    pub fn myself(&self) -> &str {
-        &self.myself
-    }
-
-    /// 型安全な Action スライスを fzf に送信する
-    pub async fn post_actions(&self, actions: &[Action]) -> Result<()> {
-        let rendered = actions
-            .iter()
-            .map(|a| a.render(&self.myself))
-            .collect::<Vec<_>>()
-            .join("+");
-        self.post_action(&rendered).await
-    }
-
     /// fzf にアクションを送信する (POST /)
-    pub(crate) async fn post_action(&self, action: &str) -> Result<()> {
+    pub async fn post_action(&self, action: &str) -> Result<()> {
         let mut stream = UnixStream::connect(&self.socket_path).await?;
 
         let body = action.as_bytes();

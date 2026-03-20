@@ -21,7 +21,6 @@ use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::bat;
-use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::path::to_relpath;
 
@@ -81,7 +80,7 @@ impl ModeDef for Diagnostics {
         }
         .boxed()
     }
-    fn fzf_bindings(&self) -> (fzf::Bindings, CallbackMap) {
+    fn fzf_bindings(&self) -> (super::ModeBindings, CallbackMap) {
         use config_builder::*;
         bindings! {
             b <= default_bindings(),

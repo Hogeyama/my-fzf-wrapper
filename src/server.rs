@@ -82,25 +82,26 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
         .collect();
 
     // FzfClient を作成
-    let fzf_client = Arc::new(fzf::FzfClient::new(
-        &fzf_listen_socket,
-        config.myself.clone(),
-    ));
+    let fzf_client = Arc::new(fzf::FzfClient::new(&fzf_listen_socket));
+
+    // 統合バインディングをレンダリング
+    let rendered_bindings = config.render_mode_bindings(&unified_bindings);
 
     // 統合 fzf 設定で起動 (--no-sort + --multi を付与)
     let fzf_config = fzf::Config {
-        myself: config.myself.clone(),
+        default_command: shellwords::join(&[
+            config.myself.as_ref(),
+            "load",
+            "default",
+            "",
+            "",
+        ]),
+        preview_command: format!("{} preview {{}}", config.myself),
         socket: config.socket.clone(),
         log_file: config.log_file.clone(),
-        load: vec![
-            "load".to_string(),
-            "default".to_string(),
-            "".to_string(), // query
-            "".to_string(), // item
-        ],
         initial_prompt,
         initial_query: "".to_string(),
-        bindings: unified_bindings,
+        rendered_bindings,
         extra_opts: vec!["--no-sort".to_string(), "--multi".to_string()],
         listen_socket: Some(fzf_listen_socket),
     };
