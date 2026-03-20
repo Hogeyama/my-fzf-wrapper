@@ -56,6 +56,13 @@ pub enum Command {
         #[clap(flatten)]
         params: method::ChangeDirectoryParam,
     },
+    /// internal: transform から呼ばれ、fzf アクション文字列を stdout に出力
+    Dispatch {
+        #[clap(long, env)]
+        fzfw_socket: String,
+        #[clap(flatten)]
+        params: method::DispatchParam,
+    },
 }
 
 pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
@@ -129,6 +136,20 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
             match send_request(fzfw_socket, method::ChangeDirectory, params).await? {
                 Ok(_) => {}
                 Err(e) => println!("Error: {}", e),
+            }
+            Ok(())
+        }
+        Command::Dispatch {
+            fzfw_socket,
+            params,
+        } => {
+            match send_request(fzfw_socket, method::Dispatch, params).await? {
+                Ok(method::DispatchResp { action }) => {
+                    // transform が stdout を fzf アクションとして解釈するので、
+                    // 改行なしで出力する
+                    print!("{}", action);
+                }
+                Err(e) => eprintln!("dispatch error: {}", e),
             }
             Ok(())
         }

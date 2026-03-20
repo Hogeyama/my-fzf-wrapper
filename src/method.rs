@@ -48,6 +48,10 @@ pub enum Request {
         method: ChangeDirectory,
         params: <ChangeDirectory as Method>::Param,
     },
+    Dispatch {
+        method: Dispatch,
+        params: <Dispatch as Method>::Param,
+    },
 }
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -289,6 +293,56 @@ impl From<ChangeDirectoryParam> for ChangeDirectoryCommandParam {
                 dir: Some(dir),
             },
         }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////////////////////////
+// Dispatch method
+// transform から呼ばれ、現在のモードに応じた fzf アクション文字列を返す
+////////////////////////////////////////////////////////////////////////////////////////////////////
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+#[serde(try_from = "String", into = "String")]
+pub struct Dispatch;
+
+impl Method for Dispatch {
+    type Param = DispatchParam;
+    type Response = DispatchResp;
+    fn method_name() -> &'static str {
+        "dispatch"
+    }
+    fn request(self, params: Self::Param) -> Request {
+        Request::Dispatch {
+            method: Dispatch,
+            params,
+        }
+    }
+}
+
+#[derive(Serialize, Deserialize, clap::Parser, Clone, Debug)]
+pub struct DispatchParam {
+    /// キー名 (例: "change-mode:buffer", "enter", "ctrl-y")
+    pub key: String,
+    pub query: String,
+    pub item: String,
+}
+
+#[derive(Serialize, Deserialize, Default, Clone, Debug)]
+pub struct DispatchResp {
+    /// fzf が実行するアクション文字列 (例: "reload(...)+change-prompt(...)")
+    pub action: String,
+}
+
+impl TryFrom<String> for Dispatch {
+    type Error = String;
+    fn try_from(s: String) -> Result<Self, Self::Error> {
+        mk_try_from()(s)
+    }
+}
+
+impl From<Dispatch> for String {
+    fn from(_: Dispatch) -> Self {
+        <Dispatch as Method>::method_name().to_string()
     }
 }
 

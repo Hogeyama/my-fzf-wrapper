@@ -226,6 +226,10 @@ async fn handle_one_client(
                 handle_change_directory_request(env, params, tx).await;
             }
 
+            Some(method::Request::Dispatch { params, method: _ }) => {
+                handle_dispatch_request(env, server_state, params, tx).await;
+            }
+
             _ => {
                 let mut tx = tx.lock().await;
                 (*tx)
@@ -456,6 +460,36 @@ async fn handle_change_mode_request(
     match send_response(method::ChangeMode, &mut *tx, &()).await {
         Ok(()) => trace!("server: change-mode done"),
         Err(e) => error!("server: change-mode error"; "error" => e),
+    }
+}
+
+// ------------------------------------------------------------------------------
+// Dispatch (transform 用)
+
+async fn handle_dispatch_request(
+    _env: Arc<Env>,
+    server_state: ServerState,
+    params: method::DispatchParam,
+    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
+) {
+    let method::DispatchParam { key, query, item } = params;
+
+    info!("server: dispatch"; "key" => &key, "query" => &query, "item" => &item);
+
+    // 現在のモード名を取得
+    let mode = server_state.mode.read().await;
+    let mode_name = mode.name();
+
+    // TODO: Phase 3/4 で実際のディスパッチロジックを実装
+    // 現時点ではモード名を含むデバッグ用レスポンスを返す
+    let resp = method::DispatchResp {
+        action: format!("# dispatch: mode={}, key={}", mode_name, key),
+    };
+
+    let mut tx = tx.lock().await;
+    match send_response(method::Dispatch, &mut *tx, &resp).await {
+        Ok(()) => trace!("server: dispatch done"),
+        Err(e) => error!("server: dispatch error"; "error" => e),
     }
 }
 
