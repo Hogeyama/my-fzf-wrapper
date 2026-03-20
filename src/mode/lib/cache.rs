@@ -45,3 +45,59 @@ impl<T: Clone> ModeCache<T> {
         *self.inner.lock().await = None;
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[tokio::test]
+    async fn get_before_set_returns_error() {
+        let cache: ModeCache<String> = ModeCache::new();
+        assert!(cache.get().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn set_then_get() {
+        let cache: ModeCache<String> = ModeCache::new();
+        cache.set("hello".to_string()).await;
+        assert_eq!(cache.get().await.unwrap(), "hello");
+    }
+
+    #[tokio::test]
+    async fn set_overwrites_previous() {
+        let cache: ModeCache<i32> = ModeCache::new();
+        cache.set(1).await;
+        cache.set(2).await;
+        assert_eq!(cache.get().await.unwrap(), 2);
+    }
+
+    #[tokio::test]
+    async fn with_applies_closure() {
+        let cache: ModeCache<Vec<i32>> = ModeCache::new();
+        cache.set(vec![1, 2, 3]).await;
+        let len = cache.with(|v| v.len()).await.unwrap();
+        assert_eq!(len, 3);
+    }
+
+    #[tokio::test]
+    async fn with_before_set_returns_error() {
+        let cache: ModeCache<String> = ModeCache::new();
+        assert!(cache.with(|_| ()).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn clear_resets_to_none() {
+        let cache: ModeCache<String> = ModeCache::new();
+        cache.set("data".to_string()).await;
+        cache.clear().await;
+        assert!(cache.get().await.is_err());
+    }
+
+    #[tokio::test]
+    async fn clone_shares_state() {
+        let cache: ModeCache<String> = ModeCache::new();
+        let cache2 = cache.clone();
+        cache.set("shared".to_string()).await;
+        assert_eq!(cache2.get().await.unwrap(), "shared");
+    }
+}
