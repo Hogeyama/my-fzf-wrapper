@@ -168,8 +168,7 @@ pub fn new(config: Config) -> Command {
     });
 
     if let Some(ref listen_socket) = listen_socket {
-        args.push("--listen".to_string());
-        args.push(listen_socket.clone());
+        args.push(format!("--listen={}", listen_socket));
     }
 
     extra_opts.iter().for_each(|opt| {

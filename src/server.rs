@@ -44,7 +44,8 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
     let all_modes = Arc::new(env.config.build_all_modes());
 
     // fzf の --listen 用 Unix ソケットパス
-    let fzf_listen_socket = format!("unix:{}.fzf-listen", env.config.socket);
+    // fzf は .sock で終わるパスのみ Unix ソケットとして認識する
+    let fzf_listen_socket = env.config.socket.replace(".sock", "-fzf-listen.sock");
 
     // 統合バインディングを構築 (全モードの全キーを transform dispatch に)
     let unified_bindings = env.config.build_unified_bindings(&all_modes);
@@ -88,9 +89,7 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
                 .spawn()
                 .expect("Failed to spawn fzf"),
         )),
-        fzf_client: Arc::new(fzf::FzfClient::new(
-            fzf_listen_socket.strip_prefix("unix:").unwrap_or(&fzf_listen_socket),
-        )),
+        fzf_client: Arc::new(fzf::FzfClient::new(&fzf_listen_socket)),
         current_mode_name: Arc::new(RwLock::new(initial_mode_name)),
         all_modes,
         state: Arc::new(RwLock::new(state)),
