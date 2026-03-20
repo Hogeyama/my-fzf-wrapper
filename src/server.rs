@@ -237,7 +237,8 @@ async fn handle_one_client(
                 abort_current_load_task(&current_load_task).await;
                 let key = format!("change-mode:{}", params.mode);
                 let actions =
-                    dispatch_change_mode(&server_state, &params.mode, &key).await;
+                    dispatch_change_mode(&env, &server_state, &params.mode, &key).await;
+                info!("server: posting mode-switch actions"; "actions" => &actions);
                 if let Err(e) = server_state.fzf_client.post_action(&actions).await {
                     error!("server: failed to post mode-switch actions to fzf";
                         "error" => e.to_string());
@@ -463,7 +464,7 @@ async fn handle_dispatch_request(
     info!("server: dispatch"; "key" => &key, "query" => &query, "item" => &item);
 
     let action = if let Some(new_mode_name) = key.strip_prefix("change-mode:") {
-        dispatch_change_mode(&server_state, new_mode_name, &key).await
+        dispatch_change_mode(&_env, &server_state, new_mode_name, &key).await
     } else {
         dispatch_mode_key(&server_state, &key).await
     };
@@ -481,6 +482,7 @@ async fn handle_dispatch_request(
 
 /// モード切替の dispatch: current_mode_name 更新 + fzf アクション文字列を生成
 async fn dispatch_change_mode(
+    env: &Env,
     server_state: &ServerState,
     new_mode_name: &str,
     key: &str,
@@ -502,9 +504,11 @@ async fn dispatch_change_mode(
     let new_mode_def = entry.mode.mode_def.as_ref();
     let mut actions: Vec<String> = Vec::new();
 
-    // reload: 引数なしで FZF_DEFAULT_COMMAND を再実行
-    // (query は fzf の内部フィルタで処理される。livegrep は change イベントで reload)
-    actions.push("reload".to_string());
+    // reload: myself を使ってコマンドを明示指定
+    // POST 経由では {q}/{} プレースホルダが展開されないため、空文字で呼ぶ
+    // (fzf の内部フィルタが query を処理する。livegrep は change イベントで reload)
+    let myself = &env.config.myself;
+    actions.push(format!("reload({myself} load default '' '')"));
     actions.push(format!("change-prompt({})", new_mode_def.fzf_prompt()));
 
     // livegrep への切替は query を保持 (ctrl-g は keep_query=true)
