@@ -5,7 +5,7 @@ use futures::FutureExt;
 use serde::Deserialize;
 use tokio::process::Command;
 
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -68,7 +68,7 @@ impl ModeDef for GhPr {
 
     fn load<'a>(
         &'a self,
-        _config: &'a Config,
+        _env: &'a Env,
         _state: &'a mut State,
         _query: String,
         _item: String,
@@ -93,7 +93,7 @@ impl ModeDef for GhPr {
 
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -119,7 +119,7 @@ impl ModeDef for GhPr {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute_silent!{b, |_mode,_config,_state,_query,item| {
+                execute_silent!{b, |_mode,_env,_state,_query,item| {
                     let number = parse_pr_number(&item)?;
                     Command::new("gh")
                         .args(["pr", "view", "--web", &number])
@@ -133,7 +133,7 @@ impl ModeDef for GhPr {
                 }}
             ],
             "pgup" => [
-                select_and_execute!{b, |_mode,config,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_state,_query,item|
                     "browse" => {
                         let number = parse_pr_number(&item)?;
                         Command::new("gh")
@@ -152,7 +152,7 @@ impl ModeDef for GhPr {
                             .args(["pr", "checkout", &number])
                             .output()
                             .await?;
-                        config.nvim.notify_command_result("gh pr checkout", output)
+                        env.nvim.notify_command_result("gh pr checkout", output)
                             .await
                     },
                 },

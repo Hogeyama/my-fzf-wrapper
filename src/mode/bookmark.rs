@@ -6,7 +6,7 @@ use rmpv::ext::from_value;
 use serde::Serialize;
 
 use super::lib::item::ItemExtractor;
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -34,12 +34,12 @@ impl ModeDef for Bookmark {
     }
     fn load<'a>(
         &'a self,
-        config: &Config,
+        env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
-        let nvim = config.nvim.clone();
+        let nvim = env.nvim.clone();
         Box::pin(async_stream::stream! {
             let bookmarks = get_bookmarks(&nvim).await?;
             let items = bookmarks.iter().map(|m| m.render()).collect();
@@ -48,7 +48,7 @@ impl ModeDef for Bookmark {
     }
     fn preview<'a>(
         &'a self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {

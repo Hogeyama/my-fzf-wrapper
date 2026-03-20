@@ -7,7 +7,7 @@ use tokio::process::Command;
 
 use super::lib::actions;
 use super::lib::cache::ModeCache;
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -132,7 +132,7 @@ impl ModeDef for GitReview {
 
     fn load<'a>(
         &'a self,
-        _config: &'a Config,
+        _env: &'a Env,
         _state: &'a mut State,
         _query: String,
         _item: String,
@@ -151,7 +151,7 @@ impl ModeDef for GitReview {
 
     fn preview<'a>(
         &'a self,
-        _config: &Config,
+        _env: &Env,
         win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {
@@ -201,15 +201,15 @@ impl ModeDef for GitReview {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!{b, |_mode,config,_state,_query,item| {
+                execute!{b, |_mode,env,_state,_query,item| {
                     let thread = parse_thread_item(&item)?;
                     let workdir = git::workdir()?;
                     let file = format!("{}{}", workdir, thread.path);
-                    actions::open_in_nvim(config, file, Some(thread.line_start), false).await
+                    actions::open_in_nvim(env, file, Some(thread.line_start), false).await
                 }}
             ],
             "ctrl-y" => [
-                execute!(b, |mode, _config, _state, _query, item| {
+                execute!(b, |mode, _env, _state, _query, item| {
                     let parsed = parse_thread_item(&item)?;
                     let thread = mode.threads.with(|threads| {
                         threads.iter().find(|t| t.id == parsed.id).cloned()
@@ -223,7 +223,7 @@ impl ModeDef for GitReview {
                 })
             ],
             "pgup" => [
-                execute_silent!(b, |mode, _config, _state, _query, item| {
+                execute_silent!(b, |mode, _env, _state, _query, item| {
                     let parsed = parse_thread_item(&item)?;
                     let resolve_label = if parsed.is_resolved {
                         "unresolve"
@@ -255,12 +255,12 @@ impl ModeDef for GitReview {
                 b.reload()
             ],
             "ctrl-x" => [
-                execute_silent!(b, |mode, _config, _state, _query, _item| {
+                execute_silent!(b, |mode, _env, _state, _query, _item| {
                     let current = mode.unresolved_only.get().await.unwrap_or(false);
                     mode.unresolved_only.set(!current).await;
                     Ok(())
                 }),
-                b.reload_with_as::<Self, _>(|mode, _config, _state, _query, _item| {
+                b.reload_with_as::<Self, _>(|mode, _env, _state, _query, _item| {
                     let unresolved_only = mode.unresolved_only.clone();
                     let threads = mode.threads.clone();
                     Box::pin(async_stream::stream! {

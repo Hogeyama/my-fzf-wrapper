@@ -5,7 +5,7 @@ use futures::FutureExt;
 use unicode_width::UnicodeWidthStr;
 
 use crate::bindings;
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -55,7 +55,7 @@ impl ModeDef for ProcessCompose {
     }
     fn load<'a>(
         &'a self,
-        _config: &'a Config,
+        _env: &'a Env,
         _state: &'a mut State,
         _query: String,
         _item: String,
@@ -80,7 +80,7 @@ impl ModeDef for ProcessCompose {
     }
     fn preview<'a>(
         &self,
-        _config: &Config,
+        _env: &Env,
         win: &'a PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {
@@ -119,7 +119,7 @@ impl ModeDef for ProcessCompose {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,_config,_state,_query,item|
+                select_and_execute!{b, |_mode,_env,_state,_query,item|
                     "restart" => {
                         restart(Item::parse(item)).await?;
                         Ok(())
@@ -136,7 +136,7 @@ impl ModeDef for ProcessCompose {
                 b.reload(),
             ],
             "ctrl-e" => [
-                execute_silent!(b, |_mode,_config,_state,_query,item| {
+                execute_silent!(b, |_mode,_env,_state,_query,item| {
                     restart(Item::parse(item)).await?;
                     Ok(())
                 }),

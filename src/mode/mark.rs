@@ -12,7 +12,7 @@ use serde::Serialize;
 
 use super::lib::actions;
 use super::lib::cache::ModeCache;
-use crate::config::Config;
+use crate::env::Env;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
@@ -44,12 +44,12 @@ impl ModeDef for Mark {
     }
     fn load<'a>(
         &'a self,
-        config: &Config,
+        env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
-        let nvim = config.nvim.clone();
+        let nvim = env.nvim.clone();
         Box::pin(async_stream::stream! {
             let marks = get_nvim_marks(&nvim).await?;
             let items = marks.iter().map(|m| m.render()).collect();
@@ -61,7 +61,7 @@ impl ModeDef for Mark {
     }
     fn preview<'a>(
         &'a self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {
@@ -79,25 +79,25 @@ impl ModeDef for Mark {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |mode, config, _state, _query, item| {
+                execute!(b, |mode, env, _state, _query, item| {
                     let marks = mode.marks.get().await?;
                     let mark = MarkItem::lookup(&marks, &item)
                         .ok_or(anyhow!("invalid item"))?;
                     let file = shellexpand::tilde(&mark.file).to_string();
-                    actions::open_in_nvim(config, file, Some(mark.line as usize), false).await
+                    actions::open_in_nvim(env, file, Some(mark.line as usize), false).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |mode, config, _state, _query, item| {
+                execute!(b, |mode, env, _state, _query, item| {
                     let marks = mode.marks.get().await?;
                     let mark = MarkItem::lookup(&marks, &item)
                         .ok_or(anyhow!("invalid item"))?;
                     let file = shellexpand::tilde(&mark.file).to_string();
-                    actions::open_in_nvim(config, file, Some(mark.line as usize), true).await
+                    actions::open_in_nvim(env, file, Some(mark.line as usize), true).await
                 })
             ],
             "ctrl-y" => [
-                execute!(b, |_mode,_config,_state,_query,item| {
+                execute!(b, |_mode,_env,_state,_query,item| {
                     let file = ITEM_PATTERN.replace(&item, "$file");
                     actions::yank(file).await
                 })

@@ -5,7 +5,7 @@ use git2::Status;
 use tokio::process::Command;
 
 use super::lib::actions;
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -25,7 +25,7 @@ impl ModeDef for GitStatus {
     }
     fn load(
         &self,
-        _config: &Config,
+        _env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -39,7 +39,7 @@ impl ModeDef for GitStatus {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -50,32 +50,32 @@ impl ModeDef for GitStatus {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,config,_state,_query,item| {
+                execute!(b, |_mode,env,_state,_query,item| {
                     let workdir = git::workdir()?;
                     let file = format!("{}{}", workdir, item);
-                    actions::open_in_nvim(config, file, None, false).await
+                    actions::open_in_nvim(env, file, None, false).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,config,_state,_query,item| {
+                execute!(b, |_mode,env,_state,_query,item| {
                     let workdir = git::workdir()?;
                     let file = format!("{}{}", workdir, item);
-                    actions::open_in_nvim(config, file, None, true).await
+                    actions::open_in_nvim(env, file, None, true).await
                 })
             ],
             "ctrl-v" => [
-                execute!(b, |_mode,_config,_state,_query,_item| {
+                execute!(b, |_mode,_env,_state,_query,_item| {
                     let pwd = std::env::current_dir().unwrap().into_os_string();
                     Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
                     Ok(())
                 })
             ],
             "pgup" => [
-                select_and_execute!{b, |_mode,config,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_state,_query,item|
                     "neovim" => {
                         let workdir = git::workdir()?;
                         let file = format!("{}{}", workdir, item);
-                        actions::open_in_nvim(config, file, None, false).await
+                        actions::open_in_nvim(env, file, None, false).await
                     },
                     "vifm" => {
                         let pwd = std::env::current_dir().unwrap().into_os_string();

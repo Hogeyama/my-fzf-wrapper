@@ -19,7 +19,7 @@ use tokio::process::Command;
 use tokio::sync::RwLock;
 
 use super::lib::actions;
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -85,7 +85,7 @@ impl ModeDef for GitDiff {
     }
     fn load<'a>(
         &'a self,
-        _config: &Config,
+        _env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -156,7 +156,7 @@ impl ModeDef for GitDiff {
     }
     fn preview<'a>(
         &'a self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {
@@ -183,7 +183,7 @@ impl ModeDef for GitDiff {
     }
     fn execute<'a>(
         &'a self,
-        config: &'a Config,
+        env: &'a Env,
         _state: &'a mut State,
         item: String,
         args: serde_json::Value,
@@ -202,9 +202,9 @@ impl ModeDef for GitDiff {
                             .map_err(|_| anyhow!("wow"))?;
                         let file = format!("{root}/{}", item.file());
                         if vscode {
-                            actions::open_in_vscode(config, file, item.target_start()).await?;
+                            actions::open_in_vscode(env, file, item.target_start()).await?;
                         } else {
-                            actions::open_in_nvim(config, file, item.target_start(), tabedit)
+                            actions::open_in_nvim(env, file, item.target_start(), tabedit)
                                 .await?;
                         }
                     }
@@ -214,9 +214,9 @@ impl ModeDef for GitDiff {
                     if item.can_stage() {
                         if item.is_hunk() {
                             let (_temp, patch) = self.save_patch_to_temp(&item).await?;
-                            git_apply(&config.nvim, patch, vec!["--cached"]).await?;
+                            git_apply(&env.nvim, patch, vec!["--cached"]).await?;
                         } else {
-                            git_stage_file(&config.nvim, item.file()).await?;
+                            git_stage_file(&env.nvim, item.file()).await?;
                         }
                     }
                 }
@@ -225,21 +225,21 @@ impl ModeDef for GitDiff {
                     if item.can_unstage() {
                         if item.is_hunk() {
                             let (_temp, patch) = self.save_patch_to_temp(&item).await?;
-                            git_apply(&config.nvim, patch, vec!["--reverse", "--cached"]).await?;
+                            git_apply(&env.nvim, patch, vec!["--reverse", "--cached"]).await?;
                         } else {
-                            git_unstage_file(&config.nvim, item.file()).await?;
+                            git_unstage_file(&env.nvim, item.file()).await?;
                         }
                     }
                 }
                 ExecOpts::StageFile => {
                     let item = Item::parse(&item)?;
                     let file = item.file();
-                    git_stage_file(&config.nvim, file).await?;
+                    git_stage_file(&env.nvim, file).await?;
                 }
                 ExecOpts::UnstageFile => {
                     let item = Item::parse(&item)?;
                     let file = item.file();
-                    git_unstage_file(&config.nvim, file).await?;
+                    git_unstage_file(&env.nvim, file).await?;
                 }
                 ExecOpts::Discard => {
                     let item = Item::parse(&item)?;
@@ -251,10 +251,10 @@ impl ModeDef for GitDiff {
                             } else {
                                 vec!["--reverse"]
                             };
-                            git_apply(&config.nvim, patch, flags).await?;
+                            git_apply(&env.nvim, patch, flags).await?;
                         } else {
                             let source = if item.is_staged() { Some("HEAD") } else { None };
-                            git_restore_file(&config.nvim, item.file(), source).await?;
+                            git_restore_file(&env.nvim, item.file(), source).await?;
                         }
                     }
                 }
@@ -275,7 +275,7 @@ impl ModeDef for GitDiff {
                         .stderr(std::process::Stdio::null())
                         .output()
                         .await?;
-                    config
+                    env
                         .nvim
                         .notify_command_result("git commit", output)
                         .await?;
@@ -289,7 +289,7 @@ impl ModeDef for GitDiff {
                         .stderr(std::process::Stdio::null())
                         .output()
                         .await?;
-                    config
+                    env
                         .nvim
                         .notify_command_result("git commit", output)
                         .await?;
@@ -309,7 +309,7 @@ impl ModeDef for GitDiff {
                         "git rebase --update-refs --autosquash --autostash -i {}^",
                         commit
                     );
-                    config
+                    env
                         .nvim
                         .notify_command_result("git rebase", output)
                         .await?;
@@ -332,54 +332,54 @@ impl ModeDef for GitDiff {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |mode,config,state,_query,item| {
+                execute!(b, |mode,env,state,_query,item| {
                     let opts = ExecOpts::Open { tabedit: false, vscode: false }.value();
-                    mode.execute(config, state, item, opts).await
+                    mode.execute(env, state, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |mode,config,state,_query,item| {
+                execute!(b, |mode,env,state,_query,item| {
                     let opts = ExecOpts::Open { tabedit: false, vscode: false }.value();
-                    mode.execute(config, state, item, opts).await
+                    mode.execute(env, state, item, opts).await
                 })
             ],
             "ctrl-s" => [
-                execute_silent!(b, |mode,config,state,_query,item| {
+                execute_silent!(b, |mode,env,state,_query,item| {
                     let opts = ExecOpts::Stage.value();
-                    mode.execute(config, state, item, opts).await
+                    mode.execute(env, state, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-u" => [
-                execute_silent!(b, |mode,config,state,_query,item| {
+                execute_silent!(b, |mode,env,state,_query,item| {
                     let opts = ExecOpts::Unstage.value();
-                    mode.execute(config, state, item, opts).await
+                    mode.execute(env, state, item, opts).await
                 }),
                 b.reload()
             ],
             "alt-s" => [
-                execute_silent!(b, |mode,config,state,_query,item| {
+                execute_silent!(b, |mode,env,state,_query,item| {
                     let opts = ExecOpts::StageFile.value();
-                    mode.execute(config, state, item, opts).await
+                    mode.execute(env, state, item, opts).await
                 }),
                 b.reload()
             ],
             "alt-u" => [
-                execute_silent!(b, |mode,config,state,_query,item| {
+                execute_silent!(b, |mode,env,state,_query,item| {
                     let opts = ExecOpts::UnstageFile.value();
-                    mode.execute(config, state, item, opts).await
+                    mode.execute(env, state, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-x" => [
-                execute_silent!(b, |mode,config,state,_query,item| {
+                execute_silent!(b, |mode,env,state,_query,item| {
                     let opts = ExecOpts::Discard.value();
-                    mode.execute(config, state, item, opts).await
+                    mode.execute(env, state, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-y" => [
-                execute_silent!(b, |_mode,_config,_state,_query,item| {
+                execute_silent!(b, |_mode,_env,_state,_query,item| {
                     let item = Item::parse(&item)?;
                     xsel::yank(item.file()).await?;
                     Ok(())
@@ -387,36 +387,36 @@ impl ModeDef for GitDiff {
                 b.reload()
             ],
             "ctrl-a" => [
-                execute_silent!(b, |mode,config,state,_query,item| {
+                execute_silent!(b, |mode,env,state,_query,item| {
                     let opts = ExecOpts::Commit.value();
-                    mode.execute(config, state, item, opts).await
+                    mode.execute(env, state, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-v" => [
-                execute!(b, |mode,config,state,_query,item| {
+                execute!(b, |mode,env,state,_query,item| {
                     let opts = ExecOpts::LazyGit.value();
-                    mode.execute(config, state, item, opts).await
+                    mode.execute(env, state, item, opts).await
                 }),
                 b.reload()
             ],
             "pgup" => [
-                select_and_execute!{b, |mode,config,state,_query,item|
+                select_and_execute!{b, |mode,env,state,_query,item|
                     "commit" => {
                         let opts = ExecOpts::Commit.value();
-                        mode.execute(config, state, item, opts).await
+                        mode.execute(env, state, item, opts).await
                     },
                     "commit(fixup)" => {
                         let opts = ExecOpts::CommitFixup.value();
-                        mode.execute(config, state, item, opts).await
+                        mode.execute(env, state, item, opts).await
                     },
                     "commit(instant fixup)" => {
                         let opts = ExecOpts::CommitInstantFixup.value();
-                        mode.execute(config, state, item, opts).await
+                        mode.execute(env, state, item, opts).await
                     },
                     "vscode" => {
                         let opts = ExecOpts::Open { tabedit: false, vscode: true }.value();
-                        mode.execute(config, state, item, opts).await
+                        mode.execute(env, state, item, opts).await
                     },
                 }
             ]

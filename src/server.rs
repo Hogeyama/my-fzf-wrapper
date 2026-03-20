@@ -34,19 +34,19 @@ use crate::mode::Mode;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::fzf;
-use crate::Config;
+use crate::env::Env;
 
-pub async fn server(config: Config, state: State, listener: UnixListener) -> Result<(), String> {
-    let mode = config.get_initial_mode();
+pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<(), String> {
+    let mode = env.config.get_initial_mode();
     let fzf_config = mode.fzf_config(mode::FzfArgs {
-        myself: config.myself.clone(),
-        socket: config.socket.clone(),
-        log_file: config.log_file.clone(),
+        myself: env.config.myself.clone(),
+        socket: env.config.socket.clone(),
+        log_file: env.config.log_file.clone(),
         initial_query: "".to_string(),
     });
     let callbacks = mode.callbacks();
 
-    let config = Arc::new(config);
+    let env = Arc::new(env);
 
     let server_state = ServerState {
         fzf: Arc::new(RwLock::new(
@@ -69,7 +69,7 @@ pub async fn server(config: Config, state: State, listener: UnixListener) -> Res
             s = listener.accept() => {
                 if let Ok((unix_stream, _addr)) = s {
                     handle_one_client(
-                        config.clone(),
+                        env.clone(),
                         server_state.clone(),
                         current_load_task.clone(),
                         unix_stream,
@@ -163,7 +163,7 @@ async fn abort_current_load_task(task: &LoadTask) {
 }
 
 async fn handle_one_client(
-    config: Arc<Config>,
+    env: Arc<Env>,
     server_state: ServerState,
     current_load_task: LoadTask,
     unix_stream: UnixStream,
@@ -183,7 +183,7 @@ async fn handle_one_client(
                 abort_current_load_task(&current_load_task).await;
                 let (abort_handle, abort_registration) = AbortHandle::new_pair();
                 let handle = tokio::spawn(Abortable::new(
-                    handle_load_request(config, server_state, params, tx),
+                    handle_load_request(env, server_state, params, tx),
                     abort_registration,
                 ));
                 *(current_load_task.lock().await) = Some((handle, abort_handle));
@@ -194,12 +194,12 @@ async fn handle_one_client(
                 preview_window,
                 method: _,
             }) => {
-                handle_preview_request(config, server_state, params, preview_window, tx).await;
+                handle_preview_request(env, server_state, params, preview_window, tx).await;
             }
 
             Some(method::Request::Execute { params, method: _ }) => {
                 abort_current_load_task(&current_load_task).await;
-                handle_execute_request(config, server_state, params, tx).await;
+                handle_execute_request(env, server_state, params, tx).await;
             }
 
             Some(method::Request::GetLastLoad {
@@ -212,11 +212,11 @@ async fn handle_one_client(
 
             Some(method::Request::ChangeMode { params, method: _ }) => {
                 abort_current_load_task(&current_load_task).await;
-                handle_change_mode_request(config, server_state, params, tx).await;
+                handle_change_mode_request(env, server_state, params, tx).await;
             }
 
             Some(method::Request::ChangeDirectory { params, method: _ }) => {
-                handle_change_directory_request(config, params, tx).await;
+                handle_change_directory_request(env, params, tx).await;
             }
 
             _ => {
@@ -235,7 +235,7 @@ async fn handle_one_client(
 // Load
 
 async fn handle_load_request(
-    config: Arc<Config>,
+    env: Arc<Env>,
     server_state: ServerState,
     params: LoadParam,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
@@ -263,7 +263,7 @@ async fn handle_load_request(
     state.last_load_resp = {
         let stream = callback(
             mode.mode_def.as_ref(),
-            &config,
+            &env,
             &mut state,
             query,
             item.unwrap_or_default(),
@@ -310,7 +310,7 @@ async fn send_load_stream(
 // Preview
 
 async fn handle_preview_request(
-    config: Arc<Config>,
+    env: Arc<Env>,
     server_state: ServerState,
     params: method::PreviewParam,
     preview_window: fzf::PreviewWindow,
@@ -328,7 +328,7 @@ async fn handle_preview_request(
 
     let resp = callback(
         mode.mode_def.as_ref(),
-        &config,
+        &env,
         &preview_window,
         params.item,
     )
@@ -346,7 +346,7 @@ async fn handle_preview_request(
 // Execute
 
 async fn handle_execute_request(
-    config: Arc<Config>,
+    env: Arc<Env>,
     server_state: ServerState,
     params: method::ExecuteParam,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
@@ -371,7 +371,7 @@ async fn handle_execute_request(
         })
         .callback;
 
-    match callback(mode.mode_def.as_ref(), &config, &mut state, query, item).await {
+    match callback(mode.mode_def.as_ref(), &env, &mut state, query, item).await {
         Ok(_) => {}
         Err(e) => error!("server: execute error"; "error" => e.to_string()),
     }
@@ -411,7 +411,7 @@ async fn handle_get_last_load_request(
 // ChangeMode
 
 async fn handle_change_mode_request(
-    config: Arc<Config>,
+    env: Arc<Env>,
     server_state: ServerState,
     params: method::ChangeModeParam,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
@@ -427,12 +427,12 @@ async fn handle_change_mode_request(
         error!("server: failed to kill fzf process"; "error" => e.to_string());
     }
 
-    let new_mode = config.get_mode(new_mode);
+    let new_mode = env.config.get_mode(new_mode);
     let new_callback_map = new_mode.callbacks();
     let new_fzf_config = new_mode.fzf_config(mode::FzfArgs {
-        myself: config.myself.clone(),
-        socket: config.socket.clone(),
-        log_file: config.log_file.clone(),
+        myself: env.config.myself.clone(),
+        socket: env.config.socket.clone(),
+        log_file: env.config.log_file.clone(),
         initial_query: query.unwrap_or_default(),
     });
 
@@ -454,7 +454,7 @@ async fn handle_change_mode_request(
 // ChangeDirectory
 
 async fn handle_change_directory_request(
-    config: Arc<Config>,
+    env: Arc<Env>,
     params: method::ChangeDirectoryParam,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
@@ -464,7 +464,7 @@ async fn handle_change_directory_request(
             dir.pop();
             Ok(dir)
         }
-        method::ChangeDirectoryParam::ToLastFileDir => config
+        method::ChangeDirectoryParam::ToLastFileDir => env
             .nvim
             .last_opened_file()
             .await

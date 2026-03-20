@@ -7,7 +7,7 @@ use rmpv::ext::from_value;
 
 use super::lib::actions;
 use super::lib::item::FilePathItem;
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -53,12 +53,12 @@ impl ModeDef for Visits {
     }
     fn load(
         &self,
-        config: &Config,
+        env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
-        let nvim = config.nvim.clone();
+        let nvim = env.nvim.clone();
         let kind = self.kind;
         Box::pin(async_stream::stream! {
             let mru_items = get_visits(&nvim, kind).await?;
@@ -67,7 +67,7 @@ impl ModeDef for Visits {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -93,8 +93,8 @@ impl ModeDef for Visits {
             "ctrl-t" => [ b.open_nvim(FilePathItem, true) ],
             "ctrl-y" => [ b.yank_file(FilePathItem) ],
             "ctrl-x" => [
-                execute_silent!(b, |_mode,config,_state,_query,item| {
-                    config.nvim.eval_lua(
+                execute_silent!(b, |_mode,env,_state,_query,item| {
+                    env.nvim.eval_lua(
                         format!("require'mini.visits'.remove_path('{}')", item)
                     ).await?;
                     Ok(())
@@ -102,18 +102,18 @@ impl ModeDef for Visits {
                 b.reload(),
             ],
             "pgup" => [
-                select_and_execute!{b, |_mode,config,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_state,_query,item|
                     "oil" => {
-                        actions::oil(config).await
+                        actions::oil(env).await
                     },
                     "new file" => {
-                        actions::new_file(config, &item).await
+                        actions::new_file(env, &item).await
                     },
                     "execute any command" => {
-                        actions::execute_command(config, &item).await
+                        actions::execute_command(env, &item).await
                     },
                     "vscode" => {
-                        actions::open_in_vscode(config, item, None).await
+                        actions::open_in_vscode(env, item, None).await
                     },
                 }
             ]

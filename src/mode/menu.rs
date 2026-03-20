@@ -2,7 +2,7 @@ use anyhow::Result;
 use futures::future::BoxFuture;
 use futures::FutureExt;
 
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -21,13 +21,13 @@ impl ModeDef for Menu {
     }
     fn load<'a>(
         &'a self,
-        config: &'a Config,
+        env: &'a Env,
         _state: &'a mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
-            let items = config
+            let items = env.config
                 .get_mode_names()
                 .into_iter()
                 .map(|s| s.to_string())
@@ -41,7 +41,7 @@ impl ModeDef for Menu {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {

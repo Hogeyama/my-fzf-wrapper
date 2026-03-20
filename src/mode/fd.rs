@@ -8,7 +8,7 @@ use tokio::process::Command;
 
 use super::lib::actions;
 use super::lib::item::FilePathItem;
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -30,7 +30,7 @@ impl ModeDef for Fd {
     }
     fn load(
         &self,
-        _config: &Config,
+        _env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -39,7 +39,7 @@ impl ModeDef for Fd {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -52,7 +52,7 @@ impl ModeDef for Fd {
             "enter" => [ b.open_nvim(FilePathItem, false) ],
             "ctrl-t" => [ b.open_nvim(FilePathItem, true) ],
             "ctrl-v" => [
-                execute!(b, |_mode,_config,_state,_query,_item| {
+                execute!(b, |_mode,_env,_state,_query,_item| {
                     let pwd = std::env::current_dir().unwrap().into_os_string();
                     Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
                     Ok(())
@@ -60,15 +60,15 @@ impl ModeDef for Fd {
             ],
             "ctrl-y" => [ b.yank_file(FilePathItem) ],
             "pgup" => [
-                select_and_execute!{b, |_mode,config,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_state,_query,item|
                     "oil" => {
-                        actions::oil(config).await
+                        actions::oil(env).await
                     },
                     "new file" => {
-                        actions::new_file(config, &item).await
+                        actions::new_file(env, &item).await
                     },
                     "execute any command" => {
-                        actions::execute_command(config, &item).await
+                        actions::execute_command(env, &item).await
                     },
                     "browse-github" => {
                         actions::browse_github(item).await
@@ -78,7 +78,7 @@ impl ModeDef for Fd {
                         Ok(())
                     },
                     "vscode" => {
-                        actions::open_in_vscode(config, item, None).await
+                        actions::open_in_vscode(env, item, None).await
                     },
                 }
             ]

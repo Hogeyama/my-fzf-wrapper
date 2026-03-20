@@ -9,7 +9,7 @@ use tokio::io::BufReader;
 use tokio::process::Command;
 use tokio::sync::Mutex;
 
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -58,7 +58,7 @@ impl ModeDef for Runner {
 
     fn load(
         &self,
-        _config: &Config,
+        _env: &Env,
         _state: &mut crate::state::State,
         _query: String,
         _item: String,
@@ -73,7 +73,7 @@ impl ModeDef for Runner {
 
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -90,7 +90,7 @@ impl ModeDef for Runner {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute_silent!(b, |mode, _config, _state, _query, item| {
+                execute_silent!(b, |mode, _env, _state, _query, item| {
                     mode.state.lock().await.target_file = Some(item);
                     Ok(())
                 }),
@@ -118,7 +118,7 @@ impl ModeDef for RunnerCommands {
 
     fn load(
         &self,
-        _config: &Config,
+        _env: &Env,
         _state: &mut crate::state::State,
         _query: String,
         _item: String,
@@ -138,7 +138,7 @@ impl ModeDef for RunnerCommands {
 
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -155,25 +155,25 @@ impl ModeDef for RunnerCommands {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |mode, config, _state, _query, item| {
+                execute!(b, |mode, env, _state, _query, item| {
                     let file = mode.state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
                     let (cmd, output) = run_target(&file, &item).await?;
-                    config.nvim.notify_command_result(&cmd, output).await
+                    env.nvim.notify_command_result(&cmd, output).await
                 })
             ],
             "pgup" => [
-                select_and_execute!{b, |mode, config, _state, _query, item|
+                select_and_execute!{b, |mode, env, _state, _query, item|
                     "execute" => {
                         let file = mode.state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
                         let (cmd, output) = run_target(&file, &item).await?;
-                        config.nvim.notify_command_result(&cmd, output).await?;
+                        env.nvim.notify_command_result(&cmd, output).await?;
                         Ok(())
                     },
                     "execute with arguments" => {
                         let file = mode.state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
                         let cmd = build_command(&file, &item);
                         let (cmd, output) = edit_and_run(cmd).await?;
-                        config.nvim.notify_command_result(&cmd, output).await?;
+                        env.nvim.notify_command_result(&cmd, output).await?;
                         Ok(())
                     },
                 }

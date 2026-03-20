@@ -5,7 +5,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 
 use crate::bindings;
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -29,19 +29,19 @@ impl ModeDef for NeovimSession {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,config,_state,_query,session| {
-                    session_command(&config.nvim, "read", session).await;
+                execute!(b, |_mode,env,_state,_query,session| {
+                    session_command(&env.nvim, "read", session).await;
                     Ok(())
                 })
             ],
             "space" => [
-                select_and_execute!{b, |_mode,config,_state,_query,session|
+                select_and_execute!{b, |_mode,env,_state,_query,session|
                     "switch" => {
-                        session_command(&config.nvim, "read", session).await;
+                        session_command(&env.nvim, "read", session).await;
                         Ok(())
                     },
                     "delete" => {
-                        session_command(&config.nvim, "delete", session).await;
+                        session_command(&env.nvim, "delete", session).await;
                         Ok(())
                     },
                 }
@@ -50,7 +50,7 @@ impl ModeDef for NeovimSession {
     }
     fn load(
         &self,
-        _config: &Config,
+        _env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -66,7 +66,7 @@ impl ModeDef for NeovimSession {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         _item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {

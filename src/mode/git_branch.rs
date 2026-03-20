@@ -4,7 +4,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use tokio::process::Command;
 
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -27,7 +27,7 @@ impl ModeDef for GitBranch {
     }
     fn load(
         &self,
-        _config: &Config,
+        _env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -49,7 +49,7 @@ impl ModeDef for GitBranch {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         branch: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -65,12 +65,12 @@ impl ModeDef for GitBranch {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,config,_state,_query,branch|
+                select_and_execute!{b, |_mode,env,_state,_query,branch|
                     "push" => {
-                        push_branch_to_remote(&config.nvim, branch, false).await
+                        push_branch_to_remote(&env.nvim, branch, false).await
                     },
                     "push -f" => {
-                        push_branch_to_remote(&config.nvim, branch, true).await
+                        push_branch_to_remote(&env.nvim, branch, true).await
                     },
                     "switch" => {
                         let _ = Command::new("git")
@@ -96,30 +96,30 @@ impl ModeDef for GitBranch {
                             .arg(commit.clone())
                             .output()
                             .await?;
-                        config.nvim.notify_command_result(
+                        env.nvim.notify_command_result(
                             format!("git branch {branch} {commit}"),
                             output,
                         )
                         .await
                     },
                     "delete" => {
-                        delete_branch(&config.nvim, branch, false).await
+                        delete_branch(&env.nvim, branch, false).await
                     },
                     "delete -f" => {
-                        delete_branch(&config.nvim, branch, true).await
+                        delete_branch(&env.nvim, branch, true).await
                     },
                 },
                 b.reload(),
             ],
             "ctrl-y" => [
-                execute!(b, |_mode,_config,_state,_query,branch| {
+                execute!(b, |_mode,_env,_state,_query,branch| {
                     xsel::yank(branch).await?;
                     Ok(())
                 }),
             ],
             "ctrl-p" => [
-                execute!(b, |_mode,config,_state,_query,branch| {
-                    push_branch_to_remote(&config.nvim, branch, true).await
+                execute!(b, |_mode,env,_state,_query,branch| {
+                    push_branch_to_remote(&env.nvim, branch, true).await
                 }),
             ],
         }

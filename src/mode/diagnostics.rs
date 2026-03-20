@@ -8,9 +8,10 @@ use regex::Regex;
 use rmpv::ext::from_value;
 use serde::Deserialize;
 use serde::Serialize;
+
 use super::lib::actions;
 use super::lib::cache::ModeCache;
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -43,12 +44,12 @@ impl ModeDef for Diagnostics {
     }
     fn load<'a>(
         &'a self,
-        config: &Config,
+        env: &Env,
         _state: &'a mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
-        let nvim = config.nvim.clone();
+        let nvim = env.nvim.clone();
         Box::pin(async_stream::stream! {
             let mut diagnostics =
                 DiagnosticsItem::gather(&nvim).await?
@@ -63,11 +64,11 @@ impl ModeDef for Diagnostics {
     }
     fn preview<'a>(
         &'a self,
-        config: &Config,
+        env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>> {
-        let nvim = config.nvim.clone();
+        let nvim = env.nvim.clone();
         async move {
             let items = self.items.get().await?;
             let item = DiagnosticsItem::lookup(&items, item.clone())?;
@@ -85,19 +86,19 @@ impl ModeDef for Diagnostics {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |mode, config, _state, _query, item| {
+                execute!(b, |mode, env, _state, _query, item| {
                     let items = mode.items.get().await?;
                     let item = DiagnosticsItem::lookup(&items, item.clone())?;
-                    let file = config.nvim.get_buf_name(item.bufnr as usize).await?;
-                    actions::open_in_nvim(config, file, Some(item.lnum as usize + 1), false).await
+                    let file = env.nvim.get_buf_name(item.bufnr as usize).await?;
+                    actions::open_in_nvim(env, file, Some(item.lnum as usize + 1), false).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |mode, config, _state, _query, item| {
+                execute!(b, |mode, env, _state, _query, item| {
                     let items = mode.items.get().await?;
                     let item = DiagnosticsItem::lookup(&items, item.clone())?;
-                    let file = config.nvim.get_buf_name(item.bufnr as usize).await?;
-                    actions::open_in_nvim(config, file, Some(item.lnum as usize + 1), true).await
+                    let file = env.nvim.get_buf_name(item.bufnr as usize).await?;
+                    actions::open_in_nvim(env, file, Some(item.lnum as usize + 1), true).await
                 })
             ],
         }

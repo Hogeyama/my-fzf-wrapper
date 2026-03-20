@@ -3,7 +3,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use tokio::process::Command;
 
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
@@ -25,7 +25,7 @@ impl ModeDef for GitReflog {
     }
     fn load(
         &self,
-        _config: &Config,
+        _env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -39,7 +39,7 @@ impl ModeDef for GitReflog {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -55,10 +55,10 @@ impl ModeDef for GitReflog {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,config,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_state,_query,item|
                     "diffview" => {
-                        let _ = config.nvim.hide_floaterm().await;
-                        config.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))
+                        let _ = env.nvim.hide_floaterm().await;
+                        env.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))
                             .await?;
                         Ok(())
                     },
@@ -68,7 +68,7 @@ impl ModeDef for GitReflog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        config.nvim.notify_command_result("git cherry-pick", output)
+                        env.nvim.notify_command_result("git cherry-pick", output)
                             .await?;
                         Ok(())
                     },
@@ -79,7 +79,7 @@ impl ModeDef for GitReflog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        config.nvim.notify_command_result("git switch --detach", output)
+                        env.nvim.notify_command_result("git switch --detach", output)
                             .await?;
                         Ok(())
                     },
@@ -89,7 +89,7 @@ impl ModeDef for GitReflog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        config.nvim.notify_command_result("git reset", output)
+                        env.nvim.notify_command_result("git reset", output)
                             .await?;
                         Ok(())
                     },
@@ -100,14 +100,14 @@ impl ModeDef for GitReflog {
                             .arg(git::parse_short_commit(&item)?)
                             .output()
                             .await?;
-                        config.nvim.notify_command_result("git reset --hard", output)
+                        env.nvim.notify_command_result("git reset --hard", output)
                             .await?;
                         Ok(())
                     },
                 }
             ],
             "ctrl-y" => [
-                execute_silent!{b, |_mode,_config,_state,_query,item| {
+                execute_silent!{b, |_mode,_env,_state,_query,item| {
                     let commit = git::parse_short_commit(&item)?;
                     xsel::yank(commit).await?;
                     Ok(())

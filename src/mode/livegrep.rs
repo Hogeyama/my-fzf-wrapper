@@ -8,7 +8,7 @@ use regex::Regex;
 
 use super::lib::actions;
 use super::lib::item::RegexItem;
-use crate::config::Config;
+use crate::env::Env;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
@@ -54,7 +54,7 @@ impl ModeDef for LiveGrep {
     }
     fn load(
         &self,
-        _config: &Config,
+        _env: &Env,
         _state: &mut State,
         query: String,
         _item: String,
@@ -63,7 +63,7 @@ impl ModeDef for LiveGrep {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -133,7 +133,7 @@ impl ModeDef for LiveGrepF {
     }
     fn load(
         &self,
-        _config: &Config,
+        _env: &Env,
         state: &mut State,
         _query: String,
         _item: String,
@@ -149,7 +149,7 @@ impl ModeDef for LiveGrepF {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -173,7 +173,7 @@ fn livegrep_common_bindings() -> (fzf::Bindings, super::CallbackMap) {
         "ctrl-space" => [ b.open_vscode(LIVEGREP_ITEM) ],
         "ctrl-t" => [ b.open_nvim(LIVEGREP_ITEM, true) ],
         "pgup" => [
-            b.execute(|_mode,config,_state,_query,item| async move {
+            b.execute(|_mode,env,_state,_query,item| async move {
                 match &*fzf::select(vec!["browse-github", "neovim", "vscode"]).await? {
                     "browse-github" => {
                         let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
@@ -184,12 +184,12 @@ fn livegrep_common_bindings() -> (fzf::Bindings, super::CallbackMap) {
                     "neovim" => {
                         let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
                         let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                        actions::open_in_nvim(config, file, line.parse().ok(), false).await
+                        actions::open_in_nvim(env, file, line.parse().ok(), false).await
                     },
                     "vscode" => {
                         let file = ITEM_PATTERN.replace(&item, "$file").into_owned();
                         let line = ITEM_PATTERN.replace(&item, "$line").into_owned();
-                        actions::open_in_vscode(config, file, line.parse().ok()).await
+                        actions::open_in_vscode(env, file, line.parse().ok()).await
                     },
                     _ => Ok(()),
                 }

@@ -43,6 +43,7 @@ mod logging_macros {
 
 mod client;
 mod config;
+mod env;
 mod logger;
 mod method;
 mod mode;
@@ -52,7 +53,6 @@ mod state;
 mod utils;
 
 // std
-use std::env;
 use std::error::Error;
 use std::fs;
 use std::path::Path;
@@ -73,7 +73,6 @@ use tokio::net::UnixListener;
 
 use crate::client::run_command;
 use crate::client::Command;
-use crate::config::Config;
 use crate::nvim::start_nvim;
 
 ////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -115,7 +114,7 @@ struct Cli {
 
 async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     fn get_program_path() -> String {
-        env::current_exe()
+        std::env::current_exe()
             .expect("$0")
             .to_string_lossy()
             .into_owned()
@@ -123,7 +122,7 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
 
     fn gen_socket_name() -> String {
         // テスト用にソケット名を外部から固定できるようにする
-        if let Ok(p) = env::var("FZFW_TEST_SOCKET") {
+        if let Ok(p) = std::env::var("FZFW_TEST_SOCKET") {
             return p;
         }
         format!(
@@ -153,15 +152,11 @@ async fn init(args: Cli) -> Result<(), Box<dyn Error>> {
     let socket = create_listener(&socket_name);
 
     let myself = args.fzfw_self.unwrap_or(get_program_path());
-    let config = config::new(
-        myself.clone(),
-        nvim,
-        socket_name.clone(),
-        args.fzfw_log_file,
-    );
+    let config = config::new(myself.clone(), socket_name.clone(), args.fzfw_log_file);
+    let env = env::Env { config, nvim };
     let state = state::State::new();
 
-    server::server(config, state, socket)
+    server::server(env, state, socket)
         .await
         .unwrap_or_else(|e| {
             error!("server: error"; "error" => e);

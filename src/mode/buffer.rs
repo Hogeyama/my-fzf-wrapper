@@ -8,7 +8,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::lib::actions;
-use crate::config::Config;
+use crate::env::Env;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
@@ -34,12 +34,12 @@ impl ModeDef for Buffer {
     }
     fn load(
         &self,
-        config: &Config,
+        env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
-        let nvim = config.nvim.clone();
+        let nvim = env.nvim.clone();
         Box::pin(async_stream::stream! {
             let items = get_nvim_buffers(&nvim).await?;
             yield Ok(LoadResp::new_with_default_header(items))
@@ -47,7 +47,7 @@ impl ModeDef for Buffer {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
@@ -76,30 +76,30 @@ impl ModeDef for Buffer {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,config,_state,_query,item| {
+                execute!(b, |_mode,env,_state,_query,item| {
                     let bufnr = ITEM_PATTERN
                         .replace(&item, "$bufnr")
                         .into_owned()
                         .parse::<usize>()?;
-                    actions::open_in_nvim(config, bufnr, None, false).await
+                    actions::open_in_nvim(env, bufnr, None, false).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,config,_state,_query,item| {
+                execute!(b, |_mode,env,_state,_query,item| {
                     let bufnr = ITEM_PATTERN
                         .replace(&item, "$bufnr")
                         .into_owned()
                         .parse::<usize>()?;
-                    actions::open_in_nvim(config, bufnr, None, true).await
+                    actions::open_in_nvim(env, bufnr, None, true).await
                 })
             ],
             "ctrl-x" => [
-                execute!(b, |_mode,config,_state,_query,item| {
+                execute!(b, |_mode,env,_state,_query,item| {
                     let bufnr = ITEM_PATTERN
                         .replace(&item, "$bufnr")
                         .into_owned()
                         .parse::<usize>()?;
-                    let r = config.nvim.delete_buffer(bufnr, true).await;
+                    let r = env.nvim.delete_buffer(bufnr, true).await;
                     if let Err(e) = r {
                         error!("buffer: run: nvim_delete_buffer failed"; "error" => e.to_string());
                     }
@@ -108,7 +108,7 @@ impl ModeDef for Buffer {
                 b.reload(),
             ],
             "ctrl-y" => [
-                execute!(b, |_mode,_config,_state,_query,item| {
+                execute!(b, |_mode,_env,_state,_query,item| {
                     let file = ITEM_PATTERN.replace(&item, "$path");
                     actions::yank(file).await
                 })

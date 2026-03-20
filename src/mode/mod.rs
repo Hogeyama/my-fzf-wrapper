@@ -29,7 +29,7 @@ use futures::FutureExt;
 use futures::Stream;
 use std::pin::Pin;
 
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::state::State;
@@ -169,7 +169,7 @@ pub trait ModeDef: AsAny {
     /// Load items into fzf
     fn load<'a>(
         &'a self,
-        config: &'a Config,
+        config: &'a Env,
         state: &'a mut State,
         query: String,
         item: String, // currently selected item
@@ -178,7 +178,7 @@ pub trait ModeDef: AsAny {
     /// Preview the currently selected item
     fn preview<'a>(
         &'a self,
-        config: &'a Config,
+        config: &'a Env,
         win: &'a PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>>;
@@ -187,7 +187,7 @@ pub trait ModeDef: AsAny {
     /// (Optional. Intended to be used by the callback of fzf_bindings)
     fn execute<'a>(
         &'a self,
-        _config: &'a Config,
+        _config: &'a Env,
         _state: &'a mut State,
         _item: String,
         _args: serde_json::Value,
@@ -223,7 +223,7 @@ pub struct LoadCallback {
     pub callback: Box<
         dyn for<'a> Fn(
                 &'a (dyn ModeDef + Sync + Send),
-                &'a Config,
+                &'a Env,
                 &'a mut State,
                 String,
                 String,
@@ -238,7 +238,7 @@ pub struct PreviewCallback {
     pub callback: Box<
         dyn for<'a> Fn(
                 &'a (dyn ModeDef + Sync + Send),
-                &'a Config,
+                &'a Env,
                 &'a PreviewWindow,
                 String,
             ) -> BoxFuture<'a, Result<PreviewResp>>
@@ -252,7 +252,7 @@ pub struct ExecuteCallback {
     pub callback: Box<
         dyn for<'a> Fn(
                 &'a (dyn ModeDef + Sync + Send),
-                &'a Config,
+                &'a Env,
                 &'a mut State,
                 String,
                 String,
@@ -264,7 +264,7 @@ pub struct ExecuteCallback {
 
 pub mod config_builder {
     #![allow(dead_code)]
-    use crate::config::Config;
+    use crate::env::Env;
     use crate::mode::lib::actions;
     use crate::mode::lib::item::ItemExtractor;
     use crate::mode::ModeDef;
@@ -291,7 +291,7 @@ pub mod config_builder {
         where
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
-                    &'a Config,
+                    &'a Env,
                     &'a mut State,
                     String,
                     String,
@@ -312,7 +312,7 @@ pub mod config_builder {
         where
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
-                    &'a Config,
+                    &'a Env,
                     &'a mut State,
                     String,
                     String,
@@ -337,7 +337,7 @@ pub mod config_builder {
         where
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
-                    &'a Config,
+                    &'a Env,
                     &'a mut State,
                     String,
                     String,
@@ -407,7 +407,7 @@ pub mod config_builder {
             M: ModeDef + Send + Sync + 'static,
             F: for<'a> Fn(
                     &'a M,
-                    &'a Config,
+                    &'a Env,
                     &'a mut State,
                     String,
                     String,
@@ -430,7 +430,7 @@ pub mod config_builder {
             M: ModeDef + Send + Sync + 'static,
             F: for<'a> Fn(
                     &'a M,
-                    &'a Config,
+                    &'a Env,
                     &'a mut State,
                     String,
                     String,
@@ -451,7 +451,7 @@ pub mod config_builder {
         pub fn reload_with_as<M, F>(&mut self, callback: F) -> fzf::Action
         where
             M: ModeDef + Send + Sync + 'static,
-            for<'a> F: Fn(&'a M, &'a Config, &'a mut State, String, String) -> super::LoadStream<'a>
+            for<'a> F: Fn(&'a M, &'a Env, &'a mut State, String, String) -> super::LoadStream<'a>
                 + Send
                 + Sync
                 + 'static,

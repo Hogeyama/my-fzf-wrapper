@@ -3,7 +3,7 @@ use futures::future::BoxFuture;
 use futures::FutureExt;
 use tokio::process::Command;
 
-use crate::config::Config;
+use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::ModeDef;
@@ -20,7 +20,7 @@ impl ModeDef for Zoxide {
     }
     fn load(
         &self,
-        _config: &Config,
+        _env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
@@ -36,7 +36,7 @@ impl ModeDef for Zoxide {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {

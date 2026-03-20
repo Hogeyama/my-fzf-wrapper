@@ -10,7 +10,7 @@ use serde::Deserialize;
 use serde::Serialize;
 
 use super::lib::item::FilePathItem;
-use crate::config::Config;
+use crate::env::Env;
 use crate::logger::Serde;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
@@ -35,12 +35,12 @@ impl ModeDef for Mru {
     }
     fn load(
         &self,
-        config: &Config,
+        env: &Env,
         _state: &mut State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
-        let nvim = config.nvim.clone();
+        let nvim = env.nvim.clone();
         Box::pin(async_stream::stream! {
             let mru_items = get_nvim_oldefiles(&nvim).await?;
             yield Ok(LoadResp::new_with_default_header(mru_items))
@@ -48,7 +48,7 @@ impl ModeDef for Mru {
     }
     fn preview(
         &self,
-        _config: &Config,
+        _env: &Env,
         _win: &PreviewWindow,
         item: String,
     ) -> BoxFuture<'static, Result<PreviewResp>> {
