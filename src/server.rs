@@ -242,10 +242,6 @@ async fn handle_one_client(
                 handle_execute_request(env, server_state, params, tx).await;
             }
 
-            Some(method::Request::Dispatch { params, method: _ }) => {
-                handle_dispatch_request(env, server_state, params, tx).await;
-            }
-
             _ => {
                 let mut tx = tx.lock().await;
                 (*tx)
@@ -438,44 +434,6 @@ async fn handle_execute_request(
     match send_response(method::Execute, &mut *tx, &()).await {
         Ok(()) => info!("server: execute done"),
         Err(e) => error!("server: execute error"; "error" => e),
-    }
-}
-
-// ------------------------------------------------------------------------------
-// Dispatch (transform 用: モード切替 + モード依存キーのディスパッチ)
-
-async fn handle_dispatch_request(
-    _env: Arc<Env>,
-    server_state: ServerState,
-    params: method::DispatchParam,
-    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
-) {
-    let method::DispatchParam { key, query, item } = params;
-
-    info!("server: dispatch"; "key" => &key, "query" => &query, "item" => &item);
-
-    let action = dispatch_mode_key(&server_state, &key).await;
-
-    let resp = method::DispatchResp { action };
-
-    let mut tx = tx.lock().await;
-    match send_response(method::Dispatch, &mut *tx, &resp).await {
-        Ok(()) => trace!("server: dispatch done"),
-        Err(e) => error!("server: dispatch error"; "error" => e),
-    }
-}
-
-/// モード依存キーの dispatch: 現在モードの rendered_bindings から返す
-async fn dispatch_mode_key(server_state: &ServerState, key: &str) -> String {
-    let mode_name = server_state.read_current_mode_name().await;
-    let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
-
-    match entry.rendered_bindings.get(key) {
-        Some(action) => action.clone(),
-        None => {
-            trace!("server: dispatch no binding"; "mode" => &*mode_name, "key" => key);
-            String::new()
-        }
     }
 }
 
