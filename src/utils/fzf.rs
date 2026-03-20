@@ -1,10 +1,14 @@
 #![allow(dead_code)]
 use std::collections::HashMap;
+use std::path::Path;
+use std::path::PathBuf;
 
 use anyhow::Result;
 use serde::Deserialize;
 use serde::Serialize;
+use tokio::io::AsyncReadExt;
 use tokio::io::AsyncWriteExt;
+use tokio::net::UnixStream;
 use tokio::process::Command;
 
 // TODO 多くを mode/mod.rs に移動させる。myself を知っているのはおかしい
@@ -18,6 +22,7 @@ pub struct Config {
     pub initial_query: String,
     pub bindings: Bindings,
     pub extra_opts: Vec<String>,
+    pub listen_socket: Option<String>,
 }
 
 pub type Key = String;
@@ -92,6 +97,7 @@ pub fn new(config: Config) -> Command {
         initial_query,
         bindings,
         extra_opts,
+        listen_socket,
     } = config;
     let mut fzf = Command::new("fzf");
     fzf.kill_on_drop(true);
@@ -131,6 +137,11 @@ pub fn new(config: Config) -> Command {
         args.push("--bind".to_string());
         args.push(format!("{}:{}", key, actions.join("+")));
     });
+
+    if let Some(ref listen_socket) = listen_socket {
+        args.push("--listen".to_string());
+        args.push(listen_socket.clone());
+    }
 
     extra_opts.iter().for_each(|opt| {
         args.push(opt.to_string());
@@ -207,4 +218,50 @@ pub async fn input_with_placeholder(
             .trim()
             .to_string(),
     )
+}
+
+// ------------------------------------------------------------------------------
+// FzfClient: fzf の --listen ソケットに HTTP リクエストを送るクライアント
+
+pub struct FzfClient {
+    socket_path: PathBuf,
+}
+
+impl FzfClient {
+    pub fn new(socket_path: impl Into<PathBuf>) -> Self {
+        Self {
+            socket_path: socket_path.into(),
+        }
+    }
+
+    pub fn socket_path(&self) -> &Path {
+        &self.socket_path
+    }
+
+    /// fzf にアクションを送信する (POST /)
+    pub async fn post_action(&self, action: &str) -> Result<()> {
+        let mut stream = UnixStream::connect(&self.socket_path).await?;
+
+        let body = action.as_bytes();
+        let request = format!(
+            "POST / HTTP/1.0\r\nHost: localhost\r\nContent-Length: {}\r\n\r\n",
+            body.len()
+        );
+        stream.write_all(request.as_bytes()).await?;
+        stream.write_all(body).await?;
+
+        // レスポンスを読んでステータスコードを確認
+        let mut response = Vec::new();
+        stream.read_to_end(&mut response).await?;
+        let response_str = String::from_utf8_lossy(&response);
+        if let Some(status_line) = response_str.lines().next() {
+            if !status_line.contains("200") {
+                return Err(anyhow::anyhow!(
+                    "fzf --listen POST failed: {}",
+                    status_line
+                ));
+            }
+        }
+        Ok(())
+    }
 }

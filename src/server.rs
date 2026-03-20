@@ -38,11 +38,16 @@ use crate::env::Env;
 
 pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<(), String> {
     let mode = env.config.get_initial_mode();
+
+    // fzf の --listen 用 Unix ソケットパス
+    let fzf_listen_socket = format!("{}.fzf-listen", env.config.socket);
+
     let fzf_config = mode.fzf_config(mode::FzfArgs {
         myself: env.config.myself.clone(),
         socket: env.config.socket.clone(),
         log_file: env.config.log_file.clone(),
         initial_query: "".to_string(),
+        listen_socket: Some(fzf_listen_socket.clone()),
     });
     let callbacks = mode.callbacks();
 
@@ -55,6 +60,7 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
                 .spawn()
                 .expect("Failed to spawn fzf"),
         )),
+        fzf_client: Arc::new(fzf::FzfClient::new(&fzf_listen_socket)),
         mode: Arc::new(RwLock::new(mode)),
         state: Arc::new(RwLock::new(state)),
         callbacks: Arc::new(RwLock::new(callbacks)),
@@ -95,6 +101,7 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
 #[derive(Clone)]
 struct ServerState {
     fzf: Arc<RwLock<Child>>,
+    fzf_client: Arc<fzf::FzfClient>,
     mode: Arc<RwLock<Mode>>,
     state: Arc<RwLock<State>>,
     callbacks: Arc<RwLock<mode::CallbackMap>>,
@@ -429,11 +436,13 @@ async fn handle_change_mode_request(
 
     let new_mode = env.config.get_mode(new_mode);
     let new_callback_map = new_mode.callbacks();
+    let listen_socket = server_state.fzf_client.socket_path().to_string_lossy().to_string();
     let new_fzf_config = new_mode.fzf_config(mode::FzfArgs {
         myself: env.config.myself.clone(),
         socket: env.config.socket.clone(),
         log_file: env.config.log_file.clone(),
         initial_query: query.unwrap_or_default(),
+        listen_socket: Some(listen_socket),
     });
 
     *fzf = fzf::new(new_fzf_config)

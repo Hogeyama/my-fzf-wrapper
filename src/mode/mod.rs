@@ -144,6 +144,7 @@ impl Mode {
                 .into_iter()
                 .map(|s| s.to_string())
                 .collect(),
+            listen_socket: args.listen_socket,
         }
     }
 }
@@ -201,6 +202,7 @@ pub struct FzfArgs {
     pub initial_query: String,
     pub socket: String,
     pub log_file: String,
+    pub listen_socket: Option<String>,
 }
 
 pub struct CallbackMap {
