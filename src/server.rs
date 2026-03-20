@@ -260,12 +260,15 @@ async fn handle_one_client(
 
             Some(method::Request::ChangeMode { params, method: _ }) => {
                 abort_current_load_task(&current_load_task).await;
-                let key = format!("change-mode:{}", params.mode);
-                let actions =
-                    dispatch_change_mode(&env, &server_state, &params.mode, &key).await;
-                if let Err(e) = server_state.fzf_client.post_action(&actions).await {
-                    error!("server: failed to post mode-switch actions to fzf";
-                        "error" => e.to_string());
+                let keep_query = params.mode.contains("livegrep");
+                {
+                    let mut state = server_state.state.write().await;
+                    if let Err(e) =
+                        mode::do_change_mode(&env, &mut state, &params.mode, keep_query).await
+                    {
+                        error!("server: failed to change mode";
+                            "error" => e.to_string());
+                    }
                 }
                 let mut tx = tx.lock().await;
                 let _ = send_response(method::ChangeMode, &mut *tx, &()).await;
@@ -488,11 +491,7 @@ async fn handle_dispatch_request(
 
     info!("server: dispatch"; "key" => &key, "query" => &query, "item" => &item);
 
-    let action = if let Some(new_mode_name) = key.strip_prefix("change-mode:") {
-        dispatch_change_mode(&_env, &server_state, new_mode_name, &key).await
-    } else {
-        dispatch_mode_key(&server_state, &key).await
-    };
+    let action = dispatch_mode_key(&server_state, &key).await;
 
     let resp = method::DispatchResp { action };
 
@@ -501,68 +500,6 @@ async fn handle_dispatch_request(
         Ok(()) => trace!("server: dispatch done"),
         Err(e) => error!("server: dispatch error"; "error" => e),
     }
-}
-
-/// モード切替の dispatch: current_mode_name 更新 + fzf アクション文字列を生成
-async fn dispatch_change_mode(
-    env: &Env,
-    server_state: &ServerState,
-    new_mode_name: &str,
-    key: &str,
-) -> String {
-    let entry = match server_state.all_modes.get(new_mode_name) {
-        Some(e) => e,
-        None => {
-            error!("server: dispatch unknown mode"; "key" => key);
-            return String::new();
-        }
-    };
-
-    let mut state = server_state.state.write().await;
-    state.set_current_mode_name(new_mode_name.to_string());
-
-    let new_mode_def = entry.mode.mode_def.as_ref();
-    let mut actions: Vec<String> = Vec::new();
-
-    let myself = &env.config.myself;
-    actions.push(format!("reload({myself} load default '' '')"));
-    actions.push(format!("change-prompt({})", new_mode_def.fzf_prompt()));
-
-    if !key.contains("livegrep") {
-        actions.push("clear-query".to_string());
-    }
-
-    let new_wants_sort = new_mode_def.wants_sort();
-    if state.sort_enabled() != new_wants_sort {
-        actions.push("toggle-sort".to_string());
-    }
-    state.set_sort_enabled(new_wants_sort);
-
-    let has_disable_search = new_mode_def
-        .mode_enter_actions()
-        .iter()
-        .any(|a| matches!(a, fzf::Action::DisableSearch));
-    if has_disable_search {
-        actions.push("disable-search".to_string());
-    } else {
-        actions.push("enable-search".to_string());
-    }
-
-    let custom_preview = new_mode_def
-        .mode_enter_actions()
-        .into_iter()
-        .find_map(|a| match a {
-            fzf::Action::ChangePreviewWindow(spec) => Some(spec),
-            _ => None,
-        });
-    actions.push(format!(
-        "change-preview-window({})",
-        custom_preview.as_deref().unwrap_or("right:50%:noborder")
-    ));
-
-    actions.push("deselect-all".to_string());
-
-    actions.join("+")
 }
 
 /// モード依存キーの dispatch: 現在モードの rendered_bindings から返す
