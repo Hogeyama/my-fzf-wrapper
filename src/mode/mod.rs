@@ -265,6 +265,7 @@ pub mod config_builder {
     use crate::mode::lib::actions;
     use crate::mode::lib::item::ItemExtractor;
     use crate::mode::ModeDef;
+    use crate::nvim::NeovimExt;
     use crate::state::State;
     use crate::utils::fzf;
     use anyhow::Result;
@@ -625,16 +626,44 @@ pub mod config_builder {
                 b.change_mode(super::browser_bookmark::BrowserBookmark::new().name(), false),
             ],
             "ctrl-u" => [
-                b.execute_silent_raw("change-directory --to-parent"),
+                b.execute_silent(|_mode, _env, _state, _query, _item| {
+                    async move {
+                        let mut dir = std::env::current_dir()?;
+                        dir.pop();
+                        std::env::set_current_dir(dir)?;
+                        Ok(())
+                    }.boxed()
+                }),
                 b.reload(),
             ],
             "ctrl-l" => [
-                b.execute_silent_raw("change-directory --dir {}"),
+                b.execute_silent(|_mode, _env, _state, _query, item| {
+                    async move {
+                        let path = std::fs::canonicalize(&item)?;
+                        let dir = match std::fs::metadata(&path) {
+                            Ok(m) if m.is_file() => path.parent()
+                                .ok_or_else(|| anyhow::anyhow!("no parent dir"))?
+                                .to_owned(),
+                            _ => path,
+                        };
+                        std::env::set_current_dir(dir)?;
+                        Ok(())
+                    }.boxed()
+                }),
                 b.clear_query(),
                 b.reload(),
             ],
             "ctrl-n" => [
-                b.execute_silent_raw("change-directory --to-last-file-dir"),
+                b.execute_silent(|_mode, env, _state, _query, _item| {
+                    async move {
+                        let path = env.nvim.last_opened_file().await?;
+                        let path = std::fs::canonicalize(path)?;
+                        let dir = path.parent()
+                            .ok_or_else(|| anyhow::anyhow!("no parent dir"))?;
+                        std::env::set_current_dir(dir)?;
+                        Ok(())
+                    }.boxed()
+                }),
                 b.reload(),
             ],
         }

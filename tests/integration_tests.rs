@@ -75,20 +75,3 @@ fn load_success() {
     let output = h.load("default", None, None);
     assert!(output.status.success(), "client load exited with failure");
 }
-
-#[test]
-fn change_directory_success() {
-    let Some(h) = common::TestHarness::spawn() else {
-        panic!("failed to spawn test harness");
-    };
-
-    let output = h.change_directory("/tmp");
-    if !output.status.success() {
-        eprintln!("stdout: {}", String::from_utf8_lossy(&output.stdout));
-        eprintln!("stderr: {}", String::from_utf8_lossy(&output.stderr));
-    }
-    assert!(
-        output.status.success(),
-        "client change-directory exited with failure"
-    );
-}

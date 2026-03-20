@@ -36,7 +36,6 @@ use crate::method::Method;
 use crate::method::PreviewResp;
 use crate::mode;
 use crate::nvim::Neovim;
-use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::fzf;
 
@@ -254,10 +253,6 @@ async fn handle_one_client(
             }) => {
                 abort_current_load_task(&current_load_task).await;
                 handle_get_last_load_request(server_state, tx).await;
-            }
-
-            Some(method::Request::ChangeDirectory { params, method: _ }) => {
-                handle_change_directory_request(env, params, tx).await;
             }
 
             Some(method::Request::Dispatch { params, method: _ }) => {
@@ -494,59 +489,6 @@ async fn dispatch_mode_key(server_state: &ServerState, key: &str) -> String {
         None => {
             trace!("server: dispatch no binding"; "mode" => &*mode_name, "key" => key);
             String::new()
-        }
-    }
-}
-
-// ------------------------------------------------------------------------------
-// ChangeDirectory
-
-async fn handle_change_directory_request(
-    env: Arc<Env>,
-    params: method::ChangeDirectoryParam,
-    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
-) {
-    let dir = match params {
-        method::ChangeDirectoryParam::ToParent => {
-            let mut dir = std::env::current_dir().unwrap();
-            dir.pop();
-            Ok(dir)
-        }
-        method::ChangeDirectoryParam::ToLastFileDir => env
-            .nvim
-            .last_opened_file()
-            .await
-            .map_err(|e| e.to_string())
-            .and_then(|path| {
-                let path = std::fs::canonicalize(path).unwrap();
-                path.parent()
-                    .ok_or("no parent dir".to_string())
-                    .map(|p| p.to_owned())
-            }),
-        method::ChangeDirectoryParam::To(path) => std::fs::canonicalize(path)
-            .map_err(|e| e.to_string())
-            .and_then(|path| match std::fs::metadata(&path) {
-                Ok(metadata) if metadata.is_dir() => Ok(path.to_owned()),
-                Ok(metadata) if metadata.is_file() => path
-                    .parent()
-                    .ok_or("no parent dir".to_string())
-                    .map(|p| p.to_owned()),
-                _ => Err(format!("path does not exists: {:?}", path)),
-            }),
-    };
-
-    match dir {
-        Ok(dir) => {
-            std::env::set_current_dir(dir).ok();
-        }
-        Err(e) => error!("server: change-directory error"; "error" => e),
-    }
-
-    let mut tx = tx.lock().await;
-    match send_response(method::ChangeDirectory, &mut *tx, &()).await {
-        Ok(()) => trace!("server: change-directory done"),
-        Err(e) => {
-            error!("server: change-directory error"; "error" => e);
         }
     }
 }

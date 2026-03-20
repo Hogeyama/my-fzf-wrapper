@@ -42,13 +42,6 @@ pub enum Command {
         #[clap(flatten)]
         params: method::PreviewParam,
     },
-    /// internal
-    ChangeDirectory {
-        #[clap(long, env)]
-        fzfw_socket: String,
-        #[clap(flatten)]
-        params: method::ChangeDirectoryParam,
-    },
     /// internal: transform から呼ばれ、fzf アクション文字列を stdout に出力
     Dispatch {
         #[clap(long, env)]
@@ -108,16 +101,6 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
         } => {
             match send_request(fzfw_socket, method::Preview, params).await? {
                 Ok(PreviewResp { message }) => println!("{}", message),
-                Err(e) => println!("Error: {}", e),
-            }
-            Ok(())
-        }
-        Command::ChangeDirectory {
-            fzfw_socket,
-            params,
-        } => {
-            match send_request(fzfw_socket, method::ChangeDirectory, params).await? {
-                Ok(_) => {}
                 Err(e) => println!("Error: {}", e),
             }
             Ok(())

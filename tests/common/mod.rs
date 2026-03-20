@@ -212,16 +212,6 @@ impl TestHarness {
             query.unwrap_or(""),
         ])
     }
-
-    pub fn change_directory(&self, path: &str) -> Output {
-        self.run_client(&[
-            "change-directory",
-            "--fzfw-socket",
-            self.sock_path.to_str().unwrap(),
-            "--dir",
-            path,
-        ])
-    }
 }
 
 impl Drop for TestHarness {

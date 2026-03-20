@@ -40,10 +40,6 @@ pub enum Request {
         method: GetLastLoad,
         params: <GetLastLoad as Method>::Param,
     },
-    ChangeDirectory {
-        method: ChangeDirectory,
-        params: <ChangeDirectory as Method>::Param,
-    },
     Dispatch {
         method: Dispatch,
         params: <Dispatch as Method>::Param,
@@ -136,118 +132,6 @@ impl TryFrom<String> for GetLastLoad {
 impl From<GetLastLoad> for String {
     fn from(_: GetLastLoad) -> Self {
         <GetLastLoad as Method>::method_name().to_string()
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// ChangeDirectory method
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-#[serde(try_from = "String", into = "String")]
-pub struct ChangeDirectory;
-
-impl Method for ChangeDirectory {
-    type Param = ChangeDirectoryParam;
-    type Response = ();
-    fn method_name() -> &'static str {
-        "change_directory"
-    }
-    fn request(self, params: Self::Param) -> Request {
-        Request::ChangeDirectory {
-            method: ChangeDirectory,
-            params,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, Clone, Debug)]
-pub enum ChangeDirectoryParam {
-    ToParent,
-    ToLastFileDir,
-    To(String),
-}
-
-impl TryFrom<String> for ChangeDirectory {
-    type Error = String;
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        mk_try_from()(s)
-    }
-}
-
-impl From<ChangeDirectory> for String {
-    fn from(_: ChangeDirectory) -> Self {
-        <ChangeDirectory as Method>::method_name().to_string()
-    }
-}
-
-// clap impl
-////////////
-
-impl clap::Args for ChangeDirectoryParam {
-    fn augment_args(cmd: clap::Command<'_>) -> clap::Command<'_> {
-        ChangeDirectoryCommandParam::augment_args(cmd)
-    }
-    fn augment_args_for_update(cmd: clap::Command<'_>) -> clap::Command<'_> {
-        ChangeDirectoryCommandParam::augment_args(cmd)
-    }
-}
-
-impl clap::FromArgMatches for ChangeDirectoryParam {
-    fn from_arg_matches(matches: &clap::ArgMatches) -> Result<Self, clap::Error> {
-        ChangeDirectoryCommandParam::from_arg_matches(matches).map(|param| param.into())
-    }
-    fn update_from_arg_matches(&mut self, matches: &clap::ArgMatches) -> Result<(), clap::Error> {
-        let mut self_ = Into::<ChangeDirectoryCommandParam>::into(self.clone());
-        self_.update_from_arg_matches(matches)?;
-        *self = self_.into();
-        Ok(())
-    }
-}
-
-#[derive(Serialize, Deserialize, clap::Parser, Clone, Debug)]
-struct ChangeDirectoryCommandParam {
-    #[clap(long, group = "input")]
-    to_parent: bool,
-    #[clap(long, group = "input")]
-    to_last_file_dir: bool,
-    #[clap(long, group = "input")]
-    dir: Option<String>,
-}
-
-impl From<ChangeDirectoryCommandParam> for ChangeDirectoryParam {
-    fn from(param: ChangeDirectoryCommandParam) -> Self {
-        if param.to_parent {
-            Self::ToParent
-        } else if param.to_last_file_dir {
-            Self::ToLastFileDir
-        } else if let Some(dir) = param.dir {
-            Self::To(dir)
-        } else {
-            unreachable!()
-        }
-    }
-}
-
-impl From<ChangeDirectoryParam> for ChangeDirectoryCommandParam {
-    fn from(param: ChangeDirectoryParam) -> Self {
-        match param {
-            ChangeDirectoryParam::ToParent => Self {
-                to_parent: true,
-                to_last_file_dir: false,
-                dir: None,
-            },
-            ChangeDirectoryParam::ToLastFileDir => Self {
-                to_parent: false,
-                to_last_file_dir: true,
-                dir: None,
-            },
-            ChangeDirectoryParam::To(dir) => Self {
-                to_parent: false,
-                to_last_file_dir: false,
-                dir: Some(dir),
-            },
-        }
     }
 }
 
