@@ -7,6 +7,7 @@ use tokio::process::Command;
 use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
+use crate::mode;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
@@ -66,7 +67,7 @@ impl ModeDef for GitLog {
         bindings! {
             b <= default_bindings(),
             "ctrl-l" => [
-                execute_silent!{b, |_mode,env,_state,_query,item| {
+                execute_silent!{b, |_mode,env,state,_query,item| {
                     let query = match branches_of(&item)? {
                         branches if branches.is_empty() => {
                             "".to_string()
@@ -81,23 +82,14 @@ impl ModeDef for GitLog {
                             ).await?
                         }
                     };
-
-                    // TODO ad-hoc なので何か考えたい
-                    // fzf 0.45 で追加された transform を使うのが良さそう
-                    let myself = env.config.myself.clone();
-                    let socket = env.config.socket.clone();
-                    tokio::spawn(async move {
-                        let _ = Command::new(myself)
-                            .arg("change-mode")
-                            .arg("git-branch")
-                            .arg(query)
-                            .env("FZFW_SOCKET", socket)
-                            .stdout(std::process::Stdio::null())
-                            .stderr(std::process::Stdio::null())
-                            .output()
-                            .await
-                            .map_err(|e| e.to_string());
-                    });
+                    // git-branch に切り替え、選択したブランチを query にセット
+                    mode::do_change_mode(env, state, "git-branch", !query.is_empty()).await?;
+                    if !query.is_empty() {
+                        env.fzf_client.post_actions(&[
+                            fzf::Action::ClearQuery,
+                            fzf::Action::Raw(format!("change-query({})", query)),
+                        ]).await?;
+                    }
                     Ok(())
                 }}
             ],
