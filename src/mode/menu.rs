@@ -62,3 +62,42 @@ impl ModeDef for Menu {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::utils::fzf;
+
+    #[test]
+    fn menu_enter_binding_is_change_mode() {
+        let menu = Menu;
+        let (bindings, _callbacks) = menu.fzf_bindings();
+        let rendered = fzf::render_bindings(&bindings, "fzfw");
+        let enter = rendered.get("enter").unwrap();
+        assert!(
+            enter.contains("change-mode"),
+            "expected change-mode, got: {}",
+            enter
+        );
+    }
+
+    #[test]
+    fn build_all_modes_menu_enter() {
+        let config = crate::config::new(
+            "fzfw".to_string(),
+            "/tmp/test.sock".to_string(),
+            "/tmp/test.log".to_string(),
+        );
+        let all_modes = config.build_all_modes();
+        let menu_entry = all_modes.get("menu").expect("menu mode not found");
+        let enter = menu_entry
+            .rendered_bindings
+            .get("enter")
+            .expect("enter binding not found");
+        assert!(
+            enter.contains("change-mode"),
+            "menu's enter in all_modes should be change-mode, got: {}",
+            enter
+        );
+    }
+}

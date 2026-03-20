@@ -232,14 +232,19 @@ async fn handle_one_client(
             }
 
             Some(method::Request::ChangeMode { params, method: _ }) => {
-                // 後方互換: 旧 change-mode リクエストも dispatch 経由で処理
+                // execute-silent[fzfw change-mode ...] 経由で呼ばれる。
+                // モードを切り替え、--listen POST で fzf にアクションを送る。
                 abort_current_load_task(&current_load_task).await;
-                let dispatch_params = method::DispatchParam {
-                    key: format!("change-mode:{}", params.mode),
-                    query: params.query.unwrap_or_default(),
-                    item: String::new(),
-                };
-                handle_dispatch_request(env, server_state, dispatch_params, tx).await;
+                let key = format!("change-mode:{}", params.mode);
+                let actions =
+                    dispatch_change_mode(&server_state, &params.mode, &key).await;
+                if let Err(e) = server_state.fzf_client.post_action(&actions).await {
+                    error!("server: failed to post mode-switch actions to fzf";
+                        "error" => e.to_string());
+                }
+                // ChangeMode クライアントに () を返す
+                let mut tx = tx.lock().await;
+                let _ = send_response(method::ChangeMode, &mut *tx, &()).await;
             }
 
             Some(method::Request::ChangeDirectory { params, method: _ }) => {
@@ -463,6 +468,8 @@ async fn handle_dispatch_request(
         dispatch_mode_key(&server_state, &key).await
     };
 
+    info!("server: dispatch result"; "action" => &action);
+
     let resp = method::DispatchResp { action };
 
     let mut tx = tx.lock().await;
@@ -550,11 +557,13 @@ async fn dispatch_mode_key(server_state: &ServerState, key: &str) -> String {
     let mode_name = server_state.current_mode_name.read().await;
     let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
+    info!("server: dispatch_mode_key"; "mode" => &*mode_name, "key" => key,
+          "available_keys" => entry.rendered_bindings.keys().cloned().collect::<Vec<_>>().join(", "));
+
     match entry.rendered_bindings.get(key) {
         Some(action) => action.clone(),
         None => {
-            // このモードにはこのキーのバインディングがない → no-op
-            trace!("server: dispatch no binding"; "mode" => &*mode_name, "key" => key);
+            info!("server: dispatch no binding"; "mode" => &*mode_name, "key" => key);
             String::new()
         }
     }
