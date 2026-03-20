@@ -389,26 +389,49 @@ async fn handle_execute_request(
         item,
     } = params;
 
-    let mut state = server_state.lock_for_load_or_execute().await;
-    let mode_name = state.current_mode_name().to_string();
-    let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
+    // _key: プレフィックス付きの場合: キー dispatch (rendered_bindings を POST)
+    if let Some(key) = registered_name.strip_prefix("_key:") {
+        let mode_name = server_state.read_current_mode_name().await;
+        let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
-    let callback = &entry
-        .callbacks
-        .execute
-        .get(&registered_name)
-        .unwrap_or_else(|| {
-            error!("server: execute error";
-                "error" => "unknown callback",
-                "registered_name" => registered_name
-            );
-            panic!("unknown callback");
-        })
-        .callback;
+        let action = match entry.rendered_bindings.get(key) {
+            Some(action) => action
+                .replace("{q}", &shellwords::escape(&query))
+                .replace("{}", &shellwords::escape(&item)),
+            None => {
+                trace!("server: execute _key: no binding"; "mode" => &*mode_name, "key" => key);
+                String::new()
+            }
+        };
 
-    match callback(entry.mode.mode_def.as_ref(), &env, &mut state, query, item).await {
-        Ok(_) => {}
-        Err(e) => error!("server: execute error"; "error" => e.to_string()),
+        if !action.is_empty() {
+            if let Err(e) = env.fzf_client.post_action(&action).await {
+                error!("server: execute _key: post_action error"; "error" => e.to_string());
+            }
+        }
+    } else {
+        // 通常のコールバック実行
+        let mut state = server_state.lock_for_load_or_execute().await;
+        let mode_name = state.current_mode_name().to_string();
+        let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
+
+        let callback = &entry
+            .callbacks
+            .execute
+            .get(&registered_name)
+            .unwrap_or_else(|| {
+                error!("server: execute error";
+                    "error" => "unknown callback",
+                    "registered_name" => registered_name
+                );
+                panic!("unknown callback");
+            })
+            .callback;
+
+        match callback(entry.mode.mode_def.as_ref(), &env, &mut state, query, item).await {
+            Ok(_) => {}
+            Err(e) => error!("server: execute error"; "error" => e.to_string()),
+        }
     }
 
     let mut tx = tx.lock().await;
