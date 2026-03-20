@@ -79,9 +79,6 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
 
     let env = Arc::new(env);
 
-    // 初期モードの sort 状態
-    let initial_sort = initial_entry.mode.mode_def.wants_sort();
-
     let server_state = ServerState {
         fzf: Arc::new(RwLock::new(
             fzf::new(fzf_config)
@@ -90,10 +87,8 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
                 .expect("Failed to spawn fzf"),
         )),
         fzf_client: Arc::new(fzf::FzfClient::new(&fzf_listen_socket, env.config.myself.clone())),
-        current_mode_name: Arc::new(RwLock::new(initial_mode_name)),
         all_modes,
         state: Arc::new(RwLock::new(state)),
-        sort_enabled: Arc::new(RwLock::new(initial_sort)),
     };
     let current_load_task = Arc::new(Mutex::new(None));
 
@@ -126,16 +121,14 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
     Ok(())
 }
 
-/// ロック順序: fzf → current_mode_name → state → sort_enabled
+/// ロック順序: fzf → state
 /// all_modes はロック不要 (起動時に構築して不変)
 #[derive(Clone)]
 struct ServerState {
     fzf: Arc<RwLock<Child>>,
     fzf_client: Arc<fzf::FzfClient>,
-    current_mode_name: Arc<RwLock<String>>,
     all_modes: Arc<HashMap<String, ModeEntry>>,
     state: Arc<RwLock<State>>,
-    sort_enabled: Arc<RwLock<bool>>,
 }
 
 use tokio::sync::{RwLockReadGuard, RwLockWriteGuard};
@@ -150,18 +143,14 @@ impl ServerState {
         })
     }
 
-    /// Load/Execute 用: current_mode_name(read), state(write)
-    async fn lock_for_load_or_execute(
-        &self,
-    ) -> (RwLockReadGuard<'_, String>, RwLockWriteGuard<'_, State>) {
-        let mode_name = self.current_mode_name.read().await;
-        let state = self.state.write().await;
-        (mode_name, state)
+    /// Load/Execute 用: state(write)
+    async fn lock_for_load_or_execute(&self) -> RwLockWriteGuard<'_, State> {
+        self.state.write().await
     }
 
-    /// Preview 用: current_mode_name(read)
-    async fn lock_for_preview(&self) -> RwLockReadGuard<'_, String> {
-        self.current_mode_name.read().await
+    /// Preview 用: state(read) → mode_name を取得して即 drop
+    async fn read_current_mode_name(&self) -> String {
+        self.state.read().await.current_mode_name().to_string()
     }
 
     /// GetLastLoad 用: state(read)
@@ -232,8 +221,6 @@ async fn handle_one_client(
             }
 
             Some(method::Request::ChangeMode { params, method: _ }) => {
-                // execute-silent[fzfw change-mode ...] 経由で呼ばれる。
-                // モードを切り替え、--listen POST で fzf にアクションを送る。
                 abort_current_load_task(&current_load_task).await;
                 let key = format!("change-mode:{}", params.mode);
                 let actions =
@@ -242,7 +229,6 @@ async fn handle_one_client(
                     error!("server: failed to post mode-switch actions to fzf";
                         "error" => e.to_string());
                 }
-                // ChangeMode クライアントに () を返す
                 let mut tx = tx.lock().await;
                 let _ = send_response(method::ChangeMode, &mut *tx, &()).await;
             }
@@ -282,7 +268,8 @@ async fn handle_load_request(
         item,
     } = params;
 
-    let (mode_name, mut state) = server_state.lock_for_load_or_execute().await;
+    let mut state = server_state.lock_for_load_or_execute().await;
+    let mode_name = state.current_mode_name().to_string();
     let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     let callback = &entry
@@ -354,7 +341,7 @@ async fn handle_preview_request(
     preview_window: fzf::PreviewWindow,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let mode_name = server_state.lock_for_preview().await;
+    let mode_name = server_state.read_current_mode_name().await;
     let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     let callback = &entry
@@ -397,7 +384,8 @@ async fn handle_execute_request(
         item,
     } = params;
 
-    let (mode_name, mut state) = server_state.lock_for_load_or_execute().await;
+    let mut state = server_state.lock_for_load_or_execute().await;
+    let mode_name = state.current_mode_name().to_string();
     let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     let callback = &entry
@@ -492,38 +480,26 @@ async fn dispatch_change_mode(
         }
     };
 
-    // current_mode_name を更新
-    {
-        let mut mode_name = server_state.current_mode_name.write().await;
-        *mode_name = new_mode_name.to_string();
-    }
+    let mut state = server_state.state.write().await;
+    state.set_current_mode_name(new_mode_name.to_string());
 
     let new_mode_def = entry.mode.mode_def.as_ref();
     let mut actions: Vec<String> = Vec::new();
 
-    // reload: myself を使ってコマンドを明示指定
-    // POST 経由では {q}/{} プレースホルダが展開されないため、空文字で呼ぶ
-    // (fzf の内部フィルタが query を処理する。livegrep は change イベントで reload)
     let myself = &env.config.myself;
     actions.push(format!("reload({myself} load default '' '')"));
     actions.push(format!("change-prompt({})", new_mode_def.fzf_prompt()));
 
-    // livegrep への切替は query を保持 (ctrl-g は keep_query=true)
     if !key.contains("livegrep") {
         actions.push("clear-query".to_string());
     }
 
-    // sort 状態の管理
     let new_wants_sort = new_mode_def.wants_sort();
-    {
-        let mut sort_enabled = server_state.sort_enabled.write().await;
-        if *sort_enabled != new_wants_sort {
-            actions.push("toggle-sort".to_string());
-            *sort_enabled = new_wants_sort;
-        }
+    if state.sort_enabled() != new_wants_sort {
+        actions.push("toggle-sort".to_string());
     }
+    state.set_sort_enabled(new_wants_sort);
 
-    // search の有効/無効
     let has_disable_search = new_mode_def
         .mode_enter_actions()
         .iter()
@@ -534,7 +510,6 @@ async fn dispatch_change_mode(
         actions.push("enable-search".to_string());
     }
 
-    // preview-window のリセット/変更
     let custom_preview = new_mode_def
         .mode_enter_actions()
         .into_iter()
@@ -547,7 +522,6 @@ async fn dispatch_change_mode(
         custom_preview.as_deref().unwrap_or("right:50%:noborder")
     ));
 
-    // deselect-all (multi モードのリセット)
     actions.push("deselect-all".to_string());
 
     actions.join("+")
@@ -555,7 +529,7 @@ async fn dispatch_change_mode(
 
 /// モード依存キーの dispatch: 現在モードの rendered_bindings から返す
 async fn dispatch_mode_key(server_state: &ServerState, key: &str) -> String {
-    let mode_name = server_state.current_mode_name.read().await;
+    let mode_name = server_state.read_current_mode_name().await;
     let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     match entry.rendered_bindings.get(key) {
