@@ -269,17 +269,23 @@ pub mod config_builder {
     use anyhow::Result;
     use futures::future::BoxFuture;
     use futures::FutureExt;
+    use std::sync::atomic::{AtomicUsize, Ordering};
+
+    static GENSYM_COUNTER: AtomicUsize = AtomicUsize::new(0);
+
+    fn gensym() -> String {
+        let id = GENSYM_COUNTER.fetch_add(1, Ordering::Relaxed);
+        format!("cb{id}")
+    }
 
     pub struct ConfigBuilder {
         pub callback_map: super::CallbackMap,
-        pub callback_counter: usize,
     }
 
     impl ConfigBuilder {
         pub fn new() -> Self {
             ConfigBuilder {
                 callback_map: super::CallbackMap::empty(),
-                callback_counter: 0,
             }
         }
 
@@ -463,8 +469,7 @@ pub mod config_builder {
         }
 
         fn gen_name(&mut self) -> String {
-            self.callback_counter += 1;
-            format!("callback{}", self.callback_counter)
+            gensym()
         }
 
         /// Neovim でファイルを開く execute アクションを生成
@@ -519,14 +524,12 @@ pub mod config_builder {
         }
     }
 
-    // TODO use gensym
     #[macro_export]
     macro_rules! bindings {
         ($builder:ident <= $init:expr,
          $($k:expr => [ $($v:expr),* $(,)? ] ),* $(,)?) => {{
             let (bindings, callback_map) = $init;
             let mut $builder = $crate::mode::config_builder::ConfigBuilder::new();
-            $builder.callback_counter = callback_map.execute.len() + callback_map.load.len();
             $builder.callback_map = callback_map;
             let bindings = bindings.merge(
                 $crate::utils::fzf::Bindings(core::convert::From::from([$(
