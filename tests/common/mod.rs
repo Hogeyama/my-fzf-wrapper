@@ -48,6 +48,19 @@ sleep 3
     }
 }
 
+fn find_nvim() -> Option<String> {
+    // 環境変数 FZFW_TEST_NVIM で明示指定可能
+    if let Ok(p) = std::env::var("FZFW_TEST_NVIM") {
+        if Path::new(&p).exists() {
+            return Some(p);
+        }
+    }
+    if which("nvim") {
+        return Some("nvim".to_string());
+    }
+    None
+}
+
 pub struct HeadlessNvim {
     pub child: Child,
     pub sock: PathBuf,
@@ -55,11 +68,14 @@ pub struct HeadlessNvim {
 
 impl HeadlessNvim {
     pub fn spawn(sock: PathBuf) -> Option<Self> {
-        if !which("nvim") {
-            eprintln!("nvim not found; skip integration test");
-            return None;
-        }
-        let mut child = Command::new("nvim")
+        let nvim_bin = match find_nvim() {
+            Some(p) => p,
+            None => {
+                eprintln!("nvim not found; skip integration test");
+                return None;
+            }
+        };
+        let mut child = Command::new(&nvim_bin)
             .args([
                 "--headless",
                 "--clean",
