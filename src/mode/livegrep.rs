@@ -232,3 +232,73 @@ async fn preview(item: String) -> Result<PreviewResp> {
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn livegrep_name() {
+        assert_eq!(LiveGrep::new().name(), "livegrep");
+    }
+
+    #[test]
+    fn livegrep_no_ignore_name() {
+        assert_eq!(LiveGrep::new_no_ignore().name(), "livegrep(no-ignore)");
+    }
+
+    #[test]
+    fn livegrepf_name() {
+        assert_eq!(LiveGrepF.name(), "livegrepf");
+    }
+
+    #[test]
+    fn item_pattern_parses_rg_output() {
+        let item = "src/main.rs:10:5:fn main() {";
+        let file = ITEM_PATTERN.replace(item, "$file").into_owned();
+        let line = ITEM_PATTERN.replace(item, "$line").into_owned();
+        let col = ITEM_PATTERN.replace(item, "$col").into_owned();
+        assert_eq!(file, "src/main.rs");
+        assert_eq!(line, "10");
+        assert_eq!(col, "5");
+    }
+
+    #[test]
+    fn item_pattern_with_colon_in_content() {
+        let item = "config.rs:1:1:use std::collections::HashMap;";
+        let file = ITEM_PATTERN.replace(item, "$file").into_owned();
+        let line = ITEM_PATTERN.replace(item, "$line").into_owned();
+        assert_eq!(file, "config.rs");
+        assert_eq!(line, "1");
+    }
+
+    #[test]
+    fn livegrep_item_extractor_file() {
+        use super::super::lib::item::ItemExtractor;
+        assert_eq!(
+            LIVEGREP_ITEM.file("src/lib.rs:42:1:pub mod foo;").unwrap(),
+            "src/lib.rs"
+        );
+    }
+
+    #[test]
+    fn livegrep_item_extractor_line() {
+        use super::super::lib::item::ItemExtractor;
+        assert_eq!(
+            LIVEGREP_ITEM.line("src/lib.rs:42:1:pub mod foo;"),
+            Some(42)
+        );
+    }
+
+    #[test]
+    fn livegrep_wants_sort_false() {
+        assert!(!LiveGrep::new().wants_sort());
+    }
+
+    #[test]
+    fn livegrep_mode_enter_disables_search() {
+        let actions = LiveGrep::new().mode_enter_actions();
+        assert_eq!(actions.len(), 1);
+        assert_eq!(actions[0].render(), "disable-search");
+    }
+}
