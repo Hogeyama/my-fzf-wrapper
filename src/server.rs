@@ -166,7 +166,7 @@ struct ServerState {
     state: Arc<RwLock<State>>,
 }
 
-use tokio::sync::{RwLockReadGuard, RwLockWriteGuard};
+use tokio::sync::RwLockWriteGuard;
 
 impl ServerState {
     fn get_mode_entry<'a>(
@@ -186,11 +186,6 @@ impl ServerState {
     /// Preview 用: state(read) → mode_name を取得して即 drop
     async fn read_current_mode_name(&self) -> String {
         self.state.read().await.current_mode_name().to_string()
-    }
-
-    /// GetLastLoad 用: state(read)
-    async fn lock_for_get_last_load(&self) -> RwLockReadGuard<'_, State> {
-        self.state.read().await
     }
 
     /// fzf プロセスの生存確認用
@@ -245,14 +240,6 @@ async fn handle_one_client(
             Some(method::Request::Execute { params, method: _ }) => {
                 abort_current_load_task(&current_load_task).await;
                 handle_execute_request(env, server_state, params, tx).await;
-            }
-
-            Some(method::Request::GetLastLoad {
-                params: (),
-                method: _,
-            }) => {
-                abort_current_load_task(&current_load_task).await;
-                handle_get_last_load_request(server_state, tx).await;
             }
 
             Some(method::Request::Dispatch { params, method: _ }) => {
@@ -428,30 +415,6 @@ async fn handle_execute_request(
     match send_response(method::Execute, &mut *tx, &()).await {
         Ok(()) => info!("server: execute done"),
         Err(e) => error!("server: execute error"; "error" => e),
-    }
-}
-
-// ------------------------------------------------------------------------------
-// GetLastLoad
-
-async fn handle_get_last_load_request(
-    server_state: ServerState,
-    tx: Arc<Mutex<WriteHalf<UnixStream>>>,
-) {
-    let state = server_state.lock_for_get_last_load().await;
-
-    let mut tx = tx.lock().await;
-    let resp = match &state.last_load_resp {
-        Some(resp) => resp.clone(),
-        None => method::LoadResp {
-            header: Some("".to_string()),
-            items: vec![],
-            is_last: true,
-        },
-    };
-    match send_response(method::GetLastLoad, &mut *tx, &resp).await {
-        Ok(()) => trace!("server: get-last-load done"),
-        Err(e) => error!("server: get-last-load error"; "error" => e),
     }
 }
 

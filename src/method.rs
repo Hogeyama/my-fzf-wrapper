@@ -36,10 +36,6 @@ pub enum Request {
         method: Execute,
         params: <Execute as Method>::Param,
     },
-    GetLastLoad {
-        method: GetLastLoad,
-        params: <GetLastLoad as Method>::Param,
-    },
     Dispatch {
         method: Dispatch,
         params: <Dispatch as Method>::Param,
@@ -97,41 +93,6 @@ impl TryFrom<String> for Preview {
 impl From<Preview> for String {
     fn from(_: Preview) -> Self {
         <Preview as Method>::method_name().to_string()
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// GetLastLoad method
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-#[serde(try_from = "String", into = "String")]
-pub struct GetLastLoad;
-
-impl Method for GetLastLoad {
-    type Param = ();
-    type Response = LoadResp;
-    fn method_name() -> &'static str {
-        "get_last_load"
-    }
-    fn request(self, params: Self::Param) -> Request {
-        Request::GetLastLoad {
-            method: GetLastLoad,
-            params,
-        }
-    }
-}
-
-impl TryFrom<String> for GetLastLoad {
-    type Error = String;
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        mk_try_from()(s)
-    }
-}
-
-impl From<GetLastLoad> for String {
-    fn from(_: GetLastLoad) -> Self {
-        <GetLastLoad as Method>::method_name().to_string()
     }
 }
 
