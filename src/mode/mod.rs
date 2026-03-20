@@ -18,7 +18,6 @@ pub mod menu;
 pub mod mru;
 pub mod nvim_session;
 pub mod pr;
-pub mod process_compose;
 pub mod runner;
 pub mod visits;
 pub mod zoxide;
@@ -80,7 +79,6 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(visits::Visits::project())),
         Box::pin(|| f(pr::GhPr::Open)),
         Box::pin(|| f(pr::GhPr::All)),
-        Box::pin(|| f(process_compose::ProcessCompose::new())),
         Box::pin(move || f(runner.clone())),
         Box::pin(move || f(runner_commands.clone())),
     ];
