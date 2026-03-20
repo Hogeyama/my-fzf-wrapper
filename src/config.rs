@@ -1,4 +1,7 @@
+use std::collections::HashMap;
+
 use crate::mode;
+use crate::mode::CallbackMap;
 use crate::mode::MkMode;
 use crate::mode::Mode;
 use crate::mode::ModeDef;
@@ -12,22 +15,20 @@ pub struct Config {
 }
 
 impl Config {
-    pub fn get_initial_mode(&self) -> Mode {
-        self.get_mode(&self.initial_mode)
-    }
-
-    pub fn get_mode(&self, mode: impl Into<String>) -> Mode {
-        let mode = mode.into();
-        for (name, mk_mode) in &self.modes {
-            if name == &mode {
-                return mk_mode();
-            }
-        }
-        panic!("unknown mode: {}", mode);
-    }
-
     pub fn get_mode_names(&self) -> Vec<&str> {
         self.modes.iter().map(|(name, _)| name.as_str()).collect()
+    }
+
+    /// 全モードを構築し、各モードの CallbackMap も生成する
+    pub fn build_all_modes(&self) -> HashMap<String, (Mode, CallbackMap)> {
+        self.modes
+            .iter()
+            .map(|(name, mk_mode)| {
+                let mode = mk_mode();
+                let callbacks = mode.callbacks();
+                (name.clone(), (mode, callbacks))
+            })
+            .collect()
     }
 }
 

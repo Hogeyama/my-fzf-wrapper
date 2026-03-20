@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -22,6 +23,7 @@ use tokio::sync::Mutex;
 use tokio::sync::RwLock;
 use tokio::task::JoinHandle;
 
+use crate::env::Env;
 use crate::logger::Serde;
 use crate::method;
 use crate::method::ExecuteParam;
@@ -30,26 +32,32 @@ use crate::method::LoadResp;
 use crate::method::Method;
 use crate::method::PreviewResp;
 use crate::mode;
+use crate::mode::CallbackMap;
 use crate::mode::Mode;
 use crate::nvim::NeovimExt;
 use crate::state::State;
 use crate::utils::fzf;
-use crate::env::Env;
 
 pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<(), String> {
-    let mode = env.config.get_initial_mode();
+    let initial_mode_name = env.config.initial_mode.clone();
+
+    // 全モードのコールバックを事前に構築
+    let all_modes = Arc::new(env.config.build_all_modes());
 
     // fzf の --listen 用 Unix ソケットパス
     let fzf_listen_socket = format!("{}.fzf-listen", env.config.socket);
 
-    let fzf_config = mode.fzf_config(mode::FzfArgs {
+    // 初期モードの fzf 設定を取得
+    let (initial_mode, _) = all_modes.get(&initial_mode_name).unwrap_or_else(|| {
+        panic!("unknown initial mode: {}", initial_mode_name);
+    });
+    let fzf_config = initial_mode.fzf_config(mode::FzfArgs {
         myself: env.config.myself.clone(),
         socket: env.config.socket.clone(),
         log_file: env.config.log_file.clone(),
         initial_query: "".to_string(),
         listen_socket: Some(fzf_listen_socket.clone()),
     });
-    let callbacks = mode.callbacks();
 
     let env = Arc::new(env);
 
@@ -61,9 +69,9 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
                 .expect("Failed to spawn fzf"),
         )),
         fzf_client: Arc::new(fzf::FzfClient::new(&fzf_listen_socket)),
-        mode: Arc::new(RwLock::new(mode)),
+        current_mode_name: Arc::new(RwLock::new(initial_mode_name)),
+        all_modes,
         state: Arc::new(RwLock::new(state)),
-        callbacks: Arc::new(RwLock::new(callbacks)),
     };
     let current_load_task = Arc::new(Mutex::new(None));
 
@@ -96,44 +104,45 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
     Ok(())
 }
 
-/// ロック順序: fzf → mode → state → callbacks
-/// フィールドを非公開にし、ロック取得はメソッド経由で行うことで順序を強制する。
+/// ロック順序: fzf → current_mode_name → state
+/// all_modes はロック不要 (起動時に構築して不変)
 #[derive(Clone)]
 struct ServerState {
     fzf: Arc<RwLock<Child>>,
     fzf_client: Arc<fzf::FzfClient>,
-    mode: Arc<RwLock<Mode>>,
+    current_mode_name: Arc<RwLock<String>>,
+    all_modes: Arc<HashMap<String, (Mode, CallbackMap)>>,
     state: Arc<RwLock<State>>,
-    callbacks: Arc<RwLock<mode::CallbackMap>>,
 }
 
 use tokio::sync::{RwLockReadGuard, RwLockWriteGuard};
 
 impl ServerState {
-    /// Load/Execute 用: mode(read), state(write), callbacks(read)
+    /// 現在のモード名を取得し、all_modes から (Mode, CallbackMap) を引く
+    fn get_mode_entry<'a>(
+        all_modes: &'a HashMap<String, (Mode, CallbackMap)>,
+        mode_name: &str,
+    ) -> &'a (Mode, CallbackMap) {
+        all_modes.get(mode_name).unwrap_or_else(|| {
+            panic!("unknown mode: {}", mode_name);
+        })
+    }
+
+    /// Load/Execute 用: current_mode_name(read), state(write)
     async fn lock_for_load_or_execute(
         &self,
     ) -> (
-        RwLockReadGuard<'_, Mode>,
+        RwLockReadGuard<'_, String>,
         RwLockWriteGuard<'_, State>,
-        RwLockReadGuard<'_, mode::CallbackMap>,
     ) {
-        let mode = self.mode.read().await;
+        let mode_name = self.current_mode_name.read().await;
         let state = self.state.write().await;
-        let callbacks = self.callbacks.read().await;
-        (mode, state, callbacks)
+        (mode_name, state)
     }
 
-    /// Preview 用: mode(read), callbacks(read)
-    async fn lock_for_preview(
-        &self,
-    ) -> (
-        RwLockReadGuard<'_, Mode>,
-        RwLockReadGuard<'_, mode::CallbackMap>,
-    ) {
-        let mode = self.mode.read().await;
-        let callbacks = self.callbacks.read().await;
-        (mode, callbacks)
+    /// Preview 用: current_mode_name(read)
+    async fn lock_for_preview(&self) -> RwLockReadGuard<'_, String> {
+        self.current_mode_name.read().await
     }
 
     /// GetLastLoad 用: state(read)
@@ -141,18 +150,16 @@ impl ServerState {
         self.state.read().await
     }
 
-    /// ChangeMode 用: fzf(write), mode(write), callbacks(write)
+    /// ChangeMode 用: fzf(write), current_mode_name(write)
     async fn lock_for_change_mode(
         &self,
     ) -> (
         RwLockWriteGuard<'_, Child>,
-        RwLockWriteGuard<'_, Mode>,
-        RwLockWriteGuard<'_, mode::CallbackMap>,
+        RwLockWriteGuard<'_, String>,
     ) {
         let fzf = self.fzf.write().await;
-        let mode = self.mode.write().await;
-        let callbacks = self.callbacks.write().await;
-        (fzf, mode, callbacks)
+        let mode_name = self.current_mode_name.write().await;
+        (fzf, mode_name)
     }
 
     /// fzf プロセスの生存確認用
@@ -257,13 +264,14 @@ async fn handle_load_request(
         item,
     } = params;
 
-    let (mode, mut state, callbacks) = server_state.lock_for_load_or_execute().await;
+    let (mode_name, mut state) = server_state.lock_for_load_or_execute().await;
+    let (mode, callbacks) = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     let callback = &callbacks
         .load
         .get(&registered_name)
         .unwrap_or_else(|| {
-            error!("server: execute error";
+            error!("server: load error";
                 "error" => "unknown callback",
                 "registered_name" => registered_name
             );
@@ -327,7 +335,8 @@ async fn handle_preview_request(
     preview_window: fzf::PreviewWindow,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let (mode, callbacks) = server_state.lock_for_preview().await;
+    let mode_name = server_state.lock_for_preview().await;
+    let (mode, callbacks) = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     let callback = &callbacks
         .preview
@@ -368,7 +377,8 @@ async fn handle_execute_request(
         item,
     } = params;
 
-    let (mode, mut state, callbacks) = server_state.lock_for_load_or_execute().await;
+    let (mode_name, mut state) = server_state.lock_for_load_or_execute().await;
+    let (mode, callbacks) = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     let callback = &callbacks
         .execute
@@ -420,6 +430,7 @@ async fn handle_get_last_load_request(
 
 // ------------------------------------------------------------------------------
 // ChangeMode
+// NOTE: Phase 3 では既存の kill/spawn 方式を維持。Phase 4 で transform に移行。
 
 async fn handle_change_mode_request(
     env: Arc<Env>,
@@ -428,19 +439,24 @@ async fn handle_change_mode_request(
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
     let method::ChangeModeParam {
-        mode: new_mode,
+        mode: new_mode_name,
         query,
     } = params;
 
-    let (mut fzf, mut mode, mut callbacks) = server_state.lock_for_change_mode().await;
+    let (mut fzf, mut current_mode_name) = server_state.lock_for_change_mode().await;
 
     if let Err(e) = fzf.kill().await {
         error!("server: failed to kill fzf process"; "error" => e.to_string());
     }
 
-    let new_mode = env.config.get_mode(new_mode);
-    let new_callback_map = new_mode.callbacks();
-    let listen_socket = server_state.fzf_client.socket_path().to_string_lossy().to_string();
+    // all_modes から新モードの設定を参照して fzf を再起動
+    let (new_mode, _) =
+        ServerState::get_mode_entry(&server_state.all_modes, &new_mode_name);
+    let listen_socket = server_state
+        .fzf_client
+        .socket_path()
+        .to_string_lossy()
+        .to_string();
     let new_fzf_config = new_mode.fzf_config(mode::FzfArgs {
         myself: env.config.myself.clone(),
         socket: env.config.socket.clone(),
@@ -453,8 +469,7 @@ async fn handle_change_mode_request(
         .stdout(std::process::Stdio::piped())
         .spawn()
         .expect("Failed to spawn fzf");
-    *mode = new_mode;
-    *callbacks = new_callback_map;
+    *current_mode_name = new_mode_name;
 
     let mut tx = tx.lock().await;
     match send_response(method::ChangeMode, &mut *tx, &()).await {
@@ -476,14 +491,11 @@ async fn handle_dispatch_request(
 
     info!("server: dispatch"; "key" => &key, "query" => &query, "item" => &item);
 
-    // 現在のモード名を取得
-    let mode = server_state.mode.read().await;
-    let mode_name = mode.name();
+    let mode_name = server_state.current_mode_name.read().await;
 
-    // TODO: Phase 3/4 で実際のディスパッチロジックを実装
-    // 現時点ではモード名を含むデバッグ用レスポンスを返す
+    // TODO: Phase 4 で実際のディスパッチロジックを実装
     let resp = method::DispatchResp {
-        action: format!("# dispatch: mode={}, key={}", mode_name, key),
+        action: format!("# dispatch: mode={}, key={}", *mode_name, key),
     };
 
     let mut tx = tx.lock().await;
