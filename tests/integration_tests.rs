@@ -67,20 +67,6 @@ fn execute_success() {
 }
 
 #[test]
-fn change_mode_success() {
-    let Some(h) = common::TestHarness::spawn() else {
-        panic!("failed to spawn test harness");
-    };
-
-    // Change to a mode that likely exists. "fd" was in the menu in menu_load.rs.
-    let output = h.change_mode("fd", None);
-    assert!(
-        output.status.success(),
-        "client change-mode exited with failure"
-    );
-}
-
-#[test]
 fn load_success() {
     let Some(h) = common::TestHarness::spawn() else {
         panic!("failed to spawn test harness");

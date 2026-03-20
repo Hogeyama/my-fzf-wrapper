@@ -124,7 +124,6 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
                 .spawn()
                 .expect("Failed to spawn fzf"),
         )),
-        fzf_client,
         all_modes,
         state: Arc::new(RwLock::new(state)),
     };
@@ -164,7 +163,6 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
 #[derive(Clone)]
 struct ServerState {
     fzf: Arc<RwLock<Child>>,
-    fzf_client: Arc<fzf::FzfClient>,
     all_modes: Arc<HashMap<String, ModeEntry>>,
     state: Arc<RwLock<State>>,
 }
@@ -256,22 +254,6 @@ async fn handle_one_client(
             }) => {
                 abort_current_load_task(&current_load_task).await;
                 handle_get_last_load_request(server_state, tx).await;
-            }
-
-            Some(method::Request::ChangeMode { params, method: _ }) => {
-                abort_current_load_task(&current_load_task).await;
-                let keep_query = params.mode.contains("livegrep");
-                {
-                    let mut state = server_state.state.write().await;
-                    if let Err(e) =
-                        mode::do_change_mode(&env, &mut state, &params.mode, keep_query).await
-                    {
-                        error!("server: failed to change mode";
-                            "error" => e.to_string());
-                    }
-                }
-                let mut tx = tx.lock().await;
-                let _ = send_response(method::ChangeMode, &mut *tx, &()).await;
             }
 
             Some(method::Request::ChangeDirectory { params, method: _ }) => {

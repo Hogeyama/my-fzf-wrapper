@@ -36,52 +36,6 @@ use crate::state::State;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 
-/// モード切替の共通処理: state 更新 + fzf アクション生成 + POST
-pub async fn do_change_mode(
-    env: &Env,
-    state: &mut State,
-    mode_name: &str,
-    keep_query: bool,
-) -> anyhow::Result<()> {
-    let mode_info = env
-        .mode_infos
-        .get(mode_name)
-        .ok_or_else(|| anyhow::anyhow!("unknown mode: {}", mode_name))?;
-
-    state.set_current_mode_name(mode_name.to_string());
-
-    let mut actions: Vec<fzf::Action> = vec![
-        fzf::Action::Reload("load default '' ''".to_string()),
-        fzf::Action::ChangePrompt(mode_info.prompt.clone()),
-    ];
-
-    if !keep_query {
-        actions.push(fzf::Action::ClearQuery);
-    }
-
-    if state.sort_enabled() != mode_info.wants_sort {
-        actions.push(fzf::Action::ToggleSort);
-    }
-    state.set_sort_enabled(mode_info.wants_sort);
-
-    if mode_info.disable_search {
-        actions.push(fzf::Action::DisableSearch);
-    } else {
-        actions.push(fzf::Action::EnableSearch);
-    }
-
-    actions.push(fzf::Action::ChangePreviewWindow(
-        mode_info
-            .custom_preview_window
-            .clone()
-            .unwrap_or_else(|| "right:50%:noborder".to_string()),
-    ));
-
-    actions.push(fzf::Action::DeselectAll);
-
-    env.fzf_client.post_actions(&actions).await
-}
-
 pub trait AsAny: 'static {
     fn as_any(&self) -> &dyn std::any::Any;
 }
@@ -259,6 +213,52 @@ pub struct ExecuteCallback {
     >,
 }
 
+/// モード切替の共通処理: state 更新 + fzf アクション生成 + POST
+pub async fn do_change_mode(
+    env: &Env,
+    state: &mut State,
+    mode_name: &str,
+    keep_query: bool,
+) -> anyhow::Result<()> {
+    let mode_info = env
+        .mode_infos
+        .get(mode_name)
+        .ok_or_else(|| anyhow::anyhow!("unknown mode: {}", mode_name))?;
+
+    state.set_current_mode_name(mode_name.to_string());
+
+    let mut actions: Vec<fzf::Action> = vec![
+        fzf::Action::Reload("load default '' ''".to_string()),
+        fzf::Action::ChangePrompt(mode_info.prompt.clone()),
+    ];
+
+    if !keep_query {
+        actions.push(fzf::Action::ClearQuery);
+    }
+
+    if state.sort_enabled() != mode_info.wants_sort {
+        actions.push(fzf::Action::ToggleSort);
+    }
+    state.set_sort_enabled(mode_info.wants_sort);
+
+    if mode_info.disable_search {
+        actions.push(fzf::Action::DisableSearch);
+    } else {
+        actions.push(fzf::Action::EnableSearch);
+    }
+
+    actions.push(fzf::Action::ChangePreviewWindow(
+        mode_info
+            .custom_preview_window
+            .clone()
+            .unwrap_or_else(|| "right:50%:noborder".to_string()),
+    ));
+
+    actions.push(fzf::Action::DeselectAll);
+
+    env.fzf_client.post_actions(&actions).await
+}
+
 pub mod config_builder {
     #![allow(dead_code)]
     use crate::env::Env;
@@ -363,12 +363,13 @@ pub mod config_builder {
             fzf::Action::Execute(cmd.into())
         }
 
-        pub fn change_mode(&self, mode: impl Into<String>, keep_query: bool) -> fzf::Action {
-            fzf::Action::ExecuteSilent(format!(
-                "change-mode {} {}",
-                mode.into(),
-                if keep_query { "{q}" } else { "" }, // query
-            ))
+        pub fn change_mode(&mut self, mode: impl Into<String>, keep_query: bool) -> fzf::Action {
+            let mode_name = mode.into();
+            self.execute_silent(move |_mode_def, env, state, _query, _item| {
+                let mode_name = mode_name.clone();
+                async move { super::do_change_mode(env, state, &mode_name, keep_query).await }
+                    .boxed()
+            })
         }
 
         pub fn change_prompt(&self, prompt: impl Into<String>) -> fzf::Action {
@@ -541,9 +542,9 @@ pub mod config_builder {
     #[macro_export]
     macro_rules! execute {
         ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
-            $builder.execute_as::<Self, _>(
-                |$mode, $config, $state, $query, $item| async move { $v }.boxed(),
-            )
+            $builder.execute_as::<Self, _>(|$mode, $config, $state, $query, $item| {
+                async move { $v }.boxed()
+            })
         };
     }
     pub use execute;
@@ -551,9 +552,9 @@ pub mod config_builder {
     #[macro_export]
     macro_rules! execute_silent {
         ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
-            $builder.execute_silent_as::<Self, _>(
-                |$mode, $config, $state, $query, $item| async move { $v }.boxed(),
-            )
+            $builder.execute_silent_as::<Self, _>(|$mode, $config, $state, $query, $item| {
+                async move { $v }.boxed()
+            })
         };
     }
     pub use execute_silent;

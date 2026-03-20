@@ -57,7 +57,9 @@ impl ModeDef for Menu {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                b.change_mode("{}", false),
+                execute_silent!(b, |_mode, env, state, _query, item| {
+                    super::do_change_mode(env, state, &item, false).await
+                }),
             ],
         }
     }
@@ -69,15 +71,19 @@ mod tests {
     use crate::utils::fzf;
 
     #[test]
-    fn menu_enter_binding_is_change_mode() {
+    fn menu_enter_binding_is_execute_callback() {
         let menu = Menu;
-        let (bindings, _callbacks) = menu.fzf_bindings();
+        let (bindings, callbacks) = menu.fzf_bindings();
         let rendered = fzf::render_bindings(&bindings, "fzfw");
         let enter = rendered.get("enter").unwrap();
         assert!(
-            enter.contains("change-mode"),
-            "expected change-mode, got: {}",
+            enter.contains("execute"),
+            "expected execute callback, got: {}",
             enter
+        );
+        assert!(
+            !callbacks.execute.is_empty(),
+            "expected execute callbacks to be registered"
         );
     }
 
@@ -95,8 +101,8 @@ mod tests {
             .get("enter")
             .expect("enter binding not found");
         assert!(
-            enter.contains("change-mode"),
-            "menu's enter in all_modes should be change-mode, got: {}",
+            enter.contains("execute"),
+            "menu's enter in all_modes should have execute callback, got: {}",
             enter
         );
     }

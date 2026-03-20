@@ -213,16 +213,6 @@ impl TestHarness {
         ])
     }
 
-    pub fn change_mode(&self, mode: &str, query: Option<&str>) -> Output {
-        self.run_client(&[
-            "change-mode",
-            "--fzfw-socket",
-            self.sock_path.to_str().unwrap(),
-            mode,
-            query.unwrap_or(""),
-        ])
-    }
-
     pub fn change_directory(&self, path: &str) -> Output {
         self.run_client(&[
             "change-directory",

@@ -40,10 +40,6 @@ pub enum Request {
         method: GetLastLoad,
         params: <GetLastLoad as Method>::Param,
     },
-    ChangeMode {
-        method: ChangeMode,
-        params: <ChangeMode as Method>::Param,
-    },
     ChangeDirectory {
         method: ChangeDirectory,
         params: <ChangeDirectory as Method>::Param,
@@ -140,47 +136,6 @@ impl TryFrom<String> for GetLastLoad {
 impl From<GetLastLoad> for String {
     fn from(_: GetLastLoad) -> Self {
         <GetLastLoad as Method>::method_name().to_string()
-    }
-}
-
-////////////////////////////////////////////////////////////////////////////////////////////////////
-// ChangeMode method
-////////////////////////////////////////////////////////////////////////////////////////////////////
-
-#[derive(Serialize, Deserialize, Default, Clone, Debug)]
-#[serde(try_from = "String", into = "String")]
-pub struct ChangeMode;
-
-impl Method for ChangeMode {
-    type Param = ChangeModeParam;
-    type Response = ();
-    fn method_name() -> &'static str {
-        "change_mode"
-    }
-    fn request(self, params: Self::Param) -> Request {
-        Request::ChangeMode {
-            method: ChangeMode,
-            params,
-        }
-    }
-}
-
-#[derive(Serialize, Deserialize, clap::Parser, Default, Clone, Debug)]
-pub struct ChangeModeParam {
-    pub mode: String,
-    pub query: Option<String>,
-}
-
-impl TryFrom<String> for ChangeMode {
-    type Error = String;
-    fn try_from(s: String) -> Result<Self, Self::Error> {
-        mk_try_from()(s)
-    }
-}
-
-impl From<ChangeMode> for String {
-    fn from(_: ChangeMode) -> Self {
-        <ChangeMode as Method>::method_name().to_string()
     }
 }
 

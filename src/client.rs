@@ -43,13 +43,6 @@ pub enum Command {
         params: method::PreviewParam,
     },
     /// internal
-    ChangeMode {
-        #[clap(long, env)]
-        fzfw_socket: String,
-        #[clap(flatten)]
-        params: method::ChangeModeParam,
-    },
-    /// internal
     ChangeDirectory {
         #[clap(long, env)]
         fzfw_socket: String,
@@ -115,16 +108,6 @@ pub async fn run_command(command: Command) -> Result<(), Box<dyn Error>> {
         } => {
             match send_request(fzfw_socket, method::Preview, params).await? {
                 Ok(PreviewResp { message }) => println!("{}", message),
-                Err(e) => println!("Error: {}", e),
-            }
-            Ok(())
-        }
-        Command::ChangeMode {
-            fzfw_socket,
-            params,
-        } => {
-            match send_request(fzfw_socket, method::ChangeMode, params).await? {
-                Ok(_) => {}
                 Err(e) => println!("Error: {}", e),
             }
             Ok(())
