@@ -68,7 +68,7 @@ impl Config {
             .collect()
     }
 
-    /// 全モードの全キーを集約し、transform dispatch 経由の統合バインディングを生成
+    /// 全モードの全キーを集約し、execute-silent 経由の統合バインディングを生成
     pub fn build_unified_bindings(&self, all_modes: &HashMap<String, ModeEntry>) -> fzf::Bindings {
         use std::collections::HashSet;
 
@@ -80,7 +80,7 @@ impl Config {
             }
         }
 
-        // 固定バインディング (transform 不要)
+        // 固定バインディング (サーバー往復不要)
         let fixed_keys: HashSet<&str> = ["shift-right"].iter().cloned().collect();
 
         let mut bindings = HashMap::new();
@@ -93,15 +93,15 @@ impl Config {
             )],
         );
 
-        // 全モード依存キーを transform dispatch に
+        // 全モード依存キーを execute-silent 経由で dispatch
         for key in &all_keys {
             if fixed_keys.contains(key.as_str()) {
                 continue;
             }
             bindings.insert(
                 key.clone(),
-                vec![fzf::Action::Transform(format!(
-                    "dispatch {} {{q}} {{}}",
+                vec![fzf::Action::ExecuteSilent(format!(
+                    "execute _key:{} {{q}} {{}}",
                     key
                 ))],
             );
