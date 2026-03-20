@@ -253,12 +253,14 @@ pub async fn input_with_placeholder(
 
 pub struct FzfClient {
     socket_path: PathBuf,
+    myself: String,
 }
 
 impl FzfClient {
-    pub fn new(socket_path: impl Into<PathBuf>) -> Self {
+    pub fn new(socket_path: impl Into<PathBuf>, myself: impl Into<String>) -> Self {
         Self {
             socket_path: socket_path.into(),
+            myself: myself.into(),
         }
     }
 
@@ -266,8 +268,22 @@ impl FzfClient {
         &self.socket_path
     }
 
+    pub fn myself(&self) -> &str {
+        &self.myself
+    }
+
+    /// 型安全な Action スライスを fzf に送信する
+    pub async fn post_actions(&self, actions: &[Action]) -> Result<()> {
+        let rendered = actions
+            .iter()
+            .map(|a| a.render(&self.myself))
+            .collect::<Vec<_>>()
+            .join("+");
+        self.post_action(&rendered).await
+    }
+
     /// fzf にアクションを送信する (POST /)
-    pub async fn post_action(&self, action: &str) -> Result<()> {
+    pub(crate) async fn post_action(&self, action: &str) -> Result<()> {
         let mut stream = UnixStream::connect(&self.socket_path).await?;
 
         let body = action.as_bytes();
@@ -284,10 +300,7 @@ impl FzfClient {
         let response_str = String::from_utf8_lossy(&response);
         if let Some(status_line) = response_str.lines().next() {
             if !status_line.contains("200") {
-                return Err(anyhow::anyhow!(
-                    "fzf --listen POST failed: {}",
-                    status_line
-                ));
+                return Err(anyhow::anyhow!("fzf --listen POST failed: {}", status_line));
             }
         }
         Ok(())

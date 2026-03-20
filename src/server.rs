@@ -89,7 +89,7 @@ pub async fn server(env: Env, state: State, listener: UnixListener) -> Result<()
                 .spawn()
                 .expect("Failed to spawn fzf"),
         )),
-        fzf_client: Arc::new(fzf::FzfClient::new(&fzf_listen_socket)),
+        fzf_client: Arc::new(fzf::FzfClient::new(&fzf_listen_socket, env.config.myself.clone())),
         current_mode_name: Arc::new(RwLock::new(initial_mode_name)),
         all_modes,
         state: Arc::new(RwLock::new(state)),
