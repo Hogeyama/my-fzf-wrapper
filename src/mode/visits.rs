@@ -119,8 +119,8 @@ impl ModeDef for Visits {
             ]
         }
     }
-    fn fzf_extra_opts(&self) -> Vec<&str> {
-        vec!["--no-sort"]
+    fn wants_sort(&self) -> bool {
+        false
     }
 }
 

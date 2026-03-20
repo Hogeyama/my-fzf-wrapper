@@ -98,55 +98,6 @@ impl Mode {
     pub fn name(&self) -> &'static str {
         self.mode_def.name()
     }
-
-    pub fn callbacks(&self) -> CallbackMap {
-        let mut callback_map = self.mode_def.fzf_bindings().1;
-        callback_map.load.insert(
-            "default".to_string(),
-            LoadCallback {
-                callback: Box::new(|mode_def, config, state, query, item| {
-                    mode_def.load(config, state, query, item)
-                }),
-            },
-        );
-        callback_map.preview.insert(
-            "default".to_string(),
-            PreviewCallback {
-                callback: Box::new(|mode_def, config, win, item| {
-                    mode_def.preview(config, win, item)
-                }),
-            },
-        );
-        callback_map
-    }
-
-    pub fn fzf_config(&self, args: FzfArgs) -> fzf::Config {
-        let bindings = self.mode_def.fzf_bindings().0;
-        fzf::Config {
-            myself: args.myself,
-            socket: args.socket,
-            log_file: args.log_file,
-            load: vec![
-                "load",
-                "default",
-                &args.initial_query.clone(),
-                "", // item
-            ]
-            .into_iter()
-            .map(|s| s.to_string())
-            .collect(),
-            initial_prompt: self.mode_def.fzf_prompt(),
-            initial_query: args.initial_query,
-            bindings,
-            extra_opts: self
-                .mode_def
-                .fzf_extra_opts()
-                .into_iter()
-                .map(|s| s.to_string())
-                .collect(),
-            listen_socket: args.listen_socket,
-        }
-    }
 }
 
 pub type LoadStream<'a> = Pin<Box<dyn Stream<Item = Result<LoadResp>> + Send + 'a>>;
@@ -163,8 +114,14 @@ pub trait ModeDef: AsAny {
         config_builder::default_bindings()
     }
 
-    fn fzf_extra_opts(&self) -> Vec<&str> {
+    /// モード切替時に fzf に送る追加アクション (reload/change-prompt 以外)
+    fn mode_enter_actions(&self) -> Vec<fzf::Action> {
         vec![]
+    }
+
+    /// このモードで sort を有効にするか
+    fn wants_sort(&self) -> bool {
+        true
     }
 
     /// Load items into fzf
@@ -195,14 +152,6 @@ pub trait ModeDef: AsAny {
     ) -> BoxFuture<'a, Result<()>> {
         async move { Ok(()) }.boxed()
     }
-}
-
-pub struct FzfArgs {
-    pub myself: String,
-    pub initial_query: String,
-    pub socket: String,
-    pub log_file: String,
-    pub listen_socket: Option<String>,
 }
 
 pub struct CallbackMap {

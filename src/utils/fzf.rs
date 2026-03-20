@@ -47,8 +47,13 @@ pub enum Action {
     Reload(String),
     Execute(String),
     ExecuteSilent(String),
+    Transform(String),
     ChangePrompt(String),
     ToggleSort,
+    EnableSearch,
+    DisableSearch,
+    ChangePreviewWindow(String),
+    DeselectAll,
     ClearQuery,
     ClearScreen,
     First,
@@ -57,13 +62,20 @@ pub enum Action {
 }
 
 impl Action {
-    fn render(&self, myself: &str) -> String {
+    pub fn render(&self, myself: &str) -> String {
         match self {
             Action::Reload(cmd) => format!("reload[{myself} {cmd}]"),
             Action::Execute(cmd) => format!("execute[{myself} {cmd}]"),
             Action::ExecuteSilent(cmd) => format!("execute-silent[{myself} {cmd}]"),
+            Action::Transform(cmd) => format!("transform[{myself} {cmd}]"),
             Action::ChangePrompt(prompt) => format!("change-prompt[{prompt}]"),
             Action::ToggleSort => "toggle-sort".to_string(),
+            Action::EnableSearch => "enable-search".to_string(),
+            Action::DisableSearch => "disable-search".to_string(),
+            Action::ChangePreviewWindow(spec) => {
+                format!("change-preview-window[{spec}]")
+            }
+            Action::DeselectAll => "deselect-all".to_string(),
             Action::ClearQuery => "clear-query".to_string(),
             Action::ClearScreen => "clear-screen".to_string(),
             Action::First => "first".to_string(),
@@ -71,6 +83,23 @@ impl Action {
             Action::Raw(s) => s.to_string(),
         }
     }
+}
+
+/// Bindings を fzf アクション文字列に変換する
+/// key → "action1+action2+..." の形式
+pub fn render_bindings(bindings: &Bindings, myself: &str) -> HashMap<String, String> {
+    bindings
+        .0
+        .iter()
+        .map(|(key, actions)| {
+            let rendered = actions
+                .iter()
+                .map(|a| a.render(myself))
+                .collect::<Vec<_>>()
+                .join("+");
+            (key.clone(), rendered)
+        })
+        .collect()
 }
 
 #[derive(Clone, Copy, Debug, Serialize, Deserialize)]

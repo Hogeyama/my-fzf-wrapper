@@ -158,15 +158,13 @@ impl ModeDef for GitReview {
         let win = *win;
         async move {
             let parsed = parse_thread_item(&item)?;
-            let thread = self.threads.with(|threads| {
-                threads
-                    .iter()
-                    .find(|t| t.id == parsed.id)
-                    .cloned()
-            }).await
-            .ok()
-            .flatten()
-            .unwrap_or(parsed);
+            let thread = self
+                .threads
+                .with(|threads| threads.iter().find(|t| t.id == parsed.id).cloned())
+                .await
+                .ok()
+                .flatten()
+                .unwrap_or(parsed);
 
             let git_ref = format!("{}:{}", thread.revision, thread.path);
             let git_output = Command::new("git")
@@ -277,8 +275,8 @@ impl ModeDef for GitReview {
         }
     }
 
-    fn fzf_extra_opts(&self) -> Vec<&str> {
-        vec!["--no-sort"]
+    fn wants_sort(&self) -> bool {
+        false
     }
 }
 

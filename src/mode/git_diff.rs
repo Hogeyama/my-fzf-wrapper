@@ -204,8 +204,7 @@ impl ModeDef for GitDiff {
                         if vscode {
                             actions::open_in_vscode(env, file, item.target_start()).await?;
                         } else {
-                            actions::open_in_nvim(env, file, item.target_start(), tabedit)
-                                .await?;
+                            actions::open_in_nvim(env, file, item.target_start(), tabedit).await?;
                         }
                     }
                 }
@@ -275,10 +274,7 @@ impl ModeDef for GitDiff {
                         .stderr(std::process::Stdio::null())
                         .output()
                         .await?;
-                    env
-                        .nvim
-                        .notify_command_result("git commit", output)
-                        .await?;
+                    env.nvim.notify_command_result("git commit", output).await?;
                 }
                 ExecOpts::CommitInstantFixup => {
                     let commit = git::select_commit("target of instant fixup").await?;
@@ -289,10 +285,7 @@ impl ModeDef for GitDiff {
                         .stderr(std::process::Stdio::null())
                         .output()
                         .await?;
-                    env
-                        .nvim
-                        .notify_command_result("git commit", output)
-                        .await?;
+                    env.nvim.notify_command_result("git commit", output).await?;
                     let output = Command::new("git")
                         .arg("rebase")
                         .arg("--update-refs")
@@ -309,10 +302,7 @@ impl ModeDef for GitDiff {
                         "git rebase --update-refs --autosquash --autostash -i {}^",
                         commit
                     );
-                    env
-                        .nvim
-                        .notify_command_result("git rebase", output)
-                        .await?;
+                    env.nvim.notify_command_result("git rebase", output).await?;
                 }
                 ExecOpts::LazyGit => {
                     let pwd = std::env::current_dir().unwrap().into_os_string();
@@ -422,8 +412,10 @@ impl ModeDef for GitDiff {
             ]
         }
     }
-    fn fzf_extra_opts(&self) -> Vec<&str> {
-        vec!["--multi", "--preview-window", "right:60%:noborder"]
+    fn mode_enter_actions(&self) -> Vec<fzf::Action> {
+        vec![fzf::Action::ChangePreviewWindow(
+            "right:60%:noborder".to_string(),
+        )]
     }
 }
 

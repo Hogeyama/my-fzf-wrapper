@@ -81,8 +81,11 @@ impl ModeDef for LiveGrep {
             ],
         }
     }
-    fn fzf_extra_opts(&self) -> Vec<&str> {
-        vec!["--disabled"]
+    fn mode_enter_actions(&self) -> Vec<fzf::Action> {
+        vec![fzf::Action::DisableSearch]
+    }
+    fn wants_sort(&self) -> bool {
+        false
     }
 }
 
