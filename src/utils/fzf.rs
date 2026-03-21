@@ -128,48 +128,73 @@ pub fn new(config: Config) -> Command {
     fzf
 }
 
+// ---------------------------------------------------------------------------
+// tmux popup 経由の fzf select
+// ---------------------------------------------------------------------------
+//
+// サーバープロセスから直接 fzf を起動すると、親 fzf と /dev/tty を共有して
+// エスケープシーケンスが壊れる。tmux popup は独立した PTY を持つため、
+// この問題を根本的に回避できる。
+
+/// tmux popup 内で fzf を実行する共通実装。
+/// 入出力はテンポラリファイルで受け渡す。
+async fn run_fzf_in_popup(items: &str, extra_args: &[&str]) -> Result<String> {
+    let input_file = tempfile::Builder::new().prefix("fzf-in-").tempfile()?;
+    let output_file = tempfile::Builder::new().prefix("fzf-out-").tempfile()?;
+    std::fs::write(input_file.path(), items)?;
+
+    let input_path = input_file.path().to_string_lossy();
+    let output_path = output_file.path().to_string_lossy();
+
+    // 各引数をシングルクォートでエスケープしてシェルに渡す
+    let extra = extra_args
+        .iter()
+        .map(|a| format!("'{}'", a.replace('\'', "'\\''")))
+        .collect::<Vec<_>>()
+        .join(" ");
+
+    let script =
+        format!("fzf --ansi --no-sort --layout=reverse {extra} < '{input_path}' > '{output_path}'");
+
+    Command::new("tmux")
+        .args([
+            "popup", "-E", "-w", "80%", "-h", "50%", "--", "sh", "-c", &script,
+        ])
+        .spawn()?
+        .wait()
+        .await?;
+
+    Ok(std::fs::read_to_string(output_file.path())?
+        .trim()
+        .to_string())
+}
+
+pub async fn select_multi(items: Vec<&str>) -> Result<Vec<String>> {
+    select_multi_with_args(items, &[]).await
+}
+
+pub async fn select_multi_with_args(items: Vec<&str>, extra_args: &[&str]) -> Result<Vec<String>> {
+    let mut args = vec!["--multi"];
+    args.extend_from_slice(extra_args);
+    let output = run_fzf_in_popup(&items.join("\n"), &args).await?;
+    if output.is_empty() {
+        return Ok(vec![]);
+    }
+    Ok(output.lines().map(|s| s.to_string()).collect())
+}
+
 pub async fn select(items: Vec<&str>) -> Result<String> {
-    let mut fzf = Command::new("fzf")
-        .arg("--ansi")
-        .arg("--no-sort")
-        .args(vec!["--layout", "reverse"])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .spawn()?;
-
-    let mut stdin = fzf.stdin.take().unwrap();
-    stdin.write_all(items.join("\n").as_bytes()).await.unwrap();
-    drop(stdin);
-
-    Ok(
-        String::from_utf8_lossy(&fzf.wait_with_output().await?.stdout)
-            .trim()
-            .to_string(),
-    )
+    run_fzf_in_popup(&items.join("\n"), &[]).await
 }
 
 pub async fn select_with_header(header: impl AsRef<str>, items: Vec<&str>) -> Result<String> {
-    let mut fzf = Command::new("fzf")
-        .arg("--ansi")
-        .arg("--no-sort")
-        .args(vec!["--header-lines", "1"])
-        .args(vec!["--layout", "reverse"])
-        .stdin(std::process::Stdio::piped())
-        .stdout(std::process::Stdio::piped())
-        .spawn()?;
-
-    let mut stdin = fzf.stdin.take().unwrap();
-    let header = format!("{}\n", header.as_ref());
-    stdin.write_all(header.as_bytes()).await.unwrap();
-    stdin.write_all(items.join("\n").as_bytes()).await.unwrap();
-    drop(stdin);
-
-    Ok(
-        String::from_utf8_lossy(&fzf.wait_with_output().await?.stdout)
-            .trim()
-            .to_string(),
-    )
+    let input = format!("{}\n{}", header.as_ref(), items.join("\n"));
+    run_fzf_in_popup(&input, &["--header-lines", "1"]).await
 }
+
+// ---------------------------------------------------------------------------
+// シンプル入力
+// ---------------------------------------------------------------------------
 
 pub async fn input(header: impl AsRef<str>) -> Result<String> {
     input_with_placeholder(header, "").await
@@ -291,6 +316,9 @@ mod tests {
 
     #[test]
     fn render_raw() {
-        assert_eq!(Action::Raw("custom-action".into()).render(), "custom-action");
+        assert_eq!(
+            Action::Raw("custom-action".into()).render(),
+            "custom-action"
+        );
     }
 }
