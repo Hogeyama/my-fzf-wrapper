@@ -457,31 +457,87 @@ fn colorize_hunk(hunk: &DiffHunk) -> String {
 }
 
 // ---------------------------------------------------------------------------
+// Comment range calculation
+// ---------------------------------------------------------------------------
+
+/// Determine the side (LEFT/RIGHT) and line range for a PR review comment
+/// based on which diff lines were selected.
+///
+/// - All removed lines → LEFT side, using old_lineno.
+/// - Mixed or all added/context → RIGHT side, using new_lineno.
+///   Removed lines lack new_lineno, so the range is expanded by searching
+///   outward from the selected indices to find the nearest new_lineno.
+fn compute_comment_range(
+    lines: &[DiffLine],
+    selected_indices: &[usize],
+) -> Result<(&'static str, usize, usize)> {
+    let selected_lines: Vec<&DiffLine> = selected_indices
+        .iter()
+        .map(|&i| &lines[i])
+        .collect();
+
+    let all_removed = selected_lines
+        .iter()
+        .all(|l| l.kind == DiffLineKind::Removed);
+
+    if all_removed {
+        let line_numbers: Vec<usize> = selected_lines
+            .iter()
+            .filter_map(|l| l.old_lineno)
+            .collect();
+        let start = *line_numbers.iter().min().unwrap();
+        let end = *line_numbers.iter().max().unwrap();
+        Ok(("LEFT", start, end))
+    } else {
+        let min_idx = *selected_indices.iter().min().unwrap();
+        let max_idx = *selected_indices.iter().max().unwrap();
+
+        let start = (0..=min_idx)
+            .rev()
+            .find_map(|i| lines[i].new_lineno)
+            .or_else(|| (min_idx..lines.len()).find_map(|i| lines[i].new_lineno))
+            .ok_or_else(|| anyhow!("no new_lineno found for start"))?;
+
+        let end = (max_idx..lines.len())
+            .find_map(|i| lines[i].new_lineno)
+            .or_else(|| {
+                (0..=max_idx)
+                    .rev()
+                    .find_map(|i| lines[i].new_lineno)
+            })
+            .ok_or_else(|| anyhow!("no new_lineno found for end"))?;
+
+        Ok(("RIGHT", start, end))
+    }
+}
+
+// ---------------------------------------------------------------------------
 // Comment flow
 // ---------------------------------------------------------------------------
 
 async fn post_comment_flow(meta: &PrMeta, hunk: &DiffHunk) -> Result<()> {
     // 1. Show hunk lines in fzf multi-select for line range selection
+    // Each line is prefixed with its index for unambiguous identification
+    // Suffix each line with |{index} for unambiguous identification
     let line_items: Vec<String> = hunk
         .lines
         .iter()
-        .map(|l| {
-            let lineno = match l.kind {
-                DiffLineKind::Removed => l
-                    .old_lineno
-                    .map(|n| format!("{:>4}", n))
-                    .unwrap_or_else(|| "    ".to_string()),
-                _ => l
-                    .new_lineno
-                    .map(|n| format!("{:>4}", n))
-                    .unwrap_or_else(|| "    ".to_string()),
-            };
+        .enumerate()
+        .map(|(i, l)| {
+            let old = l
+                .old_lineno
+                .map(|n| format!("{:>4}", n))
+                .unwrap_or_else(|| "    ".to_string());
+            let new = l
+                .new_lineno
+                .map(|n| format!("{:>4}", n))
+                .unwrap_or_else(|| "    ".to_string());
             let prefix = match l.kind {
                 DiffLineKind::Added => "+",
                 DiffLineKind::Removed => "-",
                 DiffLineKind::Context => " ",
             };
-            format!("{} {}{}", lineno, prefix, l.content)
+            format!("{} {} {}{}|{}", old, new, prefix, l.content, i)
         })
         .collect();
 
@@ -493,60 +549,23 @@ async fn post_comment_flow(meta: &PrMeta, hunk: &DiffHunk) -> Result<()> {
     }
 
     // 2. Determine line range and side
+    // Extract index from the |{index} suffix
     let selected_indices: Vec<usize> = selected
         .iter()
-        .filter_map(|sel| {
-            hunk.lines.iter().position(|l| {
-                let lineno = match l.kind {
-                    DiffLineKind::Removed => l.old_lineno,
-                    _ => l.new_lineno,
-                };
-                if let Some(n) = lineno {
-                    sel.starts_with(&format!("{:>4}", n))
-                } else {
-                    false
-                }
-            })
-        })
+        .filter_map(|sel| sel.rsplit('|').next()?.parse().ok())
         .collect();
 
     if selected_indices.is_empty() {
         return Ok(());
     }
 
-    let selected_lines: Vec<&DiffLine> = selected_indices
-        .iter()
-        .map(|&i| &hunk.lines[i])
-        .collect();
-
-    let all_removed = selected_lines
-        .iter()
-        .all(|l| l.kind == DiffLineKind::Removed);
-
-    let (side, start_line, end_line) = if all_removed {
-        let line_numbers: Vec<usize> = selected_lines
-            .iter()
-            .filter_map(|l| l.old_lineno)
-            .collect();
-        let start = *line_numbers.iter().min().unwrap();
-        let end = *line_numbers.iter().max().unwrap();
-        ("LEFT", start, end)
-    } else {
-        let line_numbers: Vec<usize> = selected_lines
-            .iter()
-            .filter_map(|l| l.new_lineno)
-            .collect();
-        if line_numbers.is_empty() {
-            return Err(anyhow!("no valid line numbers in selection"));
-        }
-        let start = *line_numbers.iter().min().unwrap();
-        let end = *line_numbers.iter().max().unwrap();
-        ("RIGHT", start, end)
-    };
+    let (side, start_line, end_line) =
+        compute_comment_range(&hunk.lines, &selected_indices)?;
 
     // 3. Compose comment body via nvim popup
-    let selected_code: String = selected_lines
+    let selected_code: String = selected_indices
         .iter()
+        .map(|&i| &hunk.lines[i])
         .map(|l| {
             let prefix = match l.kind {
                 DiffLineKind::Added => "+",
@@ -815,5 +834,156 @@ diff --git a/old.rs b/old.rs
     #[test]
     fn wants_sort_is_false() {
         assert!(!PrDiff::new().wants_sort());
+    }
+
+    // -- compute_comment_range tests --
+
+    fn make_lines_for_range_tests() -> Vec<DiffLine> {
+        // Simulates a hunk like:
+        //  context1       old=10, new=20
+        // -removed1       old=11
+        // -removed2       old=12
+        // +added1                 new=21
+        // +added2                 new=22
+        //  context2       old=13, new=23
+        vec![
+            DiffLine {
+                kind: DiffLineKind::Context,
+                content: "context1".into(),
+                old_lineno: Some(10),
+                new_lineno: Some(20),
+            },
+            DiffLine {
+                kind: DiffLineKind::Removed,
+                content: "removed1".into(),
+                old_lineno: Some(11),
+                new_lineno: None,
+            },
+            DiffLine {
+                kind: DiffLineKind::Removed,
+                content: "removed2".into(),
+                old_lineno: Some(12),
+                new_lineno: None,
+            },
+            DiffLine {
+                kind: DiffLineKind::Added,
+                content: "added1".into(),
+                old_lineno: None,
+                new_lineno: Some(21),
+            },
+            DiffLine {
+                kind: DiffLineKind::Added,
+                content: "added2".into(),
+                old_lineno: None,
+                new_lineno: Some(22),
+            },
+            DiffLine {
+                kind: DiffLineKind::Context,
+                content: "context2".into(),
+                old_lineno: Some(13),
+                new_lineno: Some(23),
+            },
+        ]
+    }
+
+    #[test]
+    fn range_all_added_uses_right() {
+        let lines = make_lines_for_range_tests();
+        let (side, start, end) = compute_comment_range(&lines, &[3, 4]).unwrap();
+        assert_eq!(side, "RIGHT");
+        assert_eq!(start, 21);
+        assert_eq!(end, 22);
+    }
+
+    #[test]
+    fn range_all_removed_uses_left() {
+        let lines = make_lines_for_range_tests();
+        let (side, start, end) = compute_comment_range(&lines, &[1, 2]).unwrap();
+        assert_eq!(side, "LEFT");
+        assert_eq!(start, 11);
+        assert_eq!(end, 12);
+    }
+
+    #[test]
+    fn range_mixed_removed_and_added_expands_to_right() {
+        let lines = make_lines_for_range_tests();
+        // Select removed1 (idx=1) and added1 (idx=3)
+        let (side, start, end) = compute_comment_range(&lines, &[1, 3]).unwrap();
+        assert_eq!(side, "RIGHT");
+        // start: search backward from idx=1, finds new_lineno=20 at idx=0
+        assert_eq!(start, 20);
+        // end: search forward from idx=3, finds new_lineno=21 at idx=3
+        assert_eq!(end, 21);
+    }
+
+    #[test]
+    fn range_removed_only_at_start_expands_to_right_with_context() {
+        let lines = make_lines_for_range_tests();
+        // Select removed1 (idx=1) and context2 (idx=5)
+        let (side, start, end) = compute_comment_range(&lines, &[1, 5]).unwrap();
+        assert_eq!(side, "RIGHT");
+        // start: search backward from idx=1, finds new_lineno=20 at idx=0
+        assert_eq!(start, 20);
+        // end: idx=5 has new_lineno=23
+        assert_eq!(end, 23);
+    }
+
+    #[test]
+    fn range_single_context_line() {
+        let lines = make_lines_for_range_tests();
+        let (side, start, end) = compute_comment_range(&lines, &[0]).unwrap();
+        assert_eq!(side, "RIGHT");
+        assert_eq!(start, 20);
+        assert_eq!(end, 20);
+    }
+
+    #[test]
+    fn range_single_removed_uses_left() {
+        let lines = make_lines_for_range_tests();
+        let (side, start, end) = compute_comment_range(&lines, &[1]).unwrap();
+        assert_eq!(side, "LEFT");
+        assert_eq!(start, 11);
+        assert_eq!(end, 11);
+    }
+
+    #[test]
+    fn range_all_lines_selected() {
+        let lines = make_lines_for_range_tests();
+        let (side, start, end) =
+            compute_comment_range(&lines, &[0, 1, 2, 3, 4, 5]).unwrap();
+        assert_eq!(side, "RIGHT");
+        assert_eq!(start, 20);
+        assert_eq!(end, 23);
+    }
+
+    #[test]
+    fn range_removed_at_end_expands_forward() {
+        // Hunk where removed lines are at the end with no context after
+        let lines = vec![
+            DiffLine {
+                kind: DiffLineKind::Context,
+                content: "ctx".into(),
+                old_lineno: Some(1),
+                new_lineno: Some(1),
+            },
+            DiffLine {
+                kind: DiffLineKind::Added,
+                content: "new".into(),
+                old_lineno: None,
+                new_lineno: Some(2),
+            },
+            DiffLine {
+                kind: DiffLineKind::Removed,
+                content: "old".into(),
+                old_lineno: Some(2),
+                new_lineno: None,
+            },
+        ];
+        // Select added + removed (mixed)
+        let (side, start, end) = compute_comment_range(&lines, &[1, 2]).unwrap();
+        assert_eq!(side, "RIGHT");
+        assert_eq!(start, 2);
+        // end: search forward from idx=2 finds nothing, search backward finds new_lineno=2 at idx=1
+        assert_eq!(end, 2);
     }
 }
