@@ -9,9 +9,11 @@ use super::lib::actions;
 use super::lib::cache::ModeCache;
 use crate::env::Env;
 use crate::method::LoadResp;
+use crate::nvim::NeovimExt;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
+use crate::mode::ModeAction;
 use crate::mode::ModeDef;
 use crate::state::State;
 use crate::utils::fzf;
@@ -23,6 +25,7 @@ use crate::utils::xsel;
 pub struct PrDiff {
     hunks: ModeCache<Vec<DiffHunk>>,
     pr_meta: ModeCache<PrMeta>,
+    pending_comments: ModeCache<Vec<PendingComment>>,
 }
 
 impl PrDiff {
@@ -30,8 +33,35 @@ impl PrDiff {
         Self {
             hunks: ModeCache::new(),
             pr_meta: ModeCache::new(),
+            pending_comments: ModeCache::new(),
         }
     }
+
+    async fn pending_count(&self) -> usize {
+        self.pending_comments
+            .with(|v| v.len())
+            .await
+            .unwrap_or(0)
+    }
+
+    fn prompt_with_pending(count: usize) -> String {
+        if count > 0 {
+            format!("pr-diff ({count} pending)>")
+        } else {
+            "pr-diff>".to_string()
+        }
+    }
+}
+
+#[derive(Clone, Debug, serde::Serialize)]
+struct PendingComment {
+    path: String,
+    body: String,
+    line: Option<usize>,
+    side: Option<String>,
+    start_line: Option<usize>,
+    start_side: Option<String>,
+    is_file_comment: bool,
 }
 
 #[derive(Clone, Debug)]
@@ -91,6 +121,10 @@ impl ModeDef for PrDiff {
                 .collect();
             self.hunks.set(hunks).await;
             self.pr_meta.set(meta).await;
+            // Initialize pending_comments if not yet set
+            if self.pending_comments.get().await.is_err() {
+                self.pending_comments.set(vec![]).await;
+            }
             yield Ok(LoadResp::new_with_default_header(items));
         })
     }
@@ -155,48 +189,83 @@ impl ModeDef for PrDiff {
                 })
             ],
             "pgup" => [
-                select_and_execute!{b, |mode, _env, _state, _query, item|
-                    "comment" => {
-                        let idx = parse_hunk_index(&item)?;
-                        let hunk = mode
-                            .hunks
-                            .with(|hunks| hunks.get(idx).cloned())
-                            .await
-                            .ok()
-                            .flatten()
-                            .ok_or_else(|| anyhow!("hunk not found"))?;
-                        let meta = mode.pr_meta.get().await?;
-                        post_comment_flow(&meta, &hunk).await
-                    },
-                    "comment-file" => {
-                        let idx = parse_hunk_index(&item)?;
-                        let file_path = mode
-                            .hunks
-                            .with(|hunks| hunks.get(idx).map(|h| h.file_path.clone()))
-                            .await
-                            .ok()
-                            .flatten()
-                            .ok_or_else(|| anyhow!("hunk not found"))?;
-                        let meta = mode.pr_meta.get().await?;
-                        post_file_comment_flow(&meta, &file_path).await
-                    },
-                    "browse" => {
-                        let meta = mode.pr_meta.get().await?;
-                        let url = format!(
-                            "https://github.com/{}/{}/pull/{}/files",
-                            meta.owner, meta.repo, meta.number
-                        );
-                        Command::new("xdg-open")
-                            .arg(&url)
-                            .stdin(std::process::Stdio::null())
-                            .stdout(std::process::Stdio::null())
-                            .stderr(std::process::Stdio::null())
-                            .spawn()?
-                            .wait()
-                            .await?;
-                        Ok(())
-                    },
-                }
+                execute!(b, |mode, env, _state, _query, item| {
+                    let action = fzf::select(vec![
+                        "comment",
+                        "comment-file",
+                        "submit",
+                        "pending",
+                        "discard",
+                        "browse",
+                    ]).await?;
+                    match &*action {
+                        "comment" => {
+                            let idx = parse_hunk_index(&item)?;
+                            let hunk = mode
+                                .hunks
+                                .with(|hunks| hunks.get(idx).cloned())
+                                .await
+                                .ok()
+                                .flatten()
+                                .ok_or_else(|| anyhow!("hunk not found"))?;
+                            add_pending_comment_flow(mode, &hunk).await?;
+                            let count = mode.pending_count().await;
+                            env.nvim.notify_info(
+                                format!("Added to pending ({count} comments)")
+                            ).await?;
+                        }
+                        "comment-file" => {
+                            let idx = parse_hunk_index(&item)?;
+                            let file_path = mode
+                                .hunks
+                                .with(|hunks| hunks.get(idx).map(|h| h.file_path.clone()))
+                                .await
+                                .ok()
+                                .flatten()
+                                .ok_or_else(|| anyhow!("hunk not found"))?;
+                            add_pending_file_comment_flow(mode, &file_path).await?;
+                            let count = mode.pending_count().await;
+                            env.nvim.notify_info(
+                                format!("Added to pending ({count} comments)")
+                            ).await?;
+                        }
+                        "submit" => {
+                            let meta = mode.pr_meta.get().await?;
+                            submit_review_flow(mode, env, &meta).await?;
+                        }
+                        "pending" => {
+                            show_pending_comments(mode).await?;
+                        }
+                        "discard" => {
+                            mode.pending_comments.set(vec![]).await;
+                            env.nvim.notify_info("Pending comments discarded").await?;
+                        }
+                        "browse" => {
+                            let meta = mode.pr_meta.get().await?;
+                            let url = format!(
+                                "https://github.com/{}/{}/pull/{}/files",
+                                meta.owner, meta.repo, meta.number
+                            );
+                            Command::new("xdg-open")
+                                .arg(&url)
+                                .stdin(std::process::Stdio::null())
+                                .stdout(std::process::Stdio::null())
+                                .stderr(std::process::Stdio::null())
+                                .spawn()?
+                                .wait()
+                                .await?;
+                        }
+                        _ => {}
+                    }
+                    // Update prompt to reflect pending count
+                    let count = mode.pending_count().await;
+                    env.post_fzf_actions(&[
+                        ModeAction::Fzf(fzf::Action::ChangePrompt(
+                            PrDiff::prompt_with_pending(count),
+                        )),
+                    ]).await?;
+                    Ok(())
+                })
             ],
         }
     }
@@ -581,13 +650,11 @@ fn compute_comment_range(
 }
 
 // ---------------------------------------------------------------------------
-// Comment flow
+// Pending comment flows
 // ---------------------------------------------------------------------------
 
-async fn post_comment_flow(meta: &PrMeta, hunk: &DiffHunk) -> Result<()> {
+async fn add_pending_comment_flow(mode: &PrDiff, hunk: &DiffHunk) -> Result<()> {
     // 1. Show hunk lines in fzf multi-select for line range selection
-    // Each line is prefixed with its index for unambiguous identification
-    // Suffix each line with |{index} for unambiguous identification
     let line_items: Vec<String> = hunk
         .lines
         .iter()
@@ -606,22 +673,25 @@ async fn post_comment_flow(meta: &PrMeta, hunk: &DiffHunk) -> Result<()> {
                 DiffLineKind::Removed => "-",
                 DiffLineKind::Context => " ",
             };
-            format!("{} {} {}{}|{}", old, new, prefix, l.content, i)
+            format!("{} {} {}{}\t{}", old, new, prefix, l.content, i)
         })
         .collect();
 
     let line_refs: Vec<&str> = line_items.iter().map(|s| s.as_str()).collect();
-    let selected = fzf::select_multi(line_refs).await?;
+    let selected = fzf::select_multi_with_args(
+        line_refs,
+        &["--delimiter", "\t", "--with-nth", "1"],
+    )
+    .await?;
 
     if selected.is_empty() {
         return Ok(());
     }
 
     // 2. Determine line range and side
-    // Extract index from the |{index} suffix
     let selected_indices: Vec<usize> = selected
         .iter()
-        .filter_map(|sel| sel.rsplit('|').next()?.parse().ok())
+        .filter_map(|sel| sel.rsplit('\t').next()?.parse().ok())
         .collect();
 
     if selected_indices.is_empty() {
@@ -674,44 +744,30 @@ async fn post_comment_flow(meta: &PrMeta, hunk: &DiffHunk) -> Result<()> {
         return Ok(());
     }
 
-    // 4. Post the comment via gh api
-    let endpoint = format!(
-        "repos/{}/{}/pulls/{}/comments",
-        meta.owner, meta.repo, meta.number
-    );
-
-    let mut args = vec![
-        "api".to_string(),
-        endpoint,
-        "-f".to_string(),
-        format!("body={}", body),
-        "-f".to_string(),
-        format!("commit_id={}", meta.head_sha),
-        "-f".to_string(),
-        format!("path={}", hunk.file_path),
-        "-f".to_string(),
-        format!("side={}", side),
-        "-F".to_string(),
-        format!("line={}", end_line),
-    ];
-
-    if start_line != end_line {
-        args.push("-F".to_string());
-        args.push(format!("start_line={}", start_line));
-        args.push("-f".to_string());
-        args.push(format!("start_side={}", side));
-    }
-
-    let output = Command::new("gh").args(&args).output().await?;
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("gh api comment failed: {}", stderr));
-    }
+    // 4. Add to pending
+    let comment = PendingComment {
+        path: hunk.file_path.clone(),
+        body,
+        line: Some(end_line),
+        side: Some(side.to_string()),
+        start_line: if start_line != end_line {
+            Some(start_line)
+        } else {
+            None
+        },
+        start_side: if start_line != end_line {
+            Some(side.to_string())
+        } else {
+            None
+        },
+        is_file_comment: false,
+    };
+    mode.pending_comments.with_mut(|v| v.push(comment)).await?;
 
     Ok(())
 }
 
-async fn post_file_comment_flow(meta: &PrMeta, file_path: &str) -> Result<()> {
+async fn add_pending_file_comment_flow(mode: &PrDiff, file_path: &str) -> Result<()> {
     let marker = "=".repeat(40);
     let template = format!("\n{marker}\n{file_path}");
 
@@ -737,30 +793,194 @@ async fn post_file_comment_flow(meta: &PrMeta, file_path: &str) -> Result<()> {
         return Ok(());
     }
 
+    let comment = PendingComment {
+        path: file_path.to_string(),
+        body,
+        line: None,
+        side: None,
+        start_line: None,
+        start_side: None,
+        is_file_comment: true,
+    };
+    mode.pending_comments.with_mut(|v| v.push(comment)).await?;
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Submit review flow
+// ---------------------------------------------------------------------------
+
+async fn submit_review_flow(mode: &PrDiff, env: &Env, meta: &PrMeta) -> Result<()> {
+    let pending = mode.pending_comments.get().await?;
+    if pending.is_empty() {
+        env.nvim.notify_info("No pending comments to submit").await?;
+        return Ok(());
+    }
+
+    // 1. Select review event
+    let event = fzf::select(vec!["COMMENT", "APPROVE", "REQUEST_CHANGES"]).await?;
+    if event.is_empty() {
+        return Ok(());
+    }
+
+    // 2. Optional review body via nvim popup
+    let marker = "=".repeat(40);
+    let template = format!(
+        "\n{marker}\nReview: {} ({} comments)",
+        event,
+        pending.len()
+    );
+
+    let tmp_file = tempfile::Builder::new().suffix(".md").tempfile()?;
+    std::fs::write(tmp_file.path(), &template)?;
+
+    Command::new("nvimw")
+        .arg("--tmux-popup")
+        .arg(tmp_file.path())
+        .spawn()?
+        .wait()
+        .await?;
+
+    let content = std::fs::read_to_string(tmp_file.path())?;
+    let review_body = content
+        .split(&marker)
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    // 3. Build review comments (line comments only; file comments handled separately)
+    let (line_comments, file_comments): (Vec<_>, Vec<_>) =
+        pending.iter().partition(|c| !c.is_file_comment);
+
+    let api_comments: Vec<serde_json::Value> = line_comments
+        .iter()
+        .map(|c| {
+            let mut obj = serde_json::json!({
+                "path": c.path,
+                "body": c.body,
+            });
+            if let Some(line) = c.line {
+                obj["line"] = serde_json::json!(line);
+            }
+            if let Some(ref side) = c.side {
+                obj["side"] = serde_json::json!(side);
+            }
+            if let Some(start_line) = c.start_line {
+                obj["start_line"] = serde_json::json!(start_line);
+            }
+            if let Some(ref start_side) = c.start_side {
+                obj["start_side"] = serde_json::json!(start_side);
+            }
+            obj
+        })
+        .collect();
+
+    // 4. POST review via gh api --input
+    let review_payload = serde_json::json!({
+        "commit_id": meta.head_sha,
+        "event": event,
+        "body": review_body,
+        "comments": api_comments,
+    });
+
+    let payload_file = tempfile::Builder::new().suffix(".json").tempfile()?;
+    std::fs::write(payload_file.path(), review_payload.to_string())?;
+
     let endpoint = format!(
-        "repos/{}/{}/pulls/{}/comments",
+        "repos/{}/{}/pulls/{}/reviews",
         meta.owner, meta.repo, meta.number
     );
 
-    let args = vec![
-        "api".to_string(),
-        endpoint,
-        "-f".to_string(),
-        format!("body={}", body),
-        "-f".to_string(),
-        format!("commit_id={}", meta.head_sha),
-        "-f".to_string(),
-        format!("path={}", file_path),
-        "-f".to_string(),
-        "subject_type=file".to_string(),
-    ];
+    let output = Command::new("gh")
+        .args([
+            "api",
+            &endpoint,
+            "--method",
+            "POST",
+            "--input",
+            &payload_file.path().to_string_lossy(),
+        ])
+        .output()
+        .await?;
 
-    let output = Command::new("gh").args(&args).output().await?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
-        return Err(anyhow!("gh api file comment failed: {}", stderr));
+        return Err(anyhow!("gh api review submit failed: {}", stderr));
     }
 
+    // 5. Post file comments individually (reviews API doesn't support subject_type=file)
+    for fc in &file_comments {
+        let fc_endpoint = format!(
+            "repos/{}/{}/pulls/{}/comments",
+            meta.owner, meta.repo, meta.number
+        );
+        let fc_output = Command::new("gh")
+            .args([
+                "api",
+                &fc_endpoint,
+                "-f",
+                &format!("body={}", fc.body),
+                "-f",
+                &format!("commit_id={}", meta.head_sha),
+                "-f",
+                &format!("path={}", fc.path),
+                "-f",
+                "subject_type=file",
+            ])
+            .output()
+            .await?;
+        if !fc_output.status.success() {
+            let stderr = String::from_utf8_lossy(&fc_output.stderr);
+            return Err(anyhow!("gh api file comment failed: {}", stderr));
+        }
+    }
+
+    // 6. Clear pending
+    mode.pending_comments.set(vec![]).await;
+    env.nvim
+        .notify_info(format!("Review submitted ({event})"))
+        .await?;
+
+    Ok(())
+}
+
+// ---------------------------------------------------------------------------
+// Show pending comments
+// ---------------------------------------------------------------------------
+
+async fn show_pending_comments(mode: &PrDiff) -> Result<()> {
+    let pending = mode.pending_comments.get().await?;
+    if pending.is_empty() {
+        return Ok(());
+    }
+
+    let items: Vec<String> = pending
+        .iter()
+        .enumerate()
+        .map(|(i, c)| {
+            let loc = if c.is_file_comment {
+                format!("{} (file)", c.path)
+            } else if let Some(line) = c.line {
+                let side = c.side.as_deref().unwrap_or("RIGHT");
+                if let Some(start) = c.start_line {
+                    format!("{}:{}-{} ({})", c.path, start, line, side)
+                } else {
+                    format!("{}:{} ({})", c.path, line, side)
+                }
+            } else {
+                c.path.clone()
+            };
+            let body_preview: String = c.body.chars().take(60).collect();
+            let body_preview = body_preview.replace('\n', " ");
+            format!("[{}] {} | {}", i + 1, loc, body_preview)
+        })
+        .collect();
+
+    let refs: Vec<&str> = items.iter().map(|s| s.as_str()).collect();
+    // Read-only display; ignore selection
+    let _ = fzf::select(refs).await;
     Ok(())
 }
 
