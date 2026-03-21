@@ -221,7 +221,7 @@ impl ModeDef for GitReview {
                 })
             ],
             "pgup" => [
-                execute_silent!(b, |mode, _env, _state, _query, item| {
+                execute!(b, |mode, _env, _state, _query, item| {
                     let parsed = parse_thread_item(&item)?;
                     let resolve_label = if parsed.is_resolved {
                         "unresolve"
