@@ -168,6 +168,18 @@ impl ModeDef for PrDiff {
                         let meta = mode.pr_meta.get().await?;
                         post_comment_flow(&meta, &hunk).await
                     },
+                    "comment-file" => {
+                        let idx = parse_hunk_index(&item)?;
+                        let file_path = mode
+                            .hunks
+                            .with(|hunks| hunks.get(idx).map(|h| h.file_path.clone()))
+                            .await
+                            .ok()
+                            .flatten()
+                            .ok_or_else(|| anyhow!("hunk not found"))?;
+                        let meta = mode.pr_meta.get().await?;
+                        post_file_comment_flow(&meta, &file_path).await
+                    },
                     "browse" => {
                         let meta = mode.pr_meta.get().await?;
                         let url = format!(
@@ -694,6 +706,59 @@ async fn post_comment_flow(meta: &PrMeta, hunk: &DiffHunk) -> Result<()> {
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(anyhow!("gh api comment failed: {}", stderr));
+    }
+
+    Ok(())
+}
+
+async fn post_file_comment_flow(meta: &PrMeta, file_path: &str) -> Result<()> {
+    let marker = "=".repeat(40);
+    let template = format!("\n{marker}\n{file_path}");
+
+    let tmp_file = tempfile::Builder::new().suffix(".md").tempfile()?;
+    std::fs::write(tmp_file.path(), &template)?;
+
+    Command::new("nvimw")
+        .arg("--tmux-popup")
+        .arg(tmp_file.path())
+        .spawn()?
+        .wait()
+        .await?;
+
+    let content = std::fs::read_to_string(tmp_file.path())?;
+    let body = content
+        .split(&marker)
+        .next()
+        .unwrap_or("")
+        .trim()
+        .to_string();
+
+    if body.is_empty() {
+        return Ok(());
+    }
+
+    let endpoint = format!(
+        "repos/{}/{}/pulls/{}/comments",
+        meta.owner, meta.repo, meta.number
+    );
+
+    let args = vec![
+        "api".to_string(),
+        endpoint,
+        "-f".to_string(),
+        format!("body={}", body),
+        "-f".to_string(),
+        format!("commit_id={}", meta.head_sha),
+        "-f".to_string(),
+        format!("path={}", file_path),
+        "-f".to_string(),
+        "subject_type=file".to_string(),
+    ];
+
+    let output = Command::new("gh").args(&args).output().await?;
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(anyhow!("gh api file comment failed: {}", stderr));
     }
 
     Ok(())
