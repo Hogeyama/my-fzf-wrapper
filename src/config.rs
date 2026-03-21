@@ -100,22 +100,21 @@ impl Config {
             }
         }
 
-        // 固定バインディング (サーバー往復不要)
-        let fixed_keys: HashSet<&str> = ["shift-right"].iter().cloned().collect();
+        // 固定バインディング
+        let mut bindings = HashMap::from([
+            (
+                "shift-right".to_string(),
+                vec![ModeAction::Fzf(crate::utils::fzf::Action::Raw(
+                    "change-preview-window[bottom:90%:border-top|right:50%:noborder]".to_string(),
+                ))],
+            ),
+        ]);
 
-        let mut bindings = HashMap::new();
-
-        // 固定バインディング: shift-right
-        bindings.insert(
-            "shift-right".to_string(),
-            vec![ModeAction::Fzf(crate::utils::fzf::Action::Raw(
-                "change-preview-window[bottom:90%:border-top|right:50%:noborder]".to_string(),
-            ))],
-        );
+        let fixed_keys: HashSet<String> = bindings.keys().cloned().collect();
 
         // 全モード依存キーを execute-silent 経由で dispatch
         for key in &all_keys {
-            if fixed_keys.contains(key.as_str()) {
+            if fixed_keys.contains(key) {
                 continue;
             }
             bindings.insert(
