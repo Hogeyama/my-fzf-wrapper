@@ -60,8 +60,8 @@ fn render_pr_item(pr: &GhPrItem) -> String {
 impl ModeDef for GhPr {
     fn name(&self) -> &'static str {
         match self {
-            GhPr::Open => "git-pr(open)",
-            GhPr::All => "git-pr(all)",
+            GhPr::Open => "pr-list(open)",
+            GhPr::All => "pr-list(all)",
         }
     }
 
@@ -280,12 +280,12 @@ mod tests {
 
     #[test]
     fn mode_name_is_git_pr_open_for_open_variant() {
-        assert_eq!(GhPr::Open.name(), "git-pr(open)");
+        assert_eq!(GhPr::Open.name(), "pr-list(open)");
     }
 
     #[test]
     fn mode_name_is_git_pr_all_for_all_variant() {
-        assert_eq!(GhPr::All.name(), "git-pr(all)");
+        assert_eq!(GhPr::All.name(), "pr-list(all)");
     }
 
     #[test]

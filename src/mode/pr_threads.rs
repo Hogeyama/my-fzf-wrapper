@@ -127,7 +127,7 @@ struct CommitRef {
 
 impl ModeDef for GitReview {
     fn name(&self) -> &'static str {
-        "git-review"
+        "pr-threads"
     }
 
     fn load<'a>(
@@ -683,7 +683,7 @@ mod tests {
 
     #[test]
     fn mode_name_is_git_review() {
-        assert_eq!(GitReview::new().name(), "git-review");
+        assert_eq!(GitReview::new().name(), "pr-threads");
     }
 
     #[test]
