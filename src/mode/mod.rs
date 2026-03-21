@@ -16,16 +16,9 @@ pub mod mark;
 pub mod menu;
 pub mod mru;
 pub mod nvim_session;
-<<<<<<< HEAD
-pub mod pr;
-||||||| parent of a9fb311 (refactor(mode): git-pr → pr-list, git-review → pr-threads にリネーム)
-pub mod pr;
-pub mod pr_diff;
-=======
 pub mod pr_diff;
 pub mod pr_list;
 pub mod pr_threads;
->>>>>>> a9fb311 (refactor(mode): git-pr → pr-list, git-review → pr-threads にリネーム)
 pub mod runner;
 pub mod visits;
 pub mod zoxide;
@@ -224,6 +217,7 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(visits::Visits::project())),
         Box::pin(|| f(pr_list::GhPr::Open)),
         Box::pin(|| f(pr_list::GhPr::All)),
+        Box::pin(|| f(pr_diff::PrDiff::new())),
         Box::pin(move || f(runner.clone())),
         Box::pin(move || f(runner_commands.clone())),
     ];
