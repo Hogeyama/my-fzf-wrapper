@@ -10,14 +10,14 @@ pub mod git_branch;
 pub mod git_diff;
 pub mod git_log;
 pub mod git_reflog;
-pub mod git_review;
 pub mod git_status;
 pub mod livegrep;
 pub mod mark;
 pub mod menu;
 pub mod mru;
 pub mod nvim_session;
-pub mod pr;
+pub mod pr_list;
+pub mod pr_threads;
 pub mod runner;
 pub mod visits;
 pub mod zoxide;
@@ -205,7 +205,7 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(git_log::GitLog::Head)),
         Box::pin(|| f(git_log::GitLog::All)),
         Box::pin(|| f(git_reflog::GitReflog)),
-        Box::pin(|| f(git_review::GitReview::new())),
+        Box::pin(|| f(pr_threads::GitReview::new())),
         Box::pin(|| f(git_status::GitStatus)),
         Box::pin(|| f(git_diff::GitDiff::new())),
         Box::pin(|| f(nvim_session::NeovimSession)),
@@ -214,8 +214,8 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(livegrep::LiveGrepF)),
         Box::pin(|| f(visits::Visits::all())),
         Box::pin(|| f(visits::Visits::project())),
-        Box::pin(|| f(pr::GhPr::Open)),
-        Box::pin(|| f(pr::GhPr::All)),
+        Box::pin(|| f(pr_list::GhPr::Open)),
+        Box::pin(|| f(pr_list::GhPr::All)),
         Box::pin(move || f(runner.clone())),
         Box::pin(move || f(runner_commands.clone())),
     ];
