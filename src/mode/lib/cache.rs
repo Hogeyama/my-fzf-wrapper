@@ -40,6 +40,15 @@ impl<T: Clone> ModeCache<T> {
         Ok(f(data))
     }
 
+    /// ロックを保持したまま可変クロージャを実行
+    pub async fn with_mut<R>(&self, f: impl FnOnce(&mut T) -> R) -> Result<R> {
+        let mut guard = self.inner.lock().await;
+        let data = guard
+            .as_mut()
+            .ok_or_else(|| anyhow!("mode data not loaded yet"))?;
+        Ok(f(data))
+    }
+
     #[allow(dead_code)]
     pub async fn clear(&self) {
         *self.inner.lock().await = None;
