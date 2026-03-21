@@ -50,6 +50,7 @@ struct DiffHunk {
     new_start: usize,
     lines: Vec<DiffLine>,
     raw_text: String,
+    rename_from: Option<String>,
 }
 
 #[derive(Clone, Debug)]
@@ -273,6 +274,8 @@ async fn fetch_pr_diff() -> Result<String> {
 fn parse_unified_diff(diff: &str) -> Vec<DiffHunk> {
     let mut hunks = Vec::new();
     let mut current_file: Option<String> = None;
+    let mut rename_from: Option<String> = None;
+    let mut has_hunks = false;
 
     let lines: Vec<&str> = diff.lines().collect();
     let mut i = 0;
@@ -281,7 +284,34 @@ fn parse_unified_diff(diff: &str) -> Vec<DiffHunk> {
         let line = lines[i];
 
         if line.starts_with("diff --git ") {
+            // Flush rename-only entry from previous file section
+            if let (Some(ref new_path), Some(ref old_path)) = (&current_file, &rename_from) {
+                if !has_hunks {
+                    hunks.push(DiffHunk {
+                        file_path: new_path.clone(),
+                        hunk_header: String::new(),
+                        new_start: 0,
+                        lines: vec![],
+                        raw_text: format!("rename from {}\nrename to {}", old_path, new_path),
+                        rename_from: Some(old_path.clone()),
+                    });
+                }
+            }
             current_file = None;
+            rename_from = None;
+            has_hunks = false;
+            i += 1;
+            continue;
+        }
+
+        if let Some(path) = line.strip_prefix("rename from ") {
+            rename_from = Some(path.to_string());
+            i += 1;
+            continue;
+        }
+
+        if let Some(path) = line.strip_prefix("rename to ") {
+            current_file = Some(path.to_string());
             i += 1;
             continue;
         }
@@ -313,6 +343,7 @@ fn parse_unified_diff(diff: &str) -> Vec<DiffHunk> {
             };
 
             if let Some((new_start, _new_lines, old_start)) = parse_hunk_header(line) {
+                has_hunks = true;
                 let hunk_header = line.to_string();
                 let mut hunk_lines = Vec::new();
                 let mut raw_lines = vec![line.to_string()];
@@ -373,6 +404,7 @@ fn parse_unified_diff(diff: &str) -> Vec<DiffHunk> {
                     new_start,
                     lines: hunk_lines,
                     raw_text: raw_lines.join("\n"),
+                    rename_from: rename_from.clone(),
                 });
                 continue;
             }
@@ -380,6 +412,20 @@ fn parse_unified_diff(diff: &str) -> Vec<DiffHunk> {
 
         // Binary files, index lines, etc.
         i += 1;
+    }
+
+    // Flush last file section if rename-only
+    if let (Some(ref new_path), Some(ref old_path)) = (&current_file, &rename_from) {
+        if !has_hunks {
+            hunks.push(DiffHunk {
+                file_path: new_path.clone(),
+                hunk_header: String::new(),
+                new_start: 0,
+                lines: vec![],
+                raw_text: format!("rename from {}\nrename to {}", old_path, new_path),
+                rename_from: Some(old_path.clone()),
+            });
+        }
     }
 
     hunks
@@ -415,6 +461,17 @@ fn parse_hunk_header(header: &str) -> Option<(usize, usize, usize)> {
 // ---------------------------------------------------------------------------
 
 fn render_hunk_item(index: usize, hunk: &DiffHunk) -> String {
+    let rename_prefix = hunk
+        .rename_from
+        .as_ref()
+        .map(|from| format!("{} → ", from))
+        .unwrap_or_default();
+
+    if hunk.lines.is_empty() {
+        // Rename-only (no content changes)
+        return format!("{}{}  (renamed) |{}", rename_prefix, hunk.file_path, index);
+    }
+
     let additions = hunk
         .lines
         .iter()
@@ -426,8 +483,8 @@ fn render_hunk_item(index: usize, hunk: &DiffHunk) -> String {
         .filter(|l| l.kind == DiffLineKind::Removed)
         .count();
     format!(
-        "{}:{} (+{}/-{}) |{}",
-        hunk.file_path, hunk.new_start, additions, deletions, index
+        "{}{}:{} (+{}/-{}) |{}",
+        rename_prefix, hunk.file_path, hunk.new_start, additions, deletions, index
     )
 }
 
@@ -779,6 +836,7 @@ diff --git a/f.rs b/f.rs
                 },
             ],
             raw_text: String::new(),
+            rename_from: None,
         };
         let rendered = render_hunk_item(42, &hunk);
         assert!(rendered.contains("src/lib.rs:1"));
@@ -795,6 +853,7 @@ diff --git a/f.rs b/f.rs
             new_start: 1,
             lines: vec![],
             raw_text: "@@ -1,1 +1,2 @@\n keep\n+added".to_string(),
+            rename_from: None,
         };
         let colored = colorize_hunk(&hunk);
         // Should contain ANSI escape codes
@@ -834,6 +893,101 @@ diff --git a/old.rs b/old.rs
     #[test]
     fn wants_sort_is_false() {
         assert!(!PrDiff::new().wants_sort());
+    }
+
+    // -- rename tests --
+
+    #[test]
+    fn parse_unified_diff_rename_only() {
+        let diff = "\
+diff --git a/old.rs b/new.rs
+similarity index 100%
+rename from old.rs
+rename to new.rs";
+        let hunks = parse_unified_diff(diff);
+        assert_eq!(hunks.len(), 1);
+        assert_eq!(hunks[0].file_path, "new.rs");
+        assert_eq!(hunks[0].rename_from.as_deref(), Some("old.rs"));
+        assert!(hunks[0].lines.is_empty());
+        assert!(hunks[0].raw_text.contains("rename from old.rs"));
+    }
+
+    #[test]
+    fn parse_unified_diff_rename_with_changes() {
+        let diff = "\
+diff --git a/old.rs b/new.rs
+similarity index 90%
+rename from old.rs
+rename to new.rs
+--- a/old.rs
++++ b/new.rs
+@@ -1,2 +1,3 @@
+ keep
++added
+ keep2";
+        let hunks = parse_unified_diff(diff);
+        assert_eq!(hunks.len(), 1);
+        assert_eq!(hunks[0].file_path, "new.rs");
+        assert_eq!(hunks[0].rename_from.as_deref(), Some("old.rs"));
+        assert_eq!(hunks[0].lines.len(), 3);
+    }
+
+    #[test]
+    fn render_hunk_item_rename_only() {
+        let hunk = DiffHunk {
+            file_path: "new.rs".to_string(),
+            hunk_header: String::new(),
+            new_start: 0,
+            lines: vec![],
+            raw_text: String::new(),
+            rename_from: Some("old.rs".to_string()),
+        };
+        let rendered = render_hunk_item(5, &hunk);
+        assert!(rendered.contains("old.rs → new.rs"));
+        assert!(rendered.contains("(renamed)"));
+        assert_eq!(parse_hunk_index(&rendered).unwrap(), 5);
+    }
+
+    #[test]
+    fn render_hunk_item_rename_with_changes() {
+        let hunk = DiffHunk {
+            file_path: "new.rs".to_string(),
+            hunk_header: "@@ -1,2 +1,3 @@".to_string(),
+            new_start: 1,
+            lines: vec![DiffLine {
+                kind: DiffLineKind::Added,
+                content: "x".to_string(),
+                old_lineno: None,
+                new_lineno: Some(1),
+            }],
+            raw_text: String::new(),
+            rename_from: Some("old.rs".to_string()),
+        };
+        let rendered = render_hunk_item(3, &hunk);
+        assert!(rendered.contains("old.rs → new.rs:1"));
+        assert!(rendered.contains("(+1/-0)"));
+    }
+
+    #[test]
+    fn parse_unified_diff_rename_followed_by_normal() {
+        let diff = "\
+diff --git a/old.rs b/new.rs
+similarity index 100%
+rename from old.rs
+rename to new.rs
+diff --git a/other.rs b/other.rs
+--- a/other.rs
++++ b/other.rs
+@@ -1,1 +1,2 @@
+ keep
++added";
+        let hunks = parse_unified_diff(diff);
+        assert_eq!(hunks.len(), 2);
+        assert_eq!(hunks[0].file_path, "new.rs");
+        assert_eq!(hunks[0].rename_from.as_deref(), Some("old.rs"));
+        assert!(hunks[0].lines.is_empty());
+        assert_eq!(hunks[1].file_path, "other.rs");
+        assert!(hunks[1].rename_from.is_none());
     }
 
     // -- compute_comment_range tests --
