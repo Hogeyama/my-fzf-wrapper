@@ -246,6 +246,33 @@ pub async fn restore_file(
     Ok(output)
 }
 
+pub async fn restore_ours(file: impl AsRef<str>) -> Result<Output> {
+    let output = Command::new("git")
+        .current_dir(workdir()?)
+        .args(["restore", "--ours", file.as_ref()])
+        .output()
+        .await?;
+    Ok(output)
+}
+
+pub async fn restore_theirs(file: impl AsRef<str>) -> Result<Output> {
+    let output = Command::new("git")
+        .current_dir(workdir()?)
+        .args(["restore", "--theirs", file.as_ref()])
+        .output()
+        .await?;
+    Ok(output)
+}
+
+pub async fn restore_merge(file: impl AsRef<str>) -> Result<Output> {
+    let output = Command::new("git")
+        .current_dir(workdir()?)
+        .args(["restore", "--merge", file.as_ref()])
+        .output()
+        .await?;
+    Ok(output)
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // Remote
 ////////////////////////////////////////////////////////////////////////////////

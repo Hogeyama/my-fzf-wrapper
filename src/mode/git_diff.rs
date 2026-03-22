@@ -257,6 +257,33 @@ impl ModeDef for GitDiff {
                         }
                     }
                 }
+                ExecOpts::RestoreOurs => {
+                    let item = Item::parse(&item)?;
+                    if item.is_conflicted() {
+                        let output = git::restore_ours(item.file()).await?;
+                        env.nvim
+                            .notify_command_result_if_error("git restore --ours", output)
+                            .await?;
+                    }
+                }
+                ExecOpts::RestoreTheirs => {
+                    let item = Item::parse(&item)?;
+                    if item.is_conflicted() {
+                        let output = git::restore_theirs(item.file()).await?;
+                        env.nvim
+                            .notify_command_result_if_error("git restore --theirs", output)
+                            .await?;
+                    }
+                }
+                ExecOpts::RestoreMerge => {
+                    let item = Item::parse(&item)?;
+                    if item.is_conflicted() {
+                        let output = git::restore_merge(item.file()).await?;
+                        env.nvim
+                            .notify_command_result_if_error("git restore --merge", output)
+                            .await?;
+                    }
+                }
                 ExecOpts::Commit => {
                     Command::new("git")
                         .arg("commit")
@@ -408,6 +435,18 @@ impl ModeDef for GitDiff {
                         let opts = ExecOpts::Open { tabedit: false, vscode: true }.value();
                         mode.execute(env, state, item, opts).await
                     },
+                    "restore(ours)" => {
+                        let opts = ExecOpts::RestoreOurs.value();
+                        mode.execute(env, state, item, opts).await
+                    },
+                    "restore(theirs)" => {
+                        let opts = ExecOpts::RestoreTheirs.value();
+                        mode.execute(env, state, item, opts).await
+                    },
+                    "restore(merge)" => {
+                        let opts = ExecOpts::RestoreMerge.value();
+                        mode.execute(env, state, item, opts).await
+                    },
                 }
             ]
         }
@@ -426,6 +465,9 @@ enum ExecOpts {
     Unstage,
     UnstageFile,
     Discard,
+    RestoreOurs,
+    RestoreTheirs,
+    RestoreMerge,
     Commit,
     CommitFixup,
     CommitInstantFixup,
@@ -491,6 +533,10 @@ impl Item {
                 | Item::UnstagedBinaryChange { .. }
                 | Item::AddedBinaryFile { .. }
         )
+    }
+
+    fn is_conflicted(&self) -> bool {
+        matches!(self, Item::ConflictedFile { .. })
     }
 
     fn is_deletion(&self) -> bool {
