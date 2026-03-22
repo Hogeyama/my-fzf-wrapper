@@ -435,15 +435,15 @@ impl ModeDef for GitDiff {
                         let opts = ExecOpts::Open { tabedit: false, vscode: true }.value();
                         mode.execute(env, state, item, opts).await
                     },
-                    "restore(ours)" => {
+                    "restore(ours)", when is_conflicted_item(&item) => {
                         let opts = ExecOpts::RestoreOurs.value();
                         mode.execute(env, state, item, opts).await
                     },
-                    "restore(theirs)" => {
+                    "restore(theirs)", when is_conflicted_item(&item) => {
                         let opts = ExecOpts::RestoreTheirs.value();
                         mode.execute(env, state, item, opts).await
                     },
-                    "restore(merge)" => {
+                    "restore(merge)", when is_conflicted_item(&item) => {
                         let opts = ExecOpts::RestoreMerge.value();
                         mode.execute(env, state, item, opts).await
                     },
@@ -456,6 +456,10 @@ impl ModeDef for GitDiff {
             "right:60%:noborder".to_string(),
         )]
     }
+}
+
+fn is_conflicted_item(item: &str) -> bool {
+    Item::parse(item).is_ok_and(|i| i.is_conflicted())
 }
 
 #[derive(Serialize, serde::Deserialize)]

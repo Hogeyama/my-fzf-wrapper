@@ -691,13 +691,53 @@ pub mod config_builder {
 
     #[macro_export]
     macro_rules! select_and_execute {
+        // 条件付き + 後続あり
+        (@arms [$($items:tt)*] [$($arms:tt)*]
+         $k:expr , when $cond:expr => $v:expr , $($rest:tt)*) => {
+            select_and_execute!(@arms
+                [$($items)* ($k, $cond),]
+                [$($arms)* $k => { $v }]
+                $($rest)*)
+        };
+        // 無条件 + 後続あり
+        (@arms [$($items:tt)*] [$($arms:tt)*]
+         $k:expr => $v:expr , $($rest:tt)*) => {
+            select_and_execute!(@arms
+                [$($items)* ($k, true),]
+                [$($arms)* $k => { $v }]
+                $($rest)*)
+        };
+        // 条件付き 末尾
+        (@arms [$($items:tt)*] [$($arms:tt)*]
+         $k:expr , when $cond:expr => $v:expr) => {
+            select_and_execute!(@arms
+                [$($items)* ($k, $cond),]
+                [$($arms)* $k => { $v }])
+        };
+        // 無条件 末尾
+        (@arms [$($items:tt)*] [$($arms:tt)*]
+         $k:expr => $v:expr) => {
+            select_and_execute!(@arms
+                [$($items)* ($k, true),]
+                [$($arms)* $k => { $v }])
+        };
+        // ベースケース: コード生成
+        (@arms [$(($k_item:expr, $cond_item:expr),)*] [$($arms:tt)*]) => {{
+            let __items: Vec<&str> = [$(($k_item, $cond_item)),*]
+                .into_iter()
+                .filter(|(_, cond)| *cond)
+                .map(|(k, _)| k)
+                .collect();
+            match &*$crate::utils::fzf::select(__items).await? {
+                $($arms)*
+                _ => { Ok(()) }
+            }
+        }};
+        // エントリポイント
         ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident|
-         $($k:expr => $v:expr),* $(,)?) => {
+         $($rest:tt)*) => {
             $builder.execute_as::<Self, _>(|$mode, $config, $state, $query, $item| async move {
-                match &*$crate::utils::fzf::select(vec![$($k),*]).await? {
-                    $($k => { $v })*
-                    _ => { Ok(()) }
-                }
+                select_and_execute!(@arms [] [] $($rest)*)
             }.boxed())
         };
     }
