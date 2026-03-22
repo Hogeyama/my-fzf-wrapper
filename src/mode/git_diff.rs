@@ -514,7 +514,7 @@ impl Item {
     }
 
     fn can_stage(&self) -> bool {
-        !self.is_staged() && !matches!(self, Item::ConflictedFile { .. })
+        !self.is_staged()
     }
 
     fn can_unstage(&self) -> bool {
