@@ -15,7 +15,6 @@ pub mod livegrep;
 pub mod mark;
 pub mod menu;
 pub mod mru;
-pub mod nvim_session;
 pub mod pr_diff;
 pub mod pr_list;
 pub mod pr_threads;
@@ -209,7 +208,6 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(pr_threads::GitReview::new())),
         Box::pin(|| f(git_status::GitStatus)),
         Box::pin(|| f(git_diff::GitDiff::new())),
-        Box::pin(|| f(nvim_session::NeovimSession)),
         Box::pin(|| f(livegrep::LiveGrep::new())),
         Box::pin(|| f(livegrep::LiveGrep::new_no_ignore())),
         Box::pin(|| f(livegrep::LiveGrepF)),
