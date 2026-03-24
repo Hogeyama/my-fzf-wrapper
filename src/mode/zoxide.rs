@@ -7,7 +7,6 @@ use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::ModeDef;
-use crate::state::State;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::zoxide;
 
@@ -21,7 +20,6 @@ impl ModeDef for Zoxide {
     fn load(
         &self,
         _env: &Env,
-        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {

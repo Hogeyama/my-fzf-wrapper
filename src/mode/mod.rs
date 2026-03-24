@@ -33,7 +33,6 @@ use std::collections::HashMap;
 use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
-use crate::state::State;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 
@@ -263,7 +262,6 @@ pub trait ModeDef: AsAny {
     fn load<'a>(
         &'a self,
         config: &'a Env,
-        state: &'a State,
         query: String,
         item: String, // currently selected item
     ) -> LoadStream<'a>;
@@ -281,7 +279,6 @@ pub trait ModeDef: AsAny {
     fn execute<'a>(
         &'a self,
         _config: &'a Env,
-        _state: &'a State,
         _item: String,
         _args: serde_json::Value,
     ) -> BoxFuture<'a, Result<()>> {
@@ -310,7 +307,6 @@ pub struct LoadCallback {
         dyn for<'a> Fn(
                 &'a (dyn ModeDef + Sync + Send),
                 &'a Env,
-                &'a State,
                 String,
                 String,
             ) -> LoadStream<'a>
@@ -339,7 +335,6 @@ pub struct ExecuteCallback {
         dyn for<'a> Fn(
                 &'a (dyn ModeDef + Sync + Send),
                 &'a Env,
-                &'a State,
                 String,
                 String,
             ) -> BoxFuture<'a, Result<()>>
@@ -348,10 +343,9 @@ pub struct ExecuteCallback {
     >,
 }
 
-/// モード切替の共通処理: state.mode を更新 + fzf アクション生成 + POST
+/// モード切替の共通処理: env.mode を更新 + fzf アクション生成 + POST
 pub async fn do_change_mode(
     env: &Env,
-    state: &State,
     mode_name: &str,
     keep_query: bool,
 ) -> anyhow::Result<()> {
@@ -360,7 +354,7 @@ pub async fn do_change_mode(
         .get(mode_name)
         .ok_or_else(|| anyhow::anyhow!("unknown mode: {}", mode_name))?;
 
-    let mut mode = state.mode.write().await;
+    let mut mode = env.mode.write().await;
     mode.set_current_mode_name(mode_name.to_string());
 
     let mut actions: Vec<ModeAction> = vec![
@@ -403,7 +397,6 @@ pub mod config_builder {
     use crate::mode::ModeAction;
     use crate::mode::ModeDef;
     use crate::nvim::NeovimExt;
-    use crate::state::State;
     use crate::utils::fzf;
     use anyhow::Result;
     use futures::future::BoxFuture;
@@ -433,7 +426,6 @@ pub mod config_builder {
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
                     &'a Env,
-                    &'a State,
                     String,
                     String,
                 ) -> BoxFuture<'a, Result<()>>
@@ -454,7 +446,6 @@ pub mod config_builder {
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
                     &'a Env,
-                    &'a State,
                     String,
                     String,
                 ) -> BoxFuture<'a, Result<()>>
@@ -479,7 +470,6 @@ pub mod config_builder {
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
                     &'a Env,
-                    &'a State,
                     String,
                     String,
                 ) -> super::LoadStream<'a>
@@ -497,9 +487,9 @@ pub mod config_builder {
 
         pub fn change_mode(&mut self, mode: impl Into<String>, keep_query: bool) -> ModeAction {
             let mode_name = mode.into();
-            self.execute_silent(move |_mode_def, env, state, _query, _item| {
+            self.execute_silent(move |_mode_def, env, _query, _item| {
                 let mode_name = mode_name.clone();
-                async move { super::do_change_mode(env, state, &mode_name, keep_query).await }
+                async move { super::do_change_mode(env, &mode_name, keep_query).await }
                     .boxed()
             })
         }
@@ -538,7 +528,6 @@ pub mod config_builder {
             F: for<'a> Fn(
                     &'a M,
                     &'a Env,
-                    &'a State,
                     String,
                     String,
                 ) -> BoxFuture<'a, Result<()>>
@@ -546,12 +535,12 @@ pub mod config_builder {
                 + Sync
                 + 'static,
         {
-            self.execute(move |mode_dyn, config, state, query, item| {
+            self.execute(move |mode_dyn, config, query, item| {
                 let mode = mode_dyn
                     .as_any()
                     .downcast_ref::<M>()
                     .expect("ConfigBuilder type mismatch: callback registered for wrong mode");
-                callback(mode, config, state, query, item)
+                callback(mode, config, query, item)
             })
         }
 
@@ -561,7 +550,6 @@ pub mod config_builder {
             F: for<'a> Fn(
                     &'a M,
                     &'a Env,
-                    &'a State,
                     String,
                     String,
                 ) -> BoxFuture<'a, Result<()>>
@@ -569,29 +557,29 @@ pub mod config_builder {
                 + Sync
                 + 'static,
         {
-            self.execute_silent(move |mode_dyn, config, state, query, item| {
+            self.execute_silent(move |mode_dyn, config, query, item| {
                 let mode = mode_dyn
                     .as_any()
                     .downcast_ref::<M>()
                     .expect("ConfigBuilder type mismatch: callback registered for wrong mode");
-                callback(mode, config, state, query, item)
+                callback(mode, config, query, item)
             })
         }
 
         pub fn reload_with_as<M, F>(&mut self, callback: F) -> ModeAction
         where
             M: ModeDef + Send + Sync + 'static,
-            for<'a> F: Fn(&'a M, &'a Env, &'a State, String, String) -> super::LoadStream<'a>
+            for<'a> F: Fn(&'a M, &'a Env, String, String) -> super::LoadStream<'a>
                 + Send
                 + Sync
                 + 'static,
         {
-            self.reload_with(move |mode_dyn, config, state, query, item| {
+            self.reload_with(move |mode_dyn, config, query, item| {
                 let mode = mode_dyn
                     .as_any()
                     .downcast_ref::<M>()
                     .expect("ConfigBuilder type mismatch: callback registered for wrong mode");
-                callback(mode, config, state, query, item)
+                callback(mode, config, query, item)
             })
         }
 
@@ -601,7 +589,7 @@ pub mod config_builder {
 
         /// Neovim でファイルを開く execute アクションを生成
         pub fn open_nvim<E: ItemExtractor>(&mut self, extractor: E, tabedit: bool) -> ModeAction {
-            self.execute(move |_mode, config, _state, _query, item| {
+            self.execute(move |_mode, config, _query, item| {
                 let e = extractor.clone();
                 async move {
                     let file = e.file(&item)?;
@@ -618,7 +606,7 @@ pub mod config_builder {
             extractor: E,
             tabedit: bool,
         ) -> ModeAction {
-            self.execute_silent(move |_mode, config, _state, _query, item| {
+            self.execute_silent(move |_mode, config, _query, item| {
                 let e = extractor.clone();
                 async move {
                     let file = e.file(&item)?;
@@ -631,7 +619,7 @@ pub mod config_builder {
 
         /// VSCode でファイルを開く execute アクションを生成
         pub fn open_vscode<E: ItemExtractor>(&mut self, extractor: E) -> ModeAction {
-            self.execute(move |_mode, config, _state, _query, item| {
+            self.execute(move |_mode, config, _query, item| {
                 let e = extractor.clone();
                 async move {
                     let file = e.file(&item)?;
@@ -644,7 +632,7 @@ pub mod config_builder {
 
         /// ファイルパスを yank する execute_silent アクションを生成
         pub fn yank_file<E: ItemExtractor>(&mut self, extractor: E) -> ModeAction {
-            self.execute_silent(move |_mode, _config, _state, _query, item| {
+            self.execute_silent(move |_mode, _config, _query, item| {
                 let e = extractor.clone();
                 async move { actions::yank(e.file(&item)?).await }.boxed()
             })
@@ -670,8 +658,8 @@ pub mod config_builder {
 
     #[macro_export]
     macro_rules! execute {
-        ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
-            $builder.execute_as::<Self, _>(|$mode, $config, $state, $query, $item| {
+        ($builder:ident, |$mode:ident, $config:ident, $query:ident, $item:ident| $v:expr) => {
+            $builder.execute_as::<Self, _>(|$mode, $config, $query, $item| {
                 async move { $v }.boxed()
             })
         };
@@ -680,8 +668,8 @@ pub mod config_builder {
 
     #[macro_export]
     macro_rules! execute_silent {
-        ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident| $v:expr) => {
-            $builder.execute_silent_as::<Self, _>(|$mode, $config, $state, $query, $item| {
+        ($builder:ident, |$mode:ident, $config:ident, $query:ident, $item:ident| $v:expr) => {
+            $builder.execute_silent_as::<Self, _>(|$mode, $config, $query, $item| {
                 async move { $v }.boxed()
             })
         };
@@ -733,9 +721,9 @@ pub mod config_builder {
             }
         }};
         // エントリポイント
-        ($builder:ident, |$mode:ident, $config:ident, $state:ident, $query:ident, $item:ident|
+        ($builder:ident, |$mode:ident, $config:ident, $query:ident, $item:ident|
          $($rest:tt)*) => {
-            $builder.execute_as::<Self, _>(|$mode, $config, $state, $query, $item| async move {
+            $builder.execute_as::<Self, _>(|$mode, $config, $query, $item| async move {
                 select_and_execute!(@arms [] [] $($rest)*)
             }.boxed())
         };
@@ -794,7 +782,7 @@ pub mod config_builder {
                 b.change_mode(super::browser_bookmark::BrowserBookmark::new().name(), false),
             ],
             "ctrl-u" => [
-                b.execute_silent(|_mode, _env, _state, _query, _item| {
+                b.execute_silent(|_mode, _env, _query, _item| {
                     async move {
                         let mut dir = std::env::current_dir()?;
                         dir.pop();
@@ -805,7 +793,7 @@ pub mod config_builder {
                 b.reload(),
             ],
             "ctrl-l" => [
-                b.execute_silent(|_mode, _env, _state, _query, item| {
+                b.execute_silent(|_mode, _env, _query, item| {
                     async move {
                         let path = std::fs::canonicalize(&item)?;
                         let dir = match std::fs::metadata(&path) {
@@ -822,7 +810,7 @@ pub mod config_builder {
                 b.reload(),
             ],
             "ctrl-n" => [
-                b.execute_silent(|_mode, env, _state, _query, _item| {
+                b.execute_silent(|_mode, env, _query, _item| {
                     async move {
                         let path = env.nvim.last_opened_file().await?;
                         let path = std::fs::canonicalize(path)?;

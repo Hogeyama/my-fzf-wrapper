@@ -12,7 +12,6 @@ use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
-use crate::state::State;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
@@ -28,7 +27,6 @@ impl ModeDef for GitBranch {
     fn load(
         &self,
         _env: &Env,
-        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -65,7 +63,7 @@ impl ModeDef for GitBranch {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,env,_state,_query,branch|
+                select_and_execute!{b, |_mode,env,_query,branch|
                     "push" => {
                         push_branch_to_remote(&env.nvim, branch, false).await
                     },
@@ -112,13 +110,13 @@ impl ModeDef for GitBranch {
                 b.reload(),
             ],
             "ctrl-y" => [
-                execute!(b, |_mode,_env,_state,_query,branch| {
+                execute!(b, |_mode,_env,_query,branch| {
                     xsel::yank(branch).await?;
                     Ok(())
                 }),
             ],
             "ctrl-p" => [
-                execute!(b, |_mode,env,_state,_query,branch| {
+                execute!(b, |_mode,env,_query,branch| {
                     push_branch_to_remote(&env.nvim, branch, true).await
                 }),
             ],

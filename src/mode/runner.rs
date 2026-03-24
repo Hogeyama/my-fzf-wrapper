@@ -16,7 +16,6 @@ use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::NeovimExt;
-// use crate::state::State; // Conflict with local State
 use crate::mode::fd as mode_fd;
 use crate::utils::command::edit_and_run;
 use crate::utils::fd;
@@ -58,7 +57,6 @@ impl ModeDef for Runner {
     fn load(
         &self,
         _env: &Env,
-        _state: &crate::state::State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -89,7 +87,7 @@ impl ModeDef for Runner {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute_silent!(b, |mode, _env, _state, _query, item| {
+                execute_silent!(b, |mode, _env, _query, item| {
                     mode.state.lock().await.target_file = Some(item);
                     Ok(())
                 }),
@@ -118,7 +116,6 @@ impl ModeDef for RunnerCommands {
     fn load(
         &self,
         _env: &Env,
-        _state: &crate::state::State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -154,14 +151,14 @@ impl ModeDef for RunnerCommands {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |mode, env, _state, _query, item| {
+                execute!(b, |mode, env, _query, item| {
                     let file = mode.state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
                     let (cmd, output) = run_target(&file, &item).await?;
                     env.nvim.notify_command_result(&cmd, output).await
                 })
             ],
             "pgup" => [
-                select_and_execute!{b, |mode, env, _state, _query, item|
+                select_and_execute!{b, |mode, env, _query, item|
                     "execute" => {
                         let file = mode.state.lock().await.target_file.clone().ok_or(anyhow!("no file"))?;
                         let (cmd, output) = run_target(&file, &item).await?;

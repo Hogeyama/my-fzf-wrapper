@@ -18,7 +18,6 @@ use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::Neovim;
-use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf::PreviewWindow;
 
@@ -35,7 +34,6 @@ impl ModeDef for Mru {
     fn load(
         &self,
         env: &Env,
-        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {

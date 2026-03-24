@@ -15,7 +15,6 @@ use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeAction;
 use crate::mode::ModeDef;
-use crate::state::State;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
@@ -106,7 +105,6 @@ impl ModeDef for PrDiff {
     fn load<'a>(
         &'a self,
         _env: &'a Env,
-        _state: &'a State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
@@ -158,7 +156,7 @@ impl ModeDef for PrDiff {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode, env, _state, _query, item| {
+                execute!(b, |_mode, env, _query, item| {
                     let idx = parse_hunk_index(&item)?;
                     let (file, line) = _mode
                         .hunks
@@ -175,7 +173,7 @@ impl ModeDef for PrDiff {
                 })
             ],
             "ctrl-y" => [
-                execute_silent!(b, |_mode, _env, _state, _query, item| {
+                execute_silent!(b, |_mode, _env, _query, item| {
                     let idx = parse_hunk_index(&item)?;
                     let file = _mode
                         .hunks
@@ -189,7 +187,7 @@ impl ModeDef for PrDiff {
                 })
             ],
             "pgup" => [
-                execute!(b, |mode, env, _state, _query, item| {
+                execute!(b, |mode, env, _query, item| {
                     let action = fzf::select(vec![
                         "comment",
                         "comment-file",

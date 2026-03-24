@@ -13,7 +13,6 @@ use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
-use crate::state::State;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
@@ -35,7 +34,6 @@ impl ModeDef for GitLog {
     fn load<'a>(
         &'a self,
         _env: &'a Env,
-        _state: &'a State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
@@ -67,7 +65,7 @@ impl ModeDef for GitLog {
         bindings! {
             b <= default_bindings(),
             "ctrl-l" => [
-                execute_silent!{b, |_mode,env,state,_query,item| {
+                execute_silent!{b, |_mode,env,_query,item| {
                     let query = match branches_of(&item)? {
                         branches if branches.is_empty() => {
                             "".to_string()
@@ -83,7 +81,7 @@ impl ModeDef for GitLog {
                         }
                     };
                     // git-branch に切り替え、選択したブランチを query にセット
-                    mode::do_change_mode(env, state, "git-branch", !query.is_empty()).await?;
+                    mode::do_change_mode(env, "git-branch", !query.is_empty()).await?;
                     if !query.is_empty() {
                         env.post_fzf_actions(&[
                             mode::ModeAction::Fzf(fzf::Action::ClearQuery),
@@ -94,14 +92,14 @@ impl ModeDef for GitLog {
                 }}
             ],
             "ctrl-y" => [
-                execute_silent!{b, |_mode,_env,_state,_query,item| {
+                execute_silent!{b, |_mode,_env,_query,item| {
                     let commit = git::parse_short_commit(&item)?;
                     xsel::yank(commit).await?;
                     Ok(())
                 }}
             ],
             "enter" => [
-                select_and_execute!{b, |_mode,env,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_query,item|
                     "diffview" => {
                         let _ = env.nvim.hide_floaterm().await;
                         env.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))

@@ -8,7 +8,6 @@ use crate::method::PreviewResp;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::state::State;
 use crate::utils::fzf::PreviewWindow;
 
 #[derive(Clone)]
@@ -21,7 +20,6 @@ impl ModeDef for Menu {
     fn load<'a>(
         &'a self,
         env: &'a Env,
-        _state: &'a State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
@@ -56,8 +54,8 @@ impl ModeDef for Menu {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute_silent!(b, |_mode, env, state, _query, item| {
-                    super::do_change_mode(env, state, &item, false).await
+                execute_silent!(b, |_mode, env, _query, item| {
+                    super::do_change_mode(env, &item, false).await
                 }),
             ],
         }

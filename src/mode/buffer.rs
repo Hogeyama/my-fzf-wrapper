@@ -17,7 +17,6 @@ use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
-use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf::PreviewWindow;
 
@@ -34,7 +33,6 @@ impl ModeDef for Buffer {
     fn load(
         &self,
         env: &Env,
-        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -75,7 +73,7 @@ impl ModeDef for Buffer {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,env,_state,_query,item| {
+                execute!(b, |_mode,env,_query,item| {
                     let bufnr = ITEM_PATTERN
                         .replace(&item, "$bufnr")
                         .into_owned()
@@ -84,7 +82,7 @@ impl ModeDef for Buffer {
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,env,_state,_query,item| {
+                execute!(b, |_mode,env,_query,item| {
                     let bufnr = ITEM_PATTERN
                         .replace(&item, "$bufnr")
                         .into_owned()
@@ -93,7 +91,7 @@ impl ModeDef for Buffer {
                 })
             ],
             "ctrl-x" => [
-                execute!(b, |_mode,env,_state,_query,item| {
+                execute!(b, |_mode,env,_query,item| {
                     let bufnr = ITEM_PATTERN
                         .replace(&item, "$bufnr")
                         .into_owned()
@@ -107,7 +105,7 @@ impl ModeDef for Buffer {
                 b.reload(),
             ],
             "ctrl-y" => [
-                execute!(b, |_mode,_env,_state,_query,item| {
+                execute!(b, |_mode,_env,_query,item| {
                     let file = ITEM_PATTERN.replace(&item, "$path");
                     actions::yank(file).await
                 })

@@ -14,7 +14,6 @@ use crate::method::PreviewResp;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::state::State;
 use crate::utils::bat;
 use crate::utils::command;
 use crate::utils::fd;
@@ -30,7 +29,6 @@ impl ModeDef for Fd {
     fn load(
         &self,
         _env: &Env,
-        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -51,7 +49,7 @@ impl ModeDef for Fd {
             "enter" => [ b.open_nvim(FilePathItem, false) ],
             "ctrl-t" => [ b.open_nvim(FilePathItem, true) ],
             "ctrl-v" => [
-                execute!(b, |_mode,_env,_state,_query,_item| {
+                execute!(b, |_mode,_env,_query,_item| {
                     let pwd = std::env::current_dir().unwrap().into_os_string();
                     Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
                     Ok(())
@@ -59,7 +57,7 @@ impl ModeDef for Fd {
             ],
             "ctrl-y" => [ b.yank_file(FilePathItem) ],
             "pgup" => [
-                select_and_execute!{b, |_mode,env,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_query,item|
                     "oil" => {
                         actions::oil(env).await
                     },

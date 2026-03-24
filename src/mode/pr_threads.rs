@@ -13,7 +13,6 @@ use crate::method::PreviewResp;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::state::State;
 use crate::utils::bat;
 use crate::utils::browser;
 use crate::utils::fzf;
@@ -133,7 +132,6 @@ impl ModeDef for GitReview {
     fn load<'a>(
         &'a self,
         _env: &'a Env,
-        _state: &'a State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
@@ -199,7 +197,7 @@ impl ModeDef for GitReview {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!{b, |_mode,env,_state,_query,item| {
+                execute!{b, |_mode,env,_query,item| {
                     let thread = parse_thread_item(&item)?;
                     let workdir = git::workdir()?;
                     let file = format!("{}{}", workdir, thread.path);
@@ -207,7 +205,7 @@ impl ModeDef for GitReview {
                 }}
             ],
             "ctrl-y" => [
-                execute!(b, |mode, _env, _state, _query, item| {
+                execute!(b, |mode, _env, _query, item| {
                     let parsed = parse_thread_item(&item)?;
                     let thread = mode.threads.with(|threads| {
                         threads.iter().find(|t| t.id == parsed.id).cloned()
@@ -221,7 +219,7 @@ impl ModeDef for GitReview {
                 })
             ],
             "pgup" => [
-                execute!(b, |mode, _env, _state, _query, item| {
+                execute!(b, |mode, _env, _query, item| {
                     let parsed = parse_thread_item(&item)?;
                     let resolve_label = if parsed.is_resolved {
                         "unresolve"
@@ -253,12 +251,12 @@ impl ModeDef for GitReview {
                 b.reload()
             ],
             "ctrl-x" => [
-                execute_silent!(b, |mode, _env, _state, _query, _item| {
+                execute_silent!(b, |mode, _env, _query, _item| {
                     let current = mode.unresolved_only.get().await.unwrap_or(false);
                     mode.unresolved_only.set(!current).await;
                     Ok(())
                 }),
-                b.reload_with_as::<Self, _>(|mode, _env, _state, _query, _item| {
+                b.reload_with_as::<Self, _>(|mode, _env, _query, _item| {
                     let unresolved_only = mode.unresolved_only.clone();
                     let threads = mode.threads.clone();
                     Box::pin(async_stream::stream! {

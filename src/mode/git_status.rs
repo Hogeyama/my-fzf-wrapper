@@ -11,7 +11,6 @@ use crate::method::PreviewResp;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::state::State;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
 
@@ -25,7 +24,6 @@ impl ModeDef for GitStatus {
     fn load(
         &self,
         _env: &Env,
-        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -49,28 +47,28 @@ impl ModeDef for GitStatus {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |_mode,env,_state,_query,item| {
+                execute!(b, |_mode,env,_query,item| {
                     let workdir = git::workdir()?;
                     let file = format!("{}{}", workdir, item);
                     actions::open_in_nvim(env, file, None, false).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |_mode,env,_state,_query,item| {
+                execute!(b, |_mode,env,_query,item| {
                     let workdir = git::workdir()?;
                     let file = format!("{}{}", workdir, item);
                     actions::open_in_nvim(env, file, None, true).await
                 })
             ],
             "ctrl-v" => [
-                execute!(b, |_mode,_env,_state,_query,_item| {
+                execute!(b, |_mode,_env,_query,_item| {
                     let pwd = std::env::current_dir().unwrap().into_os_string();
                     Command::new("vifm").arg(&pwd).spawn()?.wait().await?;
                     Ok(())
                 })
             ],
             "pgup" => [
-                select_and_execute!{b, |_mode,env,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_query,item|
                     "neovim" => {
                         let workdir = git::workdir()?;
                         let file = format!("{}{}", workdir, item);

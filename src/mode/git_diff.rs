@@ -27,7 +27,6 @@ use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
-use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
@@ -86,7 +85,6 @@ impl ModeDef for GitDiff {
     fn load<'a>(
         &'a self,
         _env: &Env,
-        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
@@ -184,7 +182,6 @@ impl ModeDef for GitDiff {
     fn execute<'a>(
         &'a self,
         env: &'a Env,
-        _state: &'a State,
         item: String,
         args: serde_json::Value,
     ) -> BoxFuture<'a, Result<()>> {
@@ -349,54 +346,54 @@ impl ModeDef for GitDiff {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |mode,env,state,_query,item| {
+                execute!(b, |mode,env,_query,item| {
                     let opts = ExecOpts::Open { tabedit: false, vscode: false }.value();
-                    mode.execute(env, state, item, opts).await
+                    mode.execute(env, item, opts).await
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |mode,env,state,_query,item| {
+                execute!(b, |mode,env,_query,item| {
                     let opts = ExecOpts::Open { tabedit: false, vscode: false }.value();
-                    mode.execute(env, state, item, opts).await
+                    mode.execute(env, item, opts).await
                 })
             ],
             "ctrl-s" => [
-                execute_silent!(b, |mode,env,state,_query,item| {
+                execute_silent!(b, |mode,env,_query,item| {
                     let opts = ExecOpts::Stage.value();
-                    mode.execute(env, state, item, opts).await
+                    mode.execute(env, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-u" => [
-                execute_silent!(b, |mode,env,state,_query,item| {
+                execute_silent!(b, |mode,env,_query,item| {
                     let opts = ExecOpts::Unstage.value();
-                    mode.execute(env, state, item, opts).await
+                    mode.execute(env, item, opts).await
                 }),
                 b.reload()
             ],
             "alt-s" => [
-                execute_silent!(b, |mode,env,state,_query,item| {
+                execute_silent!(b, |mode,env,_query,item| {
                     let opts = ExecOpts::StageFile.value();
-                    mode.execute(env, state, item, opts).await
+                    mode.execute(env, item, opts).await
                 }),
                 b.reload()
             ],
             "alt-u" => [
-                execute_silent!(b, |mode,env,state,_query,item| {
+                execute_silent!(b, |mode,env,_query,item| {
                     let opts = ExecOpts::UnstageFile.value();
-                    mode.execute(env, state, item, opts).await
+                    mode.execute(env, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-x" => [
-                execute_silent!(b, |mode,env,state,_query,item| {
+                execute_silent!(b, |mode,env,_query,item| {
                     let opts = ExecOpts::Discard.value();
-                    mode.execute(env, state, item, opts).await
+                    mode.execute(env, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-y" => [
-                execute_silent!(b, |_mode,_env,_state,_query,item| {
+                execute_silent!(b, |_mode,_env,_query,item| {
                     let item = Item::parse(&item)?;
                     xsel::yank(item.file()).await?;
                     Ok(())
@@ -404,48 +401,48 @@ impl ModeDef for GitDiff {
                 b.reload()
             ],
             "ctrl-a" => [
-                execute_silent!(b, |mode,env,state,_query,item| {
+                execute_silent!(b, |mode,env,_query,item| {
                     let opts = ExecOpts::Commit.value();
-                    mode.execute(env, state, item, opts).await
+                    mode.execute(env, item, opts).await
                 }),
                 b.reload()
             ],
             "ctrl-v" => [
-                execute!(b, |mode,env,state,_query,item| {
+                execute!(b, |mode,env,_query,item| {
                     let opts = ExecOpts::LazyGit.value();
-                    mode.execute(env, state, item, opts).await
+                    mode.execute(env, item, opts).await
                 }),
                 b.reload()
             ],
             "pgup" => [
-                select_and_execute!{b, |mode,env,state,_query,item|
+                select_and_execute!{b, |mode,env,_query,item|
                     "commit" => {
                         let opts = ExecOpts::Commit.value();
-                        mode.execute(env, state, item, opts).await
+                        mode.execute(env, item, opts).await
                     },
                     "commit(fixup)" => {
                         let opts = ExecOpts::CommitFixup.value();
-                        mode.execute(env, state, item, opts).await
+                        mode.execute(env, item, opts).await
                     },
                     "commit(instant fixup)" => {
                         let opts = ExecOpts::CommitInstantFixup.value();
-                        mode.execute(env, state, item, opts).await
+                        mode.execute(env, item, opts).await
                     },
                     "vscode" => {
                         let opts = ExecOpts::Open { tabedit: false, vscode: true }.value();
-                        mode.execute(env, state, item, opts).await
+                        mode.execute(env, item, opts).await
                     },
                     "restore(ours)", when is_conflicted_item(&item) => {
                         let opts = ExecOpts::RestoreOurs.value();
-                        mode.execute(env, state, item, opts).await
+                        mode.execute(env, item, opts).await
                     },
                     "restore(theirs)", when is_conflicted_item(&item) => {
                         let opts = ExecOpts::RestoreTheirs.value();
-                        mode.execute(env, state, item, opts).await
+                        mode.execute(env, item, opts).await
                     },
                     "restore(merge)", when is_conflicted_item(&item) => {
                         let opts = ExecOpts::RestoreMerge.value();
-                        mode.execute(env, state, item, opts).await
+                        mode.execute(env, item, opts).await
                     },
                 }
             ]

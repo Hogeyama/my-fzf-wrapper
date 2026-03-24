@@ -10,7 +10,6 @@ use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::NeovimExt;
-use crate::state::State;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
 use crate::utils::xsel;
@@ -25,7 +24,6 @@ impl ModeDef for GitReflog {
     fn load(
         &self,
         _env: &Env,
-        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -54,7 +52,7 @@ impl ModeDef for GitReflog {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                select_and_execute!{b, |_mode,env,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_query,item|
                     "diffview" => {
                         let _ = env.nvim.hide_floaterm().await;
                         env.nvim.command(&format!("DiffviewOpen {}^!", git::parse_short_commit(&item)?))
@@ -106,7 +104,7 @@ impl ModeDef for GitReflog {
                 }
             ],
             "ctrl-y" => [
-                execute_silent!{b, |_mode,_env,_state,_query,item| {
+                execute_silent!{b, |_mode,_env,_query,item| {
                     let commit = git::parse_short_commit(&item)?;
                     xsel::yank(commit).await?;
                     Ok(())

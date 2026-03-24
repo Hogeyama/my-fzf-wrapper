@@ -14,7 +14,6 @@ use crate::method::PreviewResp;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::state::State;
 use crate::utils::browser;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::sqlite;
@@ -63,7 +62,6 @@ impl ModeDef for BrowserBookmark {
     fn load<'a>(
         &'a self,
         _env: &'a Env,
-        _state: &'a State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
@@ -95,7 +93,7 @@ impl ModeDef for BrowserBookmark {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |mode, _env, _state, _query, item| {
+                execute!(b, |mode, _env, _query, item| {
                     let url = ITEM_PATTERN.replace(&item, "$url").into_owned();
                     Command::new(mode.browser.as_ref())
                         .arg(&url)

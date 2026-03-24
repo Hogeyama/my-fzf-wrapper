@@ -36,7 +36,6 @@ use crate::method::Method;
 use crate::method::PreviewResp;
 use crate::mode;
 use crate::nvim::Neovim;
-use crate::state::State;
 use crate::utils::fzf;
 
 pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Result<(), String> {
@@ -106,16 +105,20 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
         listen_socket: Some(fzf_listen_socket),
     };
 
-    // Env を構築
+    // Env を構築 (LoadState / ModeState を含む)
     let env = Arc::new(Env {
         config,
         nvim,
         fzf_client: fzf_client.clone(),
         mode_infos: Arc::new(mode_infos),
+        load: Arc::new(RwLock::new(crate::env::LoadState {
+            last_load_resp: None,
+        })),
+        mode: Arc::new(RwLock::new(crate::env::ModeState::new(
+            initial_mode_name,
+            initial_sort,
+        ))),
     });
-
-    // State を構築
-    let state = State::new(initial_mode_name, initial_sort);
 
     let server_state = ServerState {
         fzf: Arc::new(RwLock::new(
@@ -125,7 +128,6 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
                 .expect("Failed to spawn fzf"),
         )),
         all_modes,
-        state,
     };
     let current_load_task = Arc::new(Mutex::new(None));
 
@@ -158,12 +160,11 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
     Ok(())
 }
 
-/// State 内の load / mode は独立ロック。load 中でもモード名の読み書きはブロックされない。
+/// Env 内の load / mode は独立ロック。load 中でもモード名の読み書きはブロックされない。
 #[derive(Clone)]
 struct ServerState {
     fzf: Arc<RwLock<Child>>,
     all_modes: Arc<HashMap<String, ModeEntry>>,
-    state: State,
 }
 
 impl ServerState {
@@ -257,7 +258,7 @@ async fn handle_load_request(
         item,
     } = params;
 
-    let mode_name = server_state.state.mode.read().await.current_mode_name().to_string();
+    let mode_name = env.mode.read().await.current_mode_name().to_string();
     let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     let callback = &entry
@@ -277,13 +278,12 @@ async fn handle_load_request(
         let stream = callback(
             entry.mode.mode_def.as_ref(),
             &env,
-            &server_state.state,
             query,
             item.unwrap_or_default(),
         );
         send_load_stream(stream, tx).await
     };
-    server_state.state.load.write().await.last_load_resp = last_resp;
+    env.load.write().await.last_load_resp = last_resp;
 }
 
 async fn send_load_stream(
@@ -330,7 +330,7 @@ async fn handle_preview_request(
     preview_window: fzf::PreviewWindow,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let mode_name = server_state.state.mode.read().await.current_mode_name().to_string();
+    let mode_name = env.mode.read().await.current_mode_name().to_string();
     let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     let callback = &entry
@@ -375,7 +375,7 @@ async fn handle_execute_request(
 
     // _key: プレフィックス付きの場合: キー dispatch (rendered_bindings を POST)
     if let Some(key) = registered_name.strip_prefix("_key:") {
-        let mode_name = server_state.state.mode.read().await.current_mode_name().to_string();
+        let mode_name = env.mode.read().await.current_mode_name().to_string();
         let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
         let action = match entry.rendered_bindings.get(key) {
@@ -395,7 +395,7 @@ async fn handle_execute_request(
         }
     } else {
         // 通常のコールバック実行
-        let mode_name = server_state.state.mode.read().await.current_mode_name().to_string();
+        let mode_name = env.mode.read().await.current_mode_name().to_string();
         let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
         let callback = &entry
@@ -411,7 +411,7 @@ async fn handle_execute_request(
             })
             .callback;
 
-        match callback(entry.mode.mode_def.as_ref(), &env, &server_state.state, query, item).await {
+        match callback(entry.mode.mode_def.as_ref(), &env, query, item).await {
             Ok(_) => {}
             Err(e) => error!("server: execute error"; "error" => e.to_string()),
         }

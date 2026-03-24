@@ -12,7 +12,6 @@ use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::NeovimExt;
-use crate::state::State;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::glow;
 
@@ -68,7 +67,6 @@ impl ModeDef for GhPr {
     fn load<'a>(
         &'a self,
         _env: &'a Env,
-        _state: &'a State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
@@ -118,7 +116,7 @@ impl ModeDef for GhPr {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute_silent!{b, |_mode,_env,_state,_query,item| {
+                execute_silent!{b, |_mode,_env,_query,item| {
                     let number = parse_pr_number(&item)?;
                     Command::new("gh")
                         .args(["pr", "view", "--web", &number])
@@ -132,7 +130,7 @@ impl ModeDef for GhPr {
                 }}
             ],
             "pgup" => [
-                select_and_execute!{b, |_mode,env,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_query,item|
                     "browse" => {
                         let number = parse_pr_number(&item)?;
                         Command::new("gh")

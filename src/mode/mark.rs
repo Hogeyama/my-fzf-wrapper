@@ -20,7 +20,6 @@ use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::Neovim;
-use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf::PreviewWindow;
 
@@ -44,7 +43,6 @@ impl ModeDef for Mark {
     fn load<'a>(
         &'a self,
         env: &Env,
-        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
@@ -78,7 +76,7 @@ impl ModeDef for Mark {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |mode, env, _state, _query, item| {
+                execute!(b, |mode, env, _query, item| {
                     let marks = mode.marks.get().await?;
                     let mark = MarkItem::lookup(&marks, &item)
                         .ok_or(anyhow!("invalid item"))?;
@@ -87,7 +85,7 @@ impl ModeDef for Mark {
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |mode, env, _state, _query, item| {
+                execute!(b, |mode, env, _query, item| {
                     let marks = mode.marks.get().await?;
                     let mark = MarkItem::lookup(&marks, &item)
                         .ok_or(anyhow!("invalid item"))?;
@@ -96,7 +94,7 @@ impl ModeDef for Mark {
                 })
             ],
             "ctrl-y" => [
-                execute!(b, |_mode,_env,_state,_query,item| {
+                execute!(b, |_mode,_env,_query,item| {
                     let file = ITEM_PATTERN.replace(&item, "$file");
                     actions::yank(file).await
                 })

@@ -57,8 +57,8 @@ impl Config {
                 callback_map.load.insert(
                     "default".to_string(),
                     mode::LoadCallback {
-                        callback: Box::new(|mode_def, config, state, query, item| {
-                            mode_def.load(config, state, query, item)
+                        callback: Box::new(|mode_def, config, query, item| {
+                            mode_def.load(config, query, item)
                         }),
                     },
                 );

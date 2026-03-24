@@ -19,7 +19,6 @@ use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
-use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::path::to_relpath;
@@ -44,7 +43,6 @@ impl ModeDef for Diagnostics {
     fn load<'a>(
         &'a self,
         env: &Env,
-        _state: &'a State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
@@ -85,7 +83,7 @@ impl ModeDef for Diagnostics {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute!(b, |mode, env, _state, _query, item| {
+                execute!(b, |mode, env, _query, item| {
                     let items = mode.items.get().await?;
                     let item = DiagnosticsItem::lookup(&items, item.clone())?;
                     let file = env.nvim.get_buf_name(item.bufnr as usize).await?;
@@ -93,7 +91,7 @@ impl ModeDef for Diagnostics {
                 })
             ],
             "ctrl-t" => [
-                execute!(b, |mode, env, _state, _query, item| {
+                execute!(b, |mode, env, _query, item| {
                     let items = mode.items.get().await?;
                     let item = DiagnosticsItem::lookup(&items, item.clone())?;
                     let file = env.nvim.get_buf_name(item.bufnr as usize).await?;

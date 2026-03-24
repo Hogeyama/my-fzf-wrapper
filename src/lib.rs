@@ -49,7 +49,6 @@ mod method;
 mod mode;
 mod nvim;
 mod server;
-mod state;
 mod utils;
 
 // std

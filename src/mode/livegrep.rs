@@ -15,7 +15,6 @@ use crate::method::PreviewResp;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
-use crate::state::State;
 use crate::utils::bat;
 use crate::utils::command;
 use crate::utils::fzf;
@@ -55,7 +54,6 @@ impl ModeDef for LiveGrep {
     fn load(
         &self,
         _env: &Env,
-        _state: &State,
         query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -136,14 +134,12 @@ impl ModeDef for LiveGrepF {
     }
     fn load<'a>(
         &'a self,
-        _env: &'a Env,
-        state: &'a State,
+        env: &'a Env,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
-        let state = state.clone();
         Box::pin(async_stream::stream! {
-            let livegrep_result = state.load.read().await.last_load_resp.clone();
+            let livegrep_result = env.load.read().await.last_load_resp.clone();
             let items = match livegrep_result {
                 Some(resp) => resp.items,
                 None => vec![],
@@ -177,7 +173,7 @@ fn livegrep_common_bindings() -> (super::ModeBindings, super::CallbackMap) {
         "ctrl-space" => [ b.open_vscode(LIVEGREP_ITEM) ],
         "ctrl-t" => [ b.open_nvim(LIVEGREP_ITEM, true) ],
         "pgup" => [
-            b.execute(|_mode,env,_state,_query,item| async move {
+            b.execute(|_mode,env,_query,item| async move {
                 match &*fzf::select(vec!["browse-github", "neovim", "vscode"]).await? {
                     "browse-github" => {
                         let file = ITEM_PATTERN.replace(&item, "$file").into_owned();

@@ -15,7 +15,6 @@ use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::Neovim;
 use crate::nvim::NeovimExt;
-use crate::state::State;
 use crate::utils::bat;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::path::to_relpath;
@@ -53,7 +52,6 @@ impl ModeDef for Visits {
     fn load(
         &self,
         env: &Env,
-        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -92,7 +90,7 @@ impl ModeDef for Visits {
             "ctrl-t" => [ b.open_nvim(FilePathItem, true) ],
             "ctrl-y" => [ b.yank_file(FilePathItem) ],
             "ctrl-x" => [
-                execute_silent!(b, |_mode,env,_state,_query,item| {
+                execute_silent!(b, |_mode,env,_query,item| {
                     env.nvim.eval_lua(
                         format!("require'mini.visits'.remove_path('{}')", item)
                     ).await?;
@@ -101,7 +99,7 @@ impl ModeDef for Visits {
                 b.reload(),
             ],
             "pgup" => [
-                select_and_execute!{b, |_mode,env,_state,_query,item|
+                select_and_execute!{b, |_mode,env,_query,item|
                     "oil" => {
                         actions::oil(env).await
                     },
