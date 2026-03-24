@@ -21,7 +21,7 @@ impl ModeDef for Menu {
     fn load<'a>(
         &'a self,
         env: &'a Env,
-        _state: &'a mut State,
+        _state: &'a State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {

@@ -55,7 +55,7 @@ impl ModeDef for LiveGrep {
     fn load(
         &self,
         _env: &Env,
-        _state: &mut State,
+        _state: &State,
         query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -134,15 +134,16 @@ impl ModeDef for LiveGrepF {
     fn name(&self) -> &'static str {
         "livegrepf"
     }
-    fn load(
-        &self,
-        _env: &Env,
-        state: &mut State,
+    fn load<'a>(
+        &'a self,
+        _env: &'a Env,
+        state: &'a State,
         _query: String,
         _item: String,
-    ) -> super::LoadStream {
-        let livegrep_result = state.last_load_resp.clone();
+    ) -> super::LoadStream<'a> {
+        let state = state.clone();
         Box::pin(async_stream::stream! {
+            let livegrep_result = state.load.read().await.last_load_resp.clone();
             let items = match livegrep_result {
                 Some(resp) => resp.items,
                 None => vec![],

@@ -58,7 +58,7 @@ impl ModeDef for Runner {
     fn load(
         &self,
         _env: &Env,
-        _state: &mut crate::state::State,
+        _state: &crate::state::State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
@@ -118,7 +118,7 @@ impl ModeDef for RunnerCommands {
     fn load(
         &self,
         _env: &Env,
-        _state: &mut crate::state::State,
+        _state: &crate::state::State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {

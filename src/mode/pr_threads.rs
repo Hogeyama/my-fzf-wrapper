@@ -133,7 +133,7 @@ impl ModeDef for GitReview {
     fn load<'a>(
         &'a self,
         _env: &'a Env,
-        _state: &'a mut State,
+        _state: &'a State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {

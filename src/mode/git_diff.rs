@@ -86,7 +86,7 @@ impl ModeDef for GitDiff {
     fn load<'a>(
         &'a self,
         _env: &Env,
-        _state: &mut State,
+        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {
@@ -184,7 +184,7 @@ impl ModeDef for GitDiff {
     fn execute<'a>(
         &'a self,
         env: &'a Env,
-        _state: &'a mut State,
+        _state: &'a State,
         item: String,
         args: serde_json::Value,
     ) -> BoxFuture<'a, Result<()>> {

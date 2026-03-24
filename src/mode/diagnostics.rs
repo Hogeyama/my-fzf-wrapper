@@ -44,7 +44,7 @@ impl ModeDef for Diagnostics {
     fn load<'a>(
         &'a self,
         env: &Env,
-        _state: &'a mut State,
+        _state: &'a State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {

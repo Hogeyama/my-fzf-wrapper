@@ -44,7 +44,7 @@ impl ModeDef for Mark {
     fn load<'a>(
         &'a self,
         env: &Env,
-        _state: &mut State,
+        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream<'a> {

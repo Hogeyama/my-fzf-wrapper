@@ -263,7 +263,7 @@ pub trait ModeDef: AsAny {
     fn load<'a>(
         &'a self,
         config: &'a Env,
-        state: &'a mut State,
+        state: &'a State,
         query: String,
         item: String, // currently selected item
     ) -> LoadStream<'a>;
@@ -281,7 +281,7 @@ pub trait ModeDef: AsAny {
     fn execute<'a>(
         &'a self,
         _config: &'a Env,
-        _state: &'a mut State,
+        _state: &'a State,
         _item: String,
         _args: serde_json::Value,
     ) -> BoxFuture<'a, Result<()>> {
@@ -310,7 +310,7 @@ pub struct LoadCallback {
         dyn for<'a> Fn(
                 &'a (dyn ModeDef + Sync + Send),
                 &'a Env,
-                &'a mut State,
+                &'a State,
                 String,
                 String,
             ) -> LoadStream<'a>
@@ -339,7 +339,7 @@ pub struct ExecuteCallback {
         dyn for<'a> Fn(
                 &'a (dyn ModeDef + Sync + Send),
                 &'a Env,
-                &'a mut State,
+                &'a State,
                 String,
                 String,
             ) -> BoxFuture<'a, Result<()>>
@@ -348,10 +348,10 @@ pub struct ExecuteCallback {
     >,
 }
 
-/// モード切替の共通処理: state 更新 + fzf アクション生成 + POST
+/// モード切替の共通処理: state.mode を更新 + fzf アクション生成 + POST
 pub async fn do_change_mode(
     env: &Env,
-    state: &mut State,
+    state: &State,
     mode_name: &str,
     keep_query: bool,
 ) -> anyhow::Result<()> {
@@ -360,7 +360,8 @@ pub async fn do_change_mode(
         .get(mode_name)
         .ok_or_else(|| anyhow::anyhow!("unknown mode: {}", mode_name))?;
 
-    state.set_current_mode_name(mode_name.to_string());
+    let mut mode = state.mode.write().await;
+    mode.set_current_mode_name(mode_name.to_string());
 
     let mut actions: Vec<ModeAction> = vec![
         ModeAction::Reload("default".to_string()),
@@ -371,10 +372,10 @@ pub async fn do_change_mode(
         actions.push(ModeAction::Fzf(fzf::Action::ClearQuery));
     }
 
-    if state.sort_enabled() != mode_info.wants_sort {
+    if mode.sort_enabled() != mode_info.wants_sort {
         actions.push(ModeAction::Fzf(fzf::Action::ToggleSort));
     }
-    state.set_sort_enabled(mode_info.wants_sort);
+    mode.set_sort_enabled(mode_info.wants_sort);
 
     if mode_info.disable_search {
         actions.push(ModeAction::Fzf(fzf::Action::DisableSearch));
@@ -432,7 +433,7 @@ pub mod config_builder {
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
                     &'a Env,
-                    &'a mut State,
+                    &'a State,
                     String,
                     String,
                 ) -> BoxFuture<'a, Result<()>>
@@ -453,7 +454,7 @@ pub mod config_builder {
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
                     &'a Env,
-                    &'a mut State,
+                    &'a State,
                     String,
                     String,
                 ) -> BoxFuture<'a, Result<()>>
@@ -478,7 +479,7 @@ pub mod config_builder {
             for<'a> F: Fn(
                     &'a (dyn ModeDef + Sync + Send),
                     &'a Env,
-                    &'a mut State,
+                    &'a State,
                     String,
                     String,
                 ) -> super::LoadStream<'a>
@@ -537,7 +538,7 @@ pub mod config_builder {
             F: for<'a> Fn(
                     &'a M,
                     &'a Env,
-                    &'a mut State,
+                    &'a State,
                     String,
                     String,
                 ) -> BoxFuture<'a, Result<()>>
@@ -560,7 +561,7 @@ pub mod config_builder {
             F: for<'a> Fn(
                     &'a M,
                     &'a Env,
-                    &'a mut State,
+                    &'a State,
                     String,
                     String,
                 ) -> BoxFuture<'a, Result<()>>
@@ -580,7 +581,7 @@ pub mod config_builder {
         pub fn reload_with_as<M, F>(&mut self, callback: F) -> ModeAction
         where
             M: ModeDef + Send + Sync + 'static,
-            for<'a> F: Fn(&'a M, &'a Env, &'a mut State, String, String) -> super::LoadStream<'a>
+            for<'a> F: Fn(&'a M, &'a Env, &'a State, String, String) -> super::LoadStream<'a>
                 + Send
                 + Sync
                 + 'static,

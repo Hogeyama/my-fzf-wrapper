@@ -125,7 +125,7 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
                 .expect("Failed to spawn fzf"),
         )),
         all_modes,
-        state: Arc::new(RwLock::new(state)),
+        state,
     };
     let current_load_task = Arc::new(Mutex::new(None));
 
@@ -158,16 +158,13 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
     Ok(())
 }
 
-/// ロック順序: fzf → state
-/// all_modes はロック不要 (起動時に構築して不変)
+/// State 内の load / mode は独立ロック。load 中でもモード名の読み書きはブロックされない。
 #[derive(Clone)]
 struct ServerState {
     fzf: Arc<RwLock<Child>>,
     all_modes: Arc<HashMap<String, ModeEntry>>,
-    state: Arc<RwLock<State>>,
+    state: State,
 }
-
-use tokio::sync::RwLockWriteGuard;
 
 impl ServerState {
     fn get_mode_entry<'a>(
@@ -177,16 +174,6 @@ impl ServerState {
         all_modes.get(mode_name).unwrap_or_else(|| {
             panic!("unknown mode: {}", mode_name);
         })
-    }
-
-    /// Load/Execute 用: state(write)
-    async fn lock_for_load_or_execute(&self) -> RwLockWriteGuard<'_, State> {
-        self.state.write().await
-    }
-
-    /// Preview 用: state(read) → mode_name を取得して即 drop
-    async fn read_current_mode_name(&self) -> String {
-        self.state.read().await.current_mode_name().to_string()
     }
 
     /// fzf プロセスの生存確認用
@@ -270,8 +257,7 @@ async fn handle_load_request(
         item,
     } = params;
 
-    let mut state = server_state.lock_for_load_or_execute().await;
-    let mode_name = state.current_mode_name().to_string();
+    let mode_name = server_state.state.mode.read().await.current_mode_name().to_string();
     let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     let callback = &entry
@@ -287,16 +273,17 @@ async fn handle_load_request(
         })
         .callback;
 
-    state.last_load_resp = {
+    let last_resp = {
         let stream = callback(
             entry.mode.mode_def.as_ref(),
             &env,
-            &mut state,
+            &server_state.state,
             query,
             item.unwrap_or_default(),
         );
         send_load_stream(stream, tx).await
     };
+    server_state.state.load.write().await.last_load_resp = last_resp;
 }
 
 async fn send_load_stream(
@@ -343,7 +330,7 @@ async fn handle_preview_request(
     preview_window: fzf::PreviewWindow,
     tx: Arc<Mutex<WriteHalf<UnixStream>>>,
 ) {
-    let mode_name = server_state.read_current_mode_name().await;
+    let mode_name = server_state.state.mode.read().await.current_mode_name().to_string();
     let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
     let callback = &entry
@@ -388,7 +375,7 @@ async fn handle_execute_request(
 
     // _key: プレフィックス付きの場合: キー dispatch (rendered_bindings を POST)
     if let Some(key) = registered_name.strip_prefix("_key:") {
-        let mode_name = server_state.read_current_mode_name().await;
+        let mode_name = server_state.state.mode.read().await.current_mode_name().to_string();
         let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
         let action = match entry.rendered_bindings.get(key) {
@@ -408,8 +395,7 @@ async fn handle_execute_request(
         }
     } else {
         // 通常のコールバック実行
-        let mut state = server_state.lock_for_load_or_execute().await;
-        let mode_name = state.current_mode_name().to_string();
+        let mode_name = server_state.state.mode.read().await.current_mode_name().to_string();
         let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
         let callback = &entry
@@ -425,7 +411,7 @@ async fn handle_execute_request(
             })
             .callback;
 
-        match callback(entry.mode.mode_def.as_ref(), &env, &mut state, query, item).await {
+        match callback(entry.mode.mode_def.as_ref(), &env, &server_state.state, query, item).await {
             Ok(_) => {}
             Err(e) => error!("server: execute error"; "error" => e.to_string()),
         }

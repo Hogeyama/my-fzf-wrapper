@@ -35,7 +35,7 @@ impl ModeDef for Mru {
     fn load(
         &self,
         env: &Env,
-        _state: &mut State,
+        _state: &State,
         _query: String,
         _item: String,
     ) -> super::LoadStream {
