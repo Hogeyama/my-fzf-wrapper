@@ -57,16 +57,16 @@ impl Config {
                 callback_map.load.insert(
                     "default".to_string(),
                     mode::LoadCallback {
-                        callback: Box::new(|mode_def, config, query, item| {
-                            mode_def.load(config, query, item)
+                        callback: Box::new(|mode_def, env, query, item| {
+                            mode_def.load(env, query, item)
                         }),
                     },
                 );
                 callback_map.preview.insert(
                     "default".to_string(),
                     mode::PreviewCallback {
-                        callback: Box::new(|mode_def, config, win, item| {
-                            mode_def.preview(config, win, item)
+                        callback: Box::new(|mode_def, env, win, item| {
+                            mode_def.preview(env, win, item)
                         }),
                     },
                 );

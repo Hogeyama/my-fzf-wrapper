@@ -261,7 +261,7 @@ pub trait ModeDef: AsAny {
     /// Load items into fzf
     fn load<'a>(
         &'a self,
-        config: &'a Env,
+        env: &'a Env,
         query: String,
         item: String, // currently selected item
     ) -> LoadStream<'a>;
@@ -269,7 +269,7 @@ pub trait ModeDef: AsAny {
     /// Preview the currently selected item
     fn preview<'a>(
         &'a self,
-        config: &'a Env,
+        env: &'a Env,
         win: &'a PreviewWindow,
         item: String,
     ) -> BoxFuture<'a, Result<PreviewResp>>;
@@ -278,7 +278,7 @@ pub trait ModeDef: AsAny {
     /// (Optional. Intended to be used by the callback of fzf_bindings)
     fn execute<'a>(
         &'a self,
-        _config: &'a Env,
+        _env: &'a Env,
         _item: String,
         _args: serde_json::Value,
     ) -> BoxFuture<'a, Result<()>> {
