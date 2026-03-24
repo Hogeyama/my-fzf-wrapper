@@ -139,7 +139,7 @@ impl ModeDef for LiveGrepF {
         _item: String,
     ) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
-            let livegrep_result = env.load.read().await.last_load_resp.clone();
+            let livegrep_result = env.last_load_resp.lock().await.clone();
             let items = match livegrep_result {
                 Some(resp) => resp.items,
                 None => vec![],

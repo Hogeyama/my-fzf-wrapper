@@ -111,9 +111,7 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
         nvim,
         fzf_client: fzf_client.clone(),
         mode_infos: Arc::new(mode_infos),
-        load: Arc::new(RwLock::new(crate::env::LoadState {
-            last_load_resp: None,
-        })),
+        last_load_resp: Mutex::new(None),
         mode: Arc::new(RwLock::new(crate::env::ModeState::new(
             initial_mode_name,
             initial_sort,
@@ -283,7 +281,7 @@ async fn handle_load_request(
         );
         send_load_stream(stream, tx).await
     };
-    env.load.write().await.last_load_resp = last_resp;
+    *env.last_load_resp.lock().await = last_resp;
 }
 
 async fn send_load_stream(
