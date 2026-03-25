@@ -1,0 +1,31 @@
+{
+  "name": "e2e",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:update": "vitest run --update",
+    "fmt": "biome format --write .",
+    "lint": "biome lint .",
+    "check": "biome check ."
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "description": "",
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "node-pty"
+    ]
+  },
+  "dependencies": {
+    "@types/node": "^25.5.0",
+    "tuistory": "^0.0.16",
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.1"
+  },
+  "devDependencies": {
+    "@biomejs/biome": "^2.4.9"
+  }
+}

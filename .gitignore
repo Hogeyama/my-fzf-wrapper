@@ -5,3 +5,6 @@ Session.vim
 note.md
 /result
 .nvimlog
+node_modules/
+.pnpm-store/
+e2e/dist/
