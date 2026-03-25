@@ -53,6 +53,7 @@
           CARGO_FPATH = "${toolchain}/share/zsh/site-functions/";
           # `MANPATH=$FZF_MANPATH man fzf` でこのバージョンのfzfのマニュアルを見る
           FZF_MANPATH = "${pkgs-for-bin.fzf.man}/share/man";
+          NVIM_PATH = "${pkgs-for-bin.neovim}/bin/nvim";
         };
 
         fzfw-unwrapped = (naerskLib.buildPackage {
