@@ -47,6 +47,8 @@
             pkgs-for-bin.glow
             pkgs-for-bin.lazygit
             pkgs-for-bin.ripgrep
+            pkgs.nodejs_22
+            pkgs.pnpm
           ];
           CARGO_FPATH = "${toolchain}/share/zsh/site-functions/";
           # `MANPATH=$FZF_MANPATH man fzf` でこのバージョンのfzfのマニュアルを見る
