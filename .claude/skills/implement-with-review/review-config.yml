@@ -1,0 +1,61 @@
+# レビュー設定
+# - ここにルールを足すだけでレビュー観点を拡張できる
+# - severity: critical (差し戻し), warning (推奨), info (参考)
+# - stop_when: ルールごとに設定可能。省略時は workflow.stop_when を使用
+#     no_critical_findings: critical がなければ OK
+#     no_findings: warning/info を含め findings が一切なければ OK
+
+workflow:
+  # 計画フェーズのループ上限（reject が続いた場合）
+  max_plan_iterations: 3
+  # 各コミットのレビューループ上限
+  max_review_iterations: 3
+  # コードレビューのデフォルト終了条件
+  stop_when: no_critical_findings
+
+rules:
+  # --- critical ---
+
+  - name: error-handling
+    severity: critical
+    stop_when: no_findings
+    description: >
+      anyhow::Result のエラーが握りつぶされていないか。
+      unwrap()/expect() が外部入力・外部コマンド結果・ファイルI/O に対して使われていないか。
+      内部不変条件の assert 的な unwrap は許容する。
+
+  - name: command-injection
+    severity: critical
+    stop_when: no_findings
+    description: >
+      外部コマンド実行 (Command::new, tokio::process::Command) でユーザー入力や
+      fzf 選択結果を引数に渡す際、シェル経由 (sh -c) で未サニタイズの文字列を
+      展開していないか。Command の引数は .arg() で個別に渡すこと。
+
+  - name: sql-injection
+    severity: critical
+    stop_when: no_findings
+    description: >
+      rusqlite のクエリで format!/format_args! による文字列結合を使っていないか。
+      パラメータは必ず params![] またはバインド変数で渡すこと。
+
+  # --- warning ---
+
+  - name: async-safety
+    severity: warning
+    description: >
+      async コンテキストで std::sync::Mutex のロックを .await をまたいで保持していないか。
+      必要なら tokio::sync::Mutex を使うこと。
+      また std::thread::sleep ではなく tokio::time::sleep を使っているか。
+
+  - name: resource-leak
+    severity: warning
+    description: >
+      子プロセス (Command::spawn) の stdout/stderr を適切に処理・クローズしているか。
+      一時ファイル (tempfile) やDB接続が確実にドロップされるか。
+
+  - name: mode-registration
+    severity: warning
+    description: >
+      新しいモードを追加した場合、src/mode/mod.rs の all_modes() に登録されているか。
+      ModeDef トレイトの必須メソッドがすべて実装されているか。
