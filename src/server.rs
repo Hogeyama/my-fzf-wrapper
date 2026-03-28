@@ -368,6 +368,19 @@ async fn handle_execute_request(
 
     // _key: プレフィックス付きの場合: キー dispatch (rendered_bindings を POST)
     if let Some(key) = registered_name.strip_prefix("_key:") {
+        // コールバック実行前に pending_cursor_pos をセット
+        {
+            let cursor_pos_parsed = cursor_pos
+                .as_deref()
+                .unwrap_or("0")
+                .parse::<usize>()
+                .unwrap_or(0);
+            env.mode
+                .write()
+                .await
+                .set_pending_cursor_pos(cursor_pos_parsed);
+        }
+
         let mode_name = env.mode.read().await.current_mode_name().to_string();
         let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 

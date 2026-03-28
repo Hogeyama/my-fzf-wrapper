@@ -169,6 +169,19 @@ mod tests {
         let modes = all_modes();
         assert!(modes.iter().any(|(name, _)| name == "fd"));
     }
+
+    #[test]
+    fn default_bindings_has_ctrl_b_and_alt_u() {
+        let (bindings, _callbacks) = config_builder::default_bindings();
+        assert!(
+            bindings.0.contains_key("ctrl-b"),
+            "expected ctrl-b in default_bindings"
+        );
+        assert!(
+            bindings.0.contains_key("alt-u"),
+            "expected alt-u in default_bindings"
+        );
+    }
 }
 
 pub trait AsAny: 'static {
@@ -339,13 +352,30 @@ pub struct ExecuteCallback {
 }
 
 /// モード切替の共通処理: env.mode を更新 + fzf アクション生成 + POST
-pub async fn do_change_mode(env: &Env, mode_name: &str, keep_query: bool) -> anyhow::Result<()> {
+pub async fn do_change_mode(
+    env: &Env,
+    mode_name: &str,
+    keep_query: bool,
+    current_query: String,
+    push_to_back_stack: bool,
+) -> anyhow::Result<()> {
     let mode_info = env
         .mode_infos
         .get(mode_name)
         .ok_or_else(|| anyhow::anyhow!("unknown mode: {}", mode_name))?;
 
     let mut mode = env.mode.write().await;
+
+    if push_to_back_stack {
+        let old_mode_name = mode.current_mode_name().to_string();
+        let cursor_pos = mode.take_pending_cursor_pos().unwrap_or(0);
+        mode.push_back_stack(crate::env::BackStackEntry {
+            mode_name: old_mode_name,
+            query: current_query,
+            cursor_pos,
+        });
+    }
+
     mode.set_current_mode_name(mode_name.to_string());
 
     let mut actions: Vec<ModeAction> = vec![
@@ -478,9 +508,11 @@ pub mod config_builder {
 
         pub fn change_mode(&mut self, mode: impl Into<String>, keep_query: bool) -> ModeAction {
             let mode_name = mode.into();
-            self.execute_silent(move |_mode_def, env, _query, _item| {
+            self.execute_silent(move |_mode_def, env, query, _item| {
                 let mode_name = mode_name.clone();
-                async move { super::do_change_mode(env, &mode_name, keep_query).await }.boxed()
+                let query = query.clone();
+                async move { super::do_change_mode(env, &mode_name, keep_query, query, true).await }
+                    .boxed()
             })
         }
 
@@ -732,6 +764,44 @@ pub mod config_builder {
                 b.change_mode(super::bookmark::Bookmark.name(), false),
             ],
             "ctrl-b" => [
+                b.execute_silent(|_mode_def, env, _query, _item| {
+                    async move {
+                        let entry = {
+                            let mut mode = env.mode.write().await;
+                            mode.pop_back_stack()
+                        };
+                        match entry {
+                            None => Ok(()),
+                            Some(entry) => {
+                                let restore_query = entry.query.clone();
+                                let restore_pos = entry.cursor_pos;
+                                super::do_change_mode(
+                                    env,
+                                    &entry.mode_name,
+                                    true,
+                                    String::new(),
+                                    false,
+                                )
+                                .await?;
+                                env.post_fzf_actions(&[
+                                    super::ModeAction::Fzf(fzf::Action::Raw(format!(
+                                        "change-query({})",
+                                        restore_query
+                                    ))),
+                                    super::ModeAction::Fzf(fzf::Action::Raw(format!(
+                                        "pos({})",
+                                        restore_pos
+                                    ))),
+                                ])
+                                .await?;
+                                Ok(())
+                            }
+                        }
+                    }
+                    .boxed()
+                }),
+            ],
+            "alt-u" => [
                 b.change_mode(super::buffer::Buffer.name(), false),
             ],
             "ctrl-j" => [

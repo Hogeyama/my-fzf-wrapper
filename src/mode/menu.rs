@@ -17,12 +17,7 @@ impl ModeDef for Menu {
     fn name(&self) -> &'static str {
         "menu"
     }
-    fn load<'a>(
-        &'a self,
-        env: &'a Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, env: &'a Env, _query: String, _item: String) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let items = env.config
                 .get_mode_names()
@@ -54,8 +49,8 @@ impl ModeDef for Menu {
         bindings! {
             b <= default_bindings(),
             "enter" => [
-                execute_silent!(b, |_mode, env, _query, item| {
-                    super::do_change_mode(env, &item, false).await
+                execute_silent!(b, |_mode, env, query, item| {
+                    super::do_change_mode(env, &item, false, query.clone(), true).await
                 }),
             ],
         }

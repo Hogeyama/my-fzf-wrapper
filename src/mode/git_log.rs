@@ -31,12 +31,7 @@ impl ModeDef for GitLog {
             GitLog::All => "git-log(all)",
         }
     }
-    fn load<'a>(
-        &'a self,
-        _env: &'a Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, _env: &'a Env, _query: String, _item: String) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let mut commits = match self {
                 GitLog::Head => git::log_graph("HEAD").await?,
@@ -81,7 +76,7 @@ impl ModeDef for GitLog {
                         }
                     };
                     // git-branch に切り替え、選択したブランチを query にセット
-                    mode::do_change_mode(env, "git-branch", !query.is_empty()).await?;
+                    mode::do_change_mode(env, "git-branch", !query.is_empty(), _query.clone(), true).await?;
                     if !query.is_empty() {
                         env.post_fzf_actions(&[
                             mode::ModeAction::Fzf(fzf::Action::ClearQuery),
