@@ -41,9 +41,24 @@ pub struct ModeInfo {
     pub custom_preview_window: Option<String>,
 }
 
+#[allow(dead_code)]
+const MAX_BACK_STACK_DEPTH: usize = 20;
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+#[allow(dead_code)]
+pub struct BackStackEntry {
+    pub mode_name: String,
+    pub query: String,
+    pub cursor_pos: usize,
+}
+
 pub struct ModeState {
     current_mode_name: String,
     sort_enabled: bool,
+    #[allow(dead_code)]
+    back_stack: Vec<BackStackEntry>,
+    #[allow(dead_code)]
+    pending_cursor_pos: Option<usize>,
 }
 
 impl ModeState {
@@ -51,6 +66,8 @@ impl ModeState {
         ModeState {
             current_mode_name: initial_mode,
             sort_enabled: initial_sort,
+            back_stack: Vec::new(),
+            pending_cursor_pos: None,
         }
     }
 
@@ -69,6 +86,29 @@ impl ModeState {
     pub fn set_sort_enabled(&mut self, v: bool) {
         self.sort_enabled = v;
     }
+
+    #[allow(dead_code)]
+    pub fn push_back_stack(&mut self, entry: BackStackEntry) {
+        if self.back_stack.len() >= MAX_BACK_STACK_DEPTH {
+            self.back_stack.remove(0);
+        }
+        self.back_stack.push(entry);
+    }
+
+    #[allow(dead_code)]
+    pub fn pop_back_stack(&mut self) -> Option<BackStackEntry> {
+        self.back_stack.pop()
+    }
+
+    #[allow(dead_code)]
+    pub fn set_pending_cursor_pos(&mut self, pos: usize) {
+        self.pending_cursor_pos = Some(pos);
+    }
+
+    #[allow(dead_code)]
+    pub fn take_pending_cursor_pos(&mut self) -> Option<usize> {
+        self.pending_cursor_pos.take()
+    }
 }
 
 #[cfg(test)]
@@ -80,5 +120,50 @@ mod tests {
         let mode = ModeState::new("menu".into(), false);
         assert_eq!(mode.current_mode_name(), "menu");
         assert!(!mode.sort_enabled());
+    }
+
+    #[test]
+    fn back_stack_push_and_pop() {
+        let mut mode = ModeState::new("menu".into(), false);
+        let entry = BackStackEntry {
+            mode_name: "fd".into(),
+            query: "hello".into(),
+            cursor_pos: 5,
+        };
+        mode.push_back_stack(entry.clone());
+        let popped = mode.pop_back_stack().unwrap();
+        assert_eq!(popped.mode_name, "fd");
+        assert_eq!(popped.query, "hello");
+        assert_eq!(popped.cursor_pos, 5);
+    }
+
+    #[test]
+    fn back_stack_empty_pop_returns_none() {
+        let mut mode = ModeState::new("menu".into(), false);
+        assert!(mode.pop_back_stack().is_none());
+    }
+
+    #[test]
+    fn back_stack_depth_limit() {
+        let mut mode = ModeState::new("menu".into(), false);
+        for i in 0..MAX_BACK_STACK_DEPTH + 5 {
+            mode.push_back_stack(BackStackEntry {
+                mode_name: format!("mode-{}", i),
+                query: String::new(),
+                cursor_pos: i,
+            });
+        }
+        assert_eq!(mode.back_stack.len(), MAX_BACK_STACK_DEPTH);
+        // The oldest entries (0..5) should have been removed
+        let oldest = mode.back_stack.first().unwrap();
+        assert_eq!(oldest.mode_name, "mode-5");
+    }
+
+    #[test]
+    fn pending_cursor_pos_take() {
+        let mut mode = ModeState::new("menu".into(), false);
+        mode.set_pending_cursor_pos(42);
+        assert_eq!(mode.take_pending_cursor_pos(), Some(42));
+        assert_eq!(mode.take_pending_cursor_pos(), None);
     }
 }
