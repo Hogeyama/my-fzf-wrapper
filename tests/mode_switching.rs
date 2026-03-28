@@ -120,6 +120,64 @@ fn menu_load_contains_expected_modes() {
     }
 }
 
+/// バックスタックが空の状態で _key:ctrl-b を execute してもパニックしない
+#[test]
+fn execute_with_unknown_key_does_not_crash() {
+    let Some(h) = common::TestHarness::spawn() else {
+        eprintln!("failed to spawn test harness; skipping");
+        return;
+    };
+
+    // 初期 load
+    let output = h.load("default", None, None);
+    assert!(output.status.success(), "initial load failed");
+
+    // バックスタックが空の状態で ctrl-b (バックスタック pop) を呼ぶ
+    let output = h.run_client(&[
+        "execute",
+        "--fzfw-socket",
+        h.sock_path.to_str().unwrap(),
+        "_key:ctrl-b",
+        "", // query
+        "", // item
+    ]);
+    // パニックせず正常終了すること
+    assert!(
+        output.status.success(),
+        "execute _key:ctrl-b should not crash: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
+/// cursor_pos 付きで execute を呼んでも正常動作する
+#[test]
+fn execute_param_cursor_pos_accepted() {
+    let Some(h) = common::TestHarness::spawn() else {
+        eprintln!("failed to spawn test harness; skipping");
+        return;
+    };
+
+    // 初期 load
+    let output = h.load("default", None, None);
+    assert!(output.status.success(), "initial load failed");
+
+    // cursor_pos 付きで _key:ctrl-b を呼ぶ
+    let output = h.run_client(&[
+        "execute",
+        "--fzfw-socket",
+        h.sock_path.to_str().unwrap(),
+        "_key:ctrl-b",
+        "",   // query
+        "",   // item
+        "42", // cursor_pos
+    ]);
+    assert!(
+        output.status.success(),
+        "execute with cursor_pos should succeed: {}",
+        String::from_utf8_lossy(&output.stderr)
+    );
+}
+
 /// preview を複数回呼んでもサーバーがクラッシュしない
 #[test]
 fn multiple_previews_stable() {
