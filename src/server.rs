@@ -88,13 +88,7 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
 
     // 統合 fzf 設定で起動 (--no-sort + --multi を付与)
     let fzf_config = fzf::Config {
-        default_command: shellwords::join(&[
-            config.myself.as_ref(),
-            "load",
-            "default",
-            "",
-            "",
-        ]),
+        default_command: shellwords::join(&[config.myself.as_ref(), "load", "default", "", ""]),
         preview_command: format!("{} preview {{}}", config.myself),
         socket: config.socket.clone(),
         log_file: config.log_file.clone(),
@@ -369,6 +363,7 @@ async fn handle_execute_request(
         registered_name,
         query,
         item,
+        cursor_pos,
     } = params;
 
     // _key: プレフィックス付きの場合: キー dispatch (rendered_bindings を POST)
@@ -376,10 +371,12 @@ async fn handle_execute_request(
         let mode_name = env.mode.read().await.current_mode_name().to_string();
         let entry = ServerState::get_mode_entry(&server_state.all_modes, &mode_name);
 
+        let cursor_pos_str = cursor_pos.as_deref().unwrap_or("");
         let action = match entry.rendered_bindings.get(key) {
             Some(action) => action
                 .replace("{q}", &shellwords::escape(&query))
-                .replace("{}", &shellwords::escape(&item)),
+                .replace("{}", &shellwords::escape(&item))
+                .replace("{n}", &shellwords::escape(cursor_pos_str)),
             None => {
                 trace!("server: execute _key: no binding"; "mode" => &*mode_name, "key" => key);
                 String::new()

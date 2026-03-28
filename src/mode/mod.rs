@@ -59,10 +59,10 @@ impl ModeAction {
                 fzf::Action::Reload(format!("{myself} load {name} {{q}} {{}}"))
             }
             ModeAction::Execute(name) => {
-                fzf::Action::Execute(format!("{myself} execute {name} {{q}} {{}}"))
+                fzf::Action::Execute(format!("{myself} execute {name} {{q}} {{}} {{n}}"))
             }
             ModeAction::ExecuteSilent(name) => {
-                fzf::Action::ExecuteSilent(format!("{myself} execute {name} {{q}} {{}}"))
+                fzf::Action::ExecuteSilent(format!("{myself} execute {name} {{q}} {{}} {{n}}"))
             }
             ModeAction::Fzf(a) => a,
         }
@@ -101,14 +101,14 @@ mod tests {
     fn mode_action_execute_into_fzf_action() {
         let action = ModeAction::Execute("cb0".into());
         let rendered = action.into_fzf_action("fzfw").render();
-        assert_eq!(rendered, "execute[fzfw execute cb0 {q} {}]");
+        assert_eq!(rendered, "execute[fzfw execute cb0 {q} {} {n}]");
     }
 
     #[test]
     fn mode_action_execute_silent_into_fzf_action() {
         let action = ModeAction::ExecuteSilent("cb1".into());
         let rendered = action.into_fzf_action("fzfw").render();
-        assert_eq!(rendered, "execute-silent[fzfw execute cb1 {q} {}]");
+        assert_eq!(rendered, "execute-silent[fzfw execute cb1 {q} {} {n}]");
     }
 
     #[test]
@@ -304,12 +304,7 @@ impl CallbackMap {
 #[allow(clippy::type_complexity)]
 pub struct LoadCallback {
     pub callback: Box<
-        dyn for<'a> Fn(
-                &'a (dyn ModeDef + Sync + Send),
-                &'a Env,
-                String,
-                String,
-            ) -> LoadStream<'a>
+        dyn for<'a> Fn(&'a (dyn ModeDef + Sync + Send), &'a Env, String, String) -> LoadStream<'a>
             + Sync
             + Send,
     >,
@@ -344,11 +339,7 @@ pub struct ExecuteCallback {
 }
 
 /// モード切替の共通処理: env.mode を更新 + fzf アクション生成 + POST
-pub async fn do_change_mode(
-    env: &Env,
-    mode_name: &str,
-    keep_query: bool,
-) -> anyhow::Result<()> {
+pub async fn do_change_mode(env: &Env, mode_name: &str, keep_query: bool) -> anyhow::Result<()> {
     let mode_info = env
         .mode_infos
         .get(mode_name)
@@ -489,8 +480,7 @@ pub mod config_builder {
             let mode_name = mode.into();
             self.execute_silent(move |_mode_def, env, _query, _item| {
                 let mode_name = mode_name.clone();
-                async move { super::do_change_mode(env, &mode_name, keep_query).await }
-                    .boxed()
+                async move { super::do_change_mode(env, &mode_name, keep_query).await }.boxed()
             })
         }
 
@@ -525,12 +515,7 @@ pub mod config_builder {
         pub fn execute_as<M, F>(&mut self, callback: F) -> ModeAction
         where
             M: ModeDef + Send + Sync + 'static,
-            F: for<'a> Fn(
-                    &'a M,
-                    &'a Env,
-                    String,
-                    String,
-                ) -> BoxFuture<'a, Result<()>>
+            F: for<'a> Fn(&'a M, &'a Env, String, String) -> BoxFuture<'a, Result<()>>
                 + Send
                 + Sync
                 + 'static,
@@ -547,12 +532,7 @@ pub mod config_builder {
         pub fn execute_silent_as<M, F>(&mut self, callback: F) -> ModeAction
         where
             M: ModeDef + Send + Sync + 'static,
-            F: for<'a> Fn(
-                    &'a M,
-                    &'a Env,
-                    String,
-                    String,
-                ) -> BoxFuture<'a, Result<()>>
+            F: for<'a> Fn(&'a M, &'a Env, String, String) -> BoxFuture<'a, Result<()>>
                 + Send
                 + Sync
                 + 'static,
@@ -569,10 +549,8 @@ pub mod config_builder {
         pub fn reload_with_as<M, F>(&mut self, callback: F) -> ModeAction
         where
             M: ModeDef + Send + Sync + 'static,
-            for<'a> F: Fn(&'a M, &'a Env, String, String) -> super::LoadStream<'a>
-                + Send
-                + Sync
-                + 'static,
+            for<'a> F:
+                Fn(&'a M, &'a Env, String, String) -> super::LoadStream<'a> + Send + Sync + 'static,
         {
             self.reload_with(move |mode_dyn, config, query, item| {
                 let mode = mode_dyn
@@ -659,9 +637,8 @@ pub mod config_builder {
     #[macro_export]
     macro_rules! execute {
         ($builder:ident, |$mode:ident, $config:ident, $query:ident, $item:ident| $v:expr) => {
-            $builder.execute_as::<Self, _>(|$mode, $config, $query, $item| {
-                async move { $v }.boxed()
-            })
+            $builder
+                .execute_as::<Self, _>(|$mode, $config, $query, $item| async move { $v }.boxed())
         };
     }
     pub use execute;

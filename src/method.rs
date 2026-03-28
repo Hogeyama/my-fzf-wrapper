@@ -119,6 +119,7 @@ pub struct ExecuteParam {
     pub registered_name: String,
     pub query: String,
     pub item: String,
+    pub cursor_pos: Option<String>,
 }
 
 impl TryFrom<String> for Execute {
