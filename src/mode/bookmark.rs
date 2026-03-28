@@ -30,12 +30,7 @@ impl ModeDef for Bookmark {
     fn name(&self) -> &'static str {
         "bookmark"
     }
-    fn load<'a>(
-        &'a self,
-        env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, env: &Env, _query: String, _item: String) -> super::LoadStream<'a> {
         let nvim = env.nvim.clone();
         Box::pin(async_stream::stream! {
             let bookmarks = get_bookmarks(&nvim).await?;

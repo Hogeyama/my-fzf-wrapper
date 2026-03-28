@@ -64,12 +64,7 @@ impl ModeDef for GhPr {
         }
     }
 
-    fn load<'a>(
-        &'a self,
-        _env: &'a Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, _env: &'a Env, _query: String, _item: String) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let mut cmd = Command::new("gh");
             cmd.args(["pr", "list", "--json", "number,title,author,headRefName,state", "--limit", "100"]);
@@ -239,10 +234,7 @@ mod tests {
             head_ref_name: "feat/new".into(),
             state: "MERGED".into(),
         };
-        assert_eq!(
-            render_pr_item(&pr),
-            "✅#100 Add feature by bob feat/new"
-        );
+        assert_eq!(render_pr_item(&pr), "✅#100 Add feature by bob feat/new");
     }
 
     #[test]
@@ -252,7 +244,10 @@ mod tests {
 
     #[test]
     fn parse_pr_number_simple() {
-        assert_eq!(parse_pr_number("⬜#42 title by author branch").unwrap(), "42");
+        assert_eq!(
+            parse_pr_number("⬜#42 title by author branch").unwrap(),
+            "42"
+        );
     }
 
     #[test]

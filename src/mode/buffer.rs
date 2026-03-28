@@ -30,12 +30,7 @@ impl ModeDef for Buffer {
     fn name(&self) -> &'static str {
         "buffer"
     }
-    fn load(
-        &self,
-        env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, env: &Env, _query: String, _item: String) -> super::LoadStream {
         let nvim = env.nvim.clone();
         Box::pin(async_stream::stream! {
             let items = get_nvim_buffers(&nvim).await?;

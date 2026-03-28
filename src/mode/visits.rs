@@ -49,12 +49,7 @@ impl ModeDef for Visits {
             VisitsKind::Project => "visists:cwd",
         }
     }
-    fn load(
-        &self,
-        env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, env: &Env, _query: String, _item: String) -> super::LoadStream {
         let nvim = env.nvim.clone();
         let kind = self.kind;
         Box::pin(async_stream::stream! {

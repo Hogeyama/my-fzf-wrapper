@@ -17,12 +17,7 @@ impl ModeDef for Zoxide {
     fn name(&self) -> &'static str {
         "zoxide"
     }
-    fn load(
-        &self,
-        _env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, _env: &Env, _query: String, _item: String) -> super::LoadStream {
         Box::pin(async_stream::stream! {
             let zoxide_output = zoxide::new().output().await?;
             let zoxide_output = String::from_utf8_lossy(&zoxide_output.stdout)

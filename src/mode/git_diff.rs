@@ -82,12 +82,7 @@ impl ModeDef for GitDiff {
     fn name(&self) -> &'static str {
         "git-diff"
     }
-    fn load<'a>(
-        &'a self,
-        _env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, _env: &Env, _query: String, _item: String) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             self.clear().await;
 

@@ -55,9 +55,7 @@ pub struct BackStackEntry {
 pub struct ModeState {
     current_mode_name: String,
     sort_enabled: bool,
-    #[allow(dead_code)]
     back_stack: Vec<BackStackEntry>,
-    #[allow(dead_code)]
     pending_cursor_pos: Option<usize>,
 }
 
@@ -87,7 +85,6 @@ impl ModeState {
         self.sort_enabled = v;
     }
 
-    #[allow(dead_code)]
     pub fn push_back_stack(&mut self, entry: BackStackEntry) {
         if self.back_stack.len() >= MAX_BACK_STACK_DEPTH {
             self.back_stack.remove(0);
@@ -95,17 +92,14 @@ impl ModeState {
         self.back_stack.push(entry);
     }
 
-    #[allow(dead_code)]
     pub fn pop_back_stack(&mut self) -> Option<BackStackEntry> {
         self.back_stack.pop()
     }
 
-    #[allow(dead_code)]
     pub fn set_pending_cursor_pos(&mut self, pos: usize) {
         self.pending_cursor_pos = Some(pos);
     }
 
-    #[allow(dead_code)]
     pub fn take_pending_cursor_pos(&mut self) -> Option<usize> {
         self.pending_cursor_pos.take()
     }

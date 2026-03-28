@@ -21,12 +21,7 @@ impl ModeDef for GitStatus {
     fn name(&self) -> &'static str {
         "git-status"
     }
-    fn load(
-        &self,
-        _env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, _env: &Env, _query: String, _item: String) -> super::LoadStream {
         load([
             Status::INDEX_NEW,
             Status::INDEX_MODIFIED,

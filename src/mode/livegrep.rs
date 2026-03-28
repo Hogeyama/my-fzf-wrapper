@@ -51,12 +51,7 @@ impl ModeDef for LiveGrep {
     fn name(&self) -> &'static str {
         self.name
     }
-    fn load(
-        &self,
-        _env: &Env,
-        query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, _env: &Env, query: String, _item: String) -> super::LoadStream {
         load(query, &self.rg_opts)
     }
     fn preview(
@@ -132,12 +127,7 @@ impl ModeDef for LiveGrepF {
     fn name(&self) -> &'static str {
         "livegrepf"
     }
-    fn load<'a>(
-        &'a self,
-        env: &'a Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, env: &'a Env, _query: String, _item: String) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let livegrep_result = env.last_load_resp.lock().await.clone();
             let items = match livegrep_result {
@@ -281,10 +271,7 @@ mod tests {
     #[test]
     fn livegrep_item_extractor_line() {
         use super::super::lib::item::ItemExtractor;
-        assert_eq!(
-            LIVEGREP_ITEM.line("src/lib.rs:42:1:pub mod foo;"),
-            Some(42)
-        );
+        assert_eq!(LIVEGREP_ITEM.line("src/lib.rs:42:1:pub mod foo;"), Some(42));
     }
 
     #[test]

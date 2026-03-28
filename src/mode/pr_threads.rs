@@ -129,12 +129,7 @@ impl ModeDef for GitReview {
         "pr-threads"
     }
 
-    fn load<'a>(
-        &'a self,
-        _env: &'a Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, _env: &'a Env, _query: String, _item: String) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let threads = fetch_review_threads().await?;
             let unresolved_only = self.unresolved_only.get().await.unwrap_or(false);

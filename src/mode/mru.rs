@@ -31,12 +31,7 @@ impl ModeDef for Mru {
     fn name(&self) -> &'static str {
         "mru"
     }
-    fn load(
-        &self,
-        env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, env: &Env, _query: String, _item: String) -> super::LoadStream {
         let nvim = env.nvim.clone();
         Box::pin(async_stream::stream! {
             let mru_items = get_nvim_oldefiles(&nvim).await?;

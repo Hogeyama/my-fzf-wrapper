@@ -26,12 +26,7 @@ impl ModeDef for Fd {
     fn name(&self) -> &'static str {
         "fd"
     }
-    fn load(
-        &self,
-        _env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, _env: &Env, _query: String, _item: String) -> super::LoadStream {
         load(fd::new())
     }
     fn preview(

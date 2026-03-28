@@ -13,10 +13,10 @@ use crate::env::Env;
 use crate::method::LoadResp;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
+use crate::mode::fd as mode_fd;
 use crate::mode::CallbackMap;
 use crate::mode::ModeDef;
 use crate::nvim::NeovimExt;
-use crate::mode::fd as mode_fd;
 use crate::utils::command::edit_and_run;
 use crate::utils::fd;
 use crate::utils::fzf::PreviewWindow;
@@ -54,12 +54,7 @@ impl ModeDef for Runner {
         "runner"
     }
 
-    fn load(
-        &self,
-        _env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, _env: &Env, _query: String, _item: String) -> super::LoadStream {
         let mut cmd = fd::new();
         cmd.arg("-H")
             .arg("-t")
@@ -113,12 +108,7 @@ impl ModeDef for RunnerCommands {
         "runner_commands"
     }
 
-    fn load(
-        &self,
-        _env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, _env: &Env, _query: String, _item: String) -> super::LoadStream {
         let state = self.state.clone();
         Box::pin(async_stream::stream! {
             let items = match state.lock().await.target_file.clone() {

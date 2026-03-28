@@ -9,12 +9,12 @@ use super::lib::actions;
 use super::lib::cache::ModeCache;
 use crate::env::Env;
 use crate::method::LoadResp;
-use crate::nvim::NeovimExt;
 use crate::method::PreviewResp;
 use crate::mode::config_builder;
 use crate::mode::CallbackMap;
 use crate::mode::ModeAction;
 use crate::mode::ModeDef;
+use crate::nvim::NeovimExt;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
@@ -37,10 +37,7 @@ impl PrDiff {
     }
 
     async fn pending_count(&self) -> usize {
-        self.pending_comments
-            .with(|v| v.len())
-            .await
-            .unwrap_or(0)
+        self.pending_comments.with(|v| v.len()).await.unwrap_or(0)
     }
 
     fn prompt_with_pending(count: usize) -> String {
@@ -102,12 +99,7 @@ impl ModeDef for PrDiff {
         "pr-diff"
     }
 
-    fn load<'a>(
-        &'a self,
-        _env: &'a Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, _env: &'a Env, _query: String, _item: String) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let meta = fetch_pr_meta().await?;
             let diff_text = fetch_pr_diff().await?;
@@ -137,11 +129,7 @@ impl ModeDef for PrDiff {
             let idx = parse_hunk_index(&item)?;
             let message = self
                 .hunks
-                .with(|hunks| {
-                    hunks
-                        .get(idx)
-                        .map(colorize_hunk)
-                })
+                .with(|hunks| hunks.get(idx).map(colorize_hunk))
                 .await
                 .ok()
                 .flatten()
@@ -335,10 +323,7 @@ async fn current_repo_owner_name() -> Result<(String, String)> {
 }
 
 async fn fetch_pr_diff() -> Result<String> {
-    let output = Command::new("gh")
-        .args(["pr", "diff"])
-        .output()
-        .await?;
+    let output = Command::new("gh").args(["pr", "diff"]).output().await?;
     if !output.status.success() {
         let stderr = String::from_utf8_lossy(&output.stderr);
         return Err(anyhow!("gh pr diff failed: {}", stderr));
@@ -607,20 +592,14 @@ fn compute_comment_range(
     lines: &[DiffLine],
     selected_indices: &[usize],
 ) -> Result<(&'static str, usize, usize)> {
-    let selected_lines: Vec<&DiffLine> = selected_indices
-        .iter()
-        .map(|&i| &lines[i])
-        .collect();
+    let selected_lines: Vec<&DiffLine> = selected_indices.iter().map(|&i| &lines[i]).collect();
 
     let all_removed = selected_lines
         .iter()
         .all(|l| l.kind == DiffLineKind::Removed);
 
     if all_removed {
-        let line_numbers: Vec<usize> = selected_lines
-            .iter()
-            .filter_map(|l| l.old_lineno)
-            .collect();
+        let line_numbers: Vec<usize> = selected_lines.iter().filter_map(|l| l.old_lineno).collect();
         let start = *line_numbers.iter().min().unwrap();
         let end = *line_numbers.iter().max().unwrap();
         Ok(("LEFT", start, end))
@@ -636,11 +615,7 @@ fn compute_comment_range(
 
         let end = (max_idx..lines.len())
             .find_map(|i| lines[i].new_lineno)
-            .or_else(|| {
-                (0..=max_idx)
-                    .rev()
-                    .find_map(|i| lines[i].new_lineno)
-            })
+            .or_else(|| (0..=max_idx).rev().find_map(|i| lines[i].new_lineno))
             .ok_or_else(|| anyhow!("no new_lineno found for end"))?;
 
         Ok(("RIGHT", start, end))
@@ -676,11 +651,8 @@ async fn add_pending_comment_flow(mode: &PrDiff, hunk: &DiffHunk) -> Result<()> 
         .collect();
 
     let line_refs: Vec<&str> = line_items.iter().map(|s| s.as_str()).collect();
-    let selected = fzf::select_multi_with_args(
-        line_refs,
-        &["--delimiter", "\t", "--with-nth", "1"],
-    )
-    .await?;
+    let selected =
+        fzf::select_multi_with_args(line_refs, &["--delimiter", "\t", "--with-nth", "1"]).await?;
 
     if selected.is_empty() {
         return Ok(());
@@ -696,8 +668,7 @@ async fn add_pending_comment_flow(mode: &PrDiff, hunk: &DiffHunk) -> Result<()> 
         return Ok(());
     }
 
-    let (side, start_line, end_line) =
-        compute_comment_range(&hunk.lines, &selected_indices)?;
+    let (side, start_line, end_line) = compute_comment_range(&hunk.lines, &selected_indices)?;
 
     // 3. Compose comment body via nvim popup
     let selected_code: String = selected_indices
@@ -812,7 +783,9 @@ async fn add_pending_file_comment_flow(mode: &PrDiff, file_path: &str) -> Result
 async fn submit_review_flow(mode: &PrDiff, env: &Env, meta: &PrMeta) -> Result<()> {
     let pending = mode.pending_comments.get().await?;
     if pending.is_empty() {
-        env.nvim.notify_info("No pending comments to submit").await?;
+        env.nvim
+            .notify_info("No pending comments to submit")
+            .await?;
         return Ok(());
     }
 
@@ -824,11 +797,7 @@ async fn submit_review_flow(mode: &PrDiff, env: &Env, meta: &PrMeta) -> Result<(
 
     // 2. Optional review body via nvim popup
     let marker = "=".repeat(40);
-    let template = format!(
-        "\n{marker}\nReview: {} ({} comments)",
-        event,
-        pending.len()
-    );
+    let template = format!("\n{marker}\nReview: {} ({} comments)", event, pending.len());
 
     let tmp_file = tempfile::Builder::new().suffix(".md").tempfile()?;
     std::fs::write(tmp_file.path(), &template)?;
@@ -1006,8 +975,7 @@ mod tests {
 
     #[test]
     fn parse_hunk_header_single_line() {
-        let (new_start, new_lines, old_start) =
-            parse_hunk_header("@@ -1 +1 @@").unwrap();
+        let (new_start, new_lines, old_start) = parse_hunk_header("@@ -1 +1 @@").unwrap();
         assert_eq!(old_start, 1);
         assert_eq!(new_start, 1);
         assert_eq!(new_lines, 1);
@@ -1015,8 +983,7 @@ mod tests {
 
     #[test]
     fn parse_hunk_header_with_comma() {
-        let (new_start, new_lines, old_start) =
-            parse_hunk_header("@@ -100,3 +200,10 @@").unwrap();
+        let (new_start, new_lines, old_start) = parse_hunk_header("@@ -100,3 +200,10 @@").unwrap();
         assert_eq!(old_start, 100);
         assert_eq!(new_start, 200);
         assert_eq!(new_lines, 10);
@@ -1386,8 +1353,7 @@ diff --git a/other.rs b/other.rs
     #[test]
     fn range_all_lines_selected() {
         let lines = make_lines_for_range_tests();
-        let (side, start, end) =
-            compute_comment_range(&lines, &[0, 1, 2, 3, 4, 5]).unwrap();
+        let (side, start, end) = compute_comment_range(&lines, &[0, 1, 2, 3, 4, 5]).unwrap();
         assert_eq!(side, "RIGHT");
         assert_eq!(start, 20);
         assert_eq!(end, 23);

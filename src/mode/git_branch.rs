@@ -24,12 +24,7 @@ impl ModeDef for GitBranch {
     fn name(&self) -> &'static str {
         "git-branch"
     }
-    fn load(
-        &self,
-        _env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, _env: &Env, _query: String, _item: String) -> super::LoadStream {
         Box::pin(async_stream::stream! {
             let head = git::head()?;
             let mut branches = git::local_branches()?;

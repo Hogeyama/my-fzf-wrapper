@@ -3,9 +3,9 @@ use std::collections::HashMap;
 use crate::mode;
 use crate::mode::CallbackMap;
 use crate::mode::MkMode;
+use crate::mode::Mode;
 use crate::mode::ModeAction;
 use crate::mode::ModeBindings;
-use crate::mode::Mode;
 use crate::mode::ModeDef;
 
 pub struct Config {
@@ -86,10 +86,7 @@ impl Config {
     }
 
     /// 全モードの全キーを集約し、execute-silent 経由の統合バインディングを生成
-    pub fn build_unified_bindings(
-        &self,
-        all_modes: &HashMap<String, ModeEntry>,
-    ) -> ModeBindings {
+    pub fn build_unified_bindings(&self, all_modes: &HashMap<String, ModeEntry>) -> ModeBindings {
         use std::collections::HashSet;
 
         // 全モードで使われるキーを収集
@@ -101,14 +98,12 @@ impl Config {
         }
 
         // 固定バインディング
-        let mut bindings = HashMap::from([
-            (
-                "shift-right".to_string(),
-                vec![ModeAction::Fzf(crate::utils::fzf::Action::Raw(
-                    "change-preview-window[bottom:90%:border-top|right:50%:noborder]".to_string(),
-                ))],
-            ),
-        ]);
+        let mut bindings = HashMap::from([(
+            "shift-right".to_string(),
+            vec![ModeAction::Fzf(crate::utils::fzf::Action::Raw(
+                "change-preview-window[bottom:90%:border-top|right:50%:noborder]".to_string(),
+            ))],
+        )]);
 
         let fixed_keys: HashSet<String> = bindings.keys().cloned().collect();
 
@@ -145,7 +140,11 @@ mod tests {
     use crate::utils::fzf;
 
     fn test_config() -> Config {
-        new("fzfw".into(), "/tmp/test.sock".into(), "/tmp/test.log".into())
+        new(
+            "fzfw".into(),
+            "/tmp/test.sock".into(),
+            "/tmp/test.log".into(),
+        )
     }
 
     #[test]
@@ -225,7 +224,10 @@ mod tests {
             assert_eq!(actions.len(), 1);
             match &actions[0] {
                 ModeAction::ExecuteSilent(name) => assert_eq!(name, "_key:enter"),
-                other => panic!("expected ExecuteSilent, got {:?}", std::mem::discriminant(other)),
+                other => panic!(
+                    "expected ExecuteSilent, got {:?}",
+                    std::mem::discriminant(other)
+                ),
             }
         }
     }

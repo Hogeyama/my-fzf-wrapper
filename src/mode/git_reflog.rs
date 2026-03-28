@@ -21,12 +21,7 @@ impl ModeDef for GitReflog {
     fn name(&self) -> &'static str {
         "git-reflog"
     }
-    fn load(
-        &self,
-        _env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream {
+    fn load(&self, _env: &Env, _query: String, _item: String) -> super::LoadStream {
         Box::pin(async_stream::stream! {
             let mut commits = git::reflog_graph("HEAD").await?;
             // reset color to white

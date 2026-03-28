@@ -40,12 +40,7 @@ impl ModeDef for Diagnostics {
     fn name(&self) -> &'static str {
         "diagnostics"
     }
-    fn load<'a>(
-        &'a self,
-        env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, env: &Env, _query: String, _item: String) -> super::LoadStream<'a> {
         let nvim = env.nvim.clone();
         Box::pin(async_stream::stream! {
             let mut diagnostics =

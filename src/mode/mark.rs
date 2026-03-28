@@ -40,12 +40,7 @@ impl ModeDef for Mark {
     fn name(&self) -> &'static str {
         "mark"
     }
-    fn load<'a>(
-        &'a self,
-        env: &Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, env: &Env, _query: String, _item: String) -> super::LoadStream<'a> {
         let nvim = env.nvim.clone();
         Box::pin(async_stream::stream! {
             let marks = get_nvim_marks(&nvim).await?;

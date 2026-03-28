@@ -59,12 +59,7 @@ impl ModeDef for BrowserBookmark {
     fn name(&self) -> &'static str {
         "browser-bookmark"
     }
-    fn load<'a>(
-        &'a self,
-        _env: &'a Env,
-        _query: String,
-        _item: String,
-    ) -> super::LoadStream<'a> {
+    fn load<'a>(&'a self, _env: &'a Env, _query: String, _item: String) -> super::LoadStream<'a> {
         Box::pin(async_stream::stream! {
             let items = self
                 .load_items()
