@@ -24,7 +24,7 @@ use crate::utils::xsel;
 pub struct PrDiff {
     hunks: ModeCache<Vec<DiffHunk>>,
     pr_meta: ModeCache<PrMeta>,
-    pending_comments: ModeCache<Vec<PendingComment>>,
+    pending_comments: ModeCache<PersistedPendingComments>,
 }
 
 impl PrDiff {
@@ -37,7 +37,10 @@ impl PrDiff {
     }
 
     async fn pending_count(&self) -> usize {
-        self.pending_comments.with(|v| v.len()).await.unwrap_or(0)
+        self.pending_comments
+            .with(|v| v.comments.len())
+            .await
+            .unwrap_or(0)
     }
 
     fn prompt_with_pending(count: usize) -> String {
@@ -49,7 +52,7 @@ impl PrDiff {
     }
 }
 
-#[derive(Clone, Debug, serde::Serialize)]
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize, PartialEq)]
 struct PendingComment {
     path: String,
     body: String,
@@ -58,6 +61,14 @@ struct PendingComment {
     start_line: Option<usize>,
     start_side: Option<String>,
     is_file_comment: bool,
+}
+
+/// Wrapper for persisting pending comments with stale detection.
+/// The `head_sha` is compared on restore to detect if the PR head has changed.
+#[derive(Clone, Debug, serde::Serialize, serde::Deserialize)]
+struct PersistedPendingComments {
+    head_sha: String,
+    comments: Vec<PendingComment>,
 }
 
 #[derive(Clone, Debug)]
@@ -110,11 +121,33 @@ impl ModeDef for PrDiff {
                 .map(|(i, h)| render_hunk_item(i, h))
                 .collect();
             self.hunks.set(hunks).await;
-            self.pr_meta.set(meta).await;
-            // Initialize pending_comments if not yet set
-            if self.pending_comments.get().await.is_err() {
-                self.pending_comments.set(vec![]).await;
+
+            // Enable persistence for pending comments using PR identity
+            let ns = format!("pr-diff_{}_{}", meta.owner, meta.repo);
+            let key = format!("pending-comments_{}", meta.number);
+            if let Err(e) = self.pending_comments.enable_persistence(&ns, &key).await {
+                crate::warn!("failed to enable persistence for pending comments: {}", e);
             }
+
+            // Initialize or restore pending_comments
+            if let Ok(persisted) = self.pending_comments.get().await {
+                // Restored from file -- check staleness
+                if persisted.head_sha != meta.head_sha {
+                    _env.nvim
+                        .notify_warn("Pending comments may be stale: PR head has changed")
+                        .await
+                        .ok();
+                }
+            } else {
+                self.pending_comments
+                    .set(PersistedPendingComments {
+                        head_sha: meta.head_sha.clone(),
+                        comments: vec![],
+                    })
+                    .await;
+            }
+
+            self.pr_meta.set(meta).await;
             yield Ok(LoadResp::new_with_default_header(items));
         })
     }
@@ -223,7 +256,15 @@ impl ModeDef for PrDiff {
                             show_pending_comments(mode).await?;
                         }
                         "discard" => {
-                            mode.pending_comments.set(vec![]).await;
+                            let head_sha = mode.pr_meta.with(|m| m.head_sha.clone()).await
+                                .unwrap_or_default();
+                            mode.pending_comments
+                                .set(PersistedPendingComments {
+                                    head_sha,
+                                    comments: vec![],
+                                })
+                                .await;
+                            mode.pending_comments.delete_file().await;
                             env.nvim.notify_info("Pending comments discarded").await?;
                         }
                         "browse" => {
@@ -731,7 +772,9 @@ async fn add_pending_comment_flow(mode: &PrDiff, hunk: &DiffHunk) -> Result<()> 
         },
         is_file_comment: false,
     };
-    mode.pending_comments.with_mut(|v| v.push(comment)).await?;
+    mode.pending_comments
+        .with_mut(|v| v.comments.push(comment))
+        .await?;
 
     Ok(())
 }
@@ -771,7 +814,9 @@ async fn add_pending_file_comment_flow(mode: &PrDiff, file_path: &str) -> Result
         start_side: None,
         is_file_comment: true,
     };
-    mode.pending_comments.with_mut(|v| v.push(comment)).await?;
+    mode.pending_comments
+        .with_mut(|v| v.comments.push(comment))
+        .await?;
 
     Ok(())
 }
@@ -781,7 +826,8 @@ async fn add_pending_file_comment_flow(mode: &PrDiff, file_path: &str) -> Result
 // ---------------------------------------------------------------------------
 
 async fn submit_review_flow(mode: &PrDiff, env: &Env, meta: &PrMeta) -> Result<()> {
-    let pending = mode.pending_comments.get().await?;
+    let persisted = mode.pending_comments.get().await?;
+    let pending = &persisted.comments;
     if pending.is_empty() {
         env.nvim
             .notify_info("No pending comments to submit")
@@ -904,8 +950,14 @@ async fn submit_review_flow(mode: &PrDiff, env: &Env, meta: &PrMeta) -> Result<(
         }
     }
 
-    // 6. Clear pending
-    mode.pending_comments.set(vec![]).await;
+    // 6. Clear pending and delete persistence file
+    mode.pending_comments
+        .set(PersistedPendingComments {
+            head_sha: meta.head_sha.clone(),
+            comments: vec![],
+        })
+        .await;
+    mode.pending_comments.delete_file().await;
     env.nvim
         .notify_info(format!("Review submitted ({event})"))
         .await?;
@@ -918,7 +970,8 @@ async fn submit_review_flow(mode: &PrDiff, env: &Env, meta: &PrMeta) -> Result<(
 // ---------------------------------------------------------------------------
 
 async fn show_pending_comments(mode: &PrDiff) -> Result<()> {
-    let pending = mode.pending_comments.get().await?;
+    let persisted = mode.pending_comments.get().await?;
+    let pending = persisted.comments;
     if pending.is_empty() {
         return Ok(());
     }
@@ -1388,5 +1441,80 @@ diff --git a/other.rs b/other.rs
         assert_eq!(start, 2);
         // end: search forward from idx=2 finds nothing, search backward finds new_lineno=2 at idx=1
         assert_eq!(end, 2);
+    }
+
+    // -- PendingComment serialize/deserialize tests --
+
+    #[test]
+    fn pending_comment_serde_roundtrip() {
+        let comment = PendingComment {
+            path: "src/main.rs".to_string(),
+            body: "looks good".to_string(),
+            line: Some(42),
+            side: Some("RIGHT".to_string()),
+            start_line: Some(40),
+            start_side: Some("RIGHT".to_string()),
+            is_file_comment: false,
+        };
+        let json = serde_json::to_string(&comment).unwrap();
+        let restored: PendingComment = serde_json::from_str(&json).unwrap();
+        assert_eq!(comment, restored);
+    }
+
+    #[test]
+    fn pending_comment_file_comment_roundtrip() {
+        let comment = PendingComment {
+            path: "README.md".to_string(),
+            body: "update docs".to_string(),
+            line: None,
+            side: None,
+            start_line: None,
+            start_side: None,
+            is_file_comment: true,
+        };
+        let json = serde_json::to_string(&comment).unwrap();
+        let restored: PendingComment = serde_json::from_str(&json).unwrap();
+        assert_eq!(comment, restored);
+    }
+
+    #[test]
+    fn persisted_pending_comments_roundtrip() {
+        let persisted = PersistedPendingComments {
+            head_sha: "abc123".to_string(),
+            comments: vec![PendingComment {
+                path: "lib.rs".to_string(),
+                body: "fix this".to_string(),
+                line: Some(10),
+                side: Some("LEFT".to_string()),
+                start_line: None,
+                start_side: None,
+                is_file_comment: false,
+            }],
+        };
+        let json = serde_json::to_string(&persisted).unwrap();
+        let restored: PersistedPendingComments = serde_json::from_str(&json).unwrap();
+        assert_eq!(restored.head_sha, "abc123");
+        assert_eq!(restored.comments.len(), 1);
+        assert_eq!(restored.comments[0], persisted.comments[0]);
+    }
+
+    #[test]
+    fn stale_detection_same_sha() {
+        let persisted = PersistedPendingComments {
+            head_sha: "abc123".to_string(),
+            comments: vec![],
+        };
+        let current_sha = "abc123";
+        assert_eq!(persisted.head_sha, current_sha);
+    }
+
+    #[test]
+    fn stale_detection_different_sha() {
+        let persisted = PersistedPendingComments {
+            head_sha: "abc123".to_string(),
+            comments: vec![],
+        };
+        let current_sha = "def456";
+        assert_ne!(persisted.head_sha, current_sha);
     }
 }
