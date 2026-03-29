@@ -668,93 +668,51 @@ fn compute_comment_range(
 // ---------------------------------------------------------------------------
 
 async fn add_pending_comment_flow(mode: &PrDiff, hunk: &DiffHunk) -> Result<()> {
-    // 1. Show hunk lines in fzf multi-select for line range selection
-    let line_items: Vec<String> = hunk
-        .lines
-        .iter()
-        .enumerate()
-        .map(|(i, l)| {
-            let old = l
-                .old_lineno
-                .map(|n| format!("{:>4}", n))
-                .unwrap_or_else(|| "    ".to_string());
-            let new = l
-                .new_lineno
-                .map(|n| format!("{:>4}", n))
-                .unwrap_or_else(|| "    ".to_string());
-            let prefix = match l.kind {
-                DiffLineKind::Added => "+",
-                DiffLineKind::Removed => "-",
-                DiffLineKind::Context => " ",
-            };
-            format!("{} {} {}{}\t{}", old, new, prefix, l.content, i)
-        })
-        .collect();
-
-    let line_refs: Vec<&str> = line_items.iter().map(|s| s.as_str()).collect();
-    let selected =
-        fzf::select_multi_with_args(line_refs, &["--delimiter", "\t", "--with-nth", "1"]).await?;
-
-    if selected.is_empty() {
-        return Ok(());
-    }
-
-    // 2. Determine line range and side
-    let selected_indices: Vec<usize> = selected
-        .iter()
-        .filter_map(|sel| sel.rsplit('\t').next()?.parse().ok())
-        .collect();
-
-    if selected_indices.is_empty() {
-        return Ok(());
-    }
-
-    let (side, start_line, end_line) = compute_comment_range(&hunk.lines, &selected_indices)?;
-
-    // 3. Compose comment body via nvim popup
-    let selected_code: String = selected_indices
-        .iter()
-        .map(|&i| &hunk.lines[i])
-        .map(|l| {
-            let prefix = match l.kind {
-                DiffLineKind::Added => "+",
-                DiffLineKind::Removed => "-",
-                DiffLineKind::Context => " ",
-            };
-            format!("{}{}", prefix, l.content)
-        })
-        .collect::<Vec<_>>()
-        .join("\n");
-
+    // 1. Format hunk lines for nvim buffer
+    let diff_lines: Vec<String> = format_diff_lines_for_buffer(&hunk.lines);
     let marker = "=".repeat(40);
-    let template = format!(
-        "\n{marker}\n{}:{}-{} ({})\n```\n{}\n```",
-        hunk.file_path, start_line, end_line, side, selected_code
-    );
+    let buffer_content = format!("\n{marker}\n{}", diff_lines.join("\n"));
 
-    let tmp_file = tempfile::Builder::new().suffix(".md").tempfile()?;
-    std::fs::write(tmp_file.path(), &template)?;
+    // 2. Write buffer and Lua script to temp files
+    let tmp_buffer = tempfile::Builder::new().suffix(".md").tempfile()?;
+    std::fs::write(tmp_buffer.path(), &buffer_content)?;
 
+    let lua_script = generate_comment_lua_script();
+    let tmp_lua = tempfile::Builder::new().suffix(".lua").tempfile()?;
+    std::fs::write(tmp_lua.path(), &lua_script)?;
+
+    // 3. Open nvim with the buffer and Lua script
     Command::new("nvimw")
         .arg("--tmux-popup")
-        .arg(tmp_file.path())
+        .arg(tmp_buffer.path())
+        .arg("-c")
+        .arg(format!("luafile {}", tmp_lua.path().display()))
         .spawn()?
         .wait()
         .await?;
 
-    let content = std::fs::read_to_string(tmp_file.path())?;
-    let body = content
-        .split(&marker)
-        .next()
-        .unwrap_or("")
-        .trim()
-        .to_string();
+    // 4. Parse result
+    let content = std::fs::read_to_string(tmp_buffer.path())?;
+    let (body, buf_start, buf_end) = match parse_nvim_comment_buffer(&content) {
+        Some(v) => v,
+        None => return Ok(()), // cancelled or no range selected
+    };
 
     if body.is_empty() {
         return Ok(());
     }
 
-    // 4. Add to pending
+    // 5. Convert buffer line range (1-based) to hunk indices (0-based)
+    let selected_indices: Vec<usize> = (buf_start - 1..buf_end).collect();
+    if selected_indices.is_empty()
+        || selected_indices.last().copied().unwrap_or(0) >= hunk.lines.len()
+    {
+        return Ok(());
+    }
+
+    let (side, start_line, end_line) = compute_comment_range(&hunk.lines, &selected_indices)?;
+
+    // 6. Add to pending
     let comment = PendingComment {
         path: hunk.file_path.clone(),
         body,
@@ -777,6 +735,152 @@ async fn add_pending_comment_flow(mode: &PrDiff, hunk: &DiffHunk) -> Result<()> 
         .await?;
 
     Ok(())
+}
+
+/// Format diff lines for display in the nvim comment buffer.
+/// Each line: `{old:>4} {new:>4} {prefix}{content}`
+fn format_diff_lines_for_buffer(lines: &[DiffLine]) -> Vec<String> {
+    lines
+        .iter()
+        .map(|l| {
+            let old = l
+                .old_lineno
+                .map(|n| format!("{:>4}", n))
+                .unwrap_or_else(|| "    ".to_string());
+            let new = l
+                .new_lineno
+                .map(|n| format!("{:>4}", n))
+                .unwrap_or_else(|| "    ".to_string());
+            let prefix = match l.kind {
+                DiffLineKind::Added => "+",
+                DiffLineKind::Removed => "-",
+                DiffLineKind::Context => " ",
+            };
+            format!("{} {} {}{}", old, new, prefix, l.content)
+        })
+        .collect()
+}
+
+/// Generate the Lua script for the nvim comment buffer.
+///
+/// Buffer layout:
+///   Line 1:  (empty, comment area - user writes here)
+///   Line 2:  ========================================
+///   Line 3+: diff lines
+///
+/// Workflow:
+///   1. Opens with cursor on first diff line in normal mode
+///   2. User visual-selects range, presses <CR>
+///   3. Range is recorded on separator line, cursor moves to comment area
+///   4. User writes comment, then :wq (or q)
+fn generate_comment_lua_script() -> String {
+    r##"
+local buf = vim.api.nvim_get_current_buf()
+
+-- nvimw starts in insert mode; switch to normal for diff browsing
+vim.cmd('stopinsert')
+
+local function find_separator()
+  for i = 1, vim.api.nvim_buf_line_count(buf) do
+    local line = vim.api.nvim_buf_get_lines(buf, i - 1, i, false)[1]
+    if line:match('^========') then
+      return i
+    end
+  end
+  return nil
+end
+
+local sep_lnum = find_separator()
+if not sep_lnum then return end
+
+local diff_start = sep_lnum + 1
+
+-- Position cursor at first diff line
+vim.fn.cursor(diff_start, 1)
+
+-- Syntax highlighting for diff lines
+vim.cmd([[
+  syntax match FzfwDiffAdd /^.\{10\}+.*$/
+  syntax match FzfwDiffDel /^.\{10\}-.*$/
+  syntax match FzfwDiffSep /^=\+.*$/
+  highlight FzfwDiffAdd ctermfg=green guifg=#50fa7b
+  highlight FzfwDiffDel ctermfg=red guifg=#ff5555
+  highlight FzfwDiffSep ctermfg=gray guifg=#6272a4
+  highlight FzfwDiffSelected ctermbg=237 guibg=#44475a
+]])
+
+-- Namespace for selected-range highlights
+local ns = vim.api.nvim_create_namespace('fzfw_diff_selection')
+
+-- Visual mode <CR>: confirm range selection and jump to comment area
+vim.keymap.set('x', '<CR>', function()
+  local s = vim.fn.line('v')
+  local e = vim.fn.line('.')
+  if s > e then s, e = e, s end
+
+  -- Re-find separator (may have shifted if user edited above)
+  local cur_sep = find_separator()
+  if not cur_sep then return end
+  local cur_diff_start = cur_sep + 1
+
+  -- Clamp to diff area
+  s = math.max(s, cur_diff_start)
+  e = math.max(e, cur_diff_start)
+
+  -- Convert to diff-relative indices (1-based)
+  local ds = s - cur_diff_start + 1
+  local de = e - cur_diff_start + 1
+
+  -- Update separator line with range info
+  local sep_text = string.rep('=', 40) .. 'RANGE:' .. ds .. '-' .. de
+  vim.api.nvim_buf_set_lines(buf, cur_sep - 1, cur_sep, false, { sep_text })
+
+  -- Highlight selected range (clear previous selection first)
+  vim.api.nvim_buf_clear_namespace(buf, ns, 0, -1)
+  for lnum = s, e do
+    vim.api.nvim_buf_set_extmark(buf, ns, lnum - 1, 0, {
+      line_hl_group = 'FzfwDiffSelected',
+    })
+  end
+
+  -- Exit visual mode explicitly
+  local esc = vim.api.nvim_replace_termcodes('<Esc>', true, false, true)
+  vim.api.nvim_feedkeys(esc, 'nx', false)
+
+  -- Move cursor to comment area
+  vim.schedule(function()
+    vim.fn.cursor(1, 1)
+    vim.cmd('startinsert')
+  end)
+end, { buffer = buf, noremap = true })
+"##
+    .to_string()
+}
+
+/// Parse the nvim comment buffer after editing.
+/// Returns (body, range_start, range_end) where range values are 1-based
+/// indices into the diff lines section.
+/// Returns None if no range was selected.
+fn parse_nvim_comment_buffer(content: &str) -> Option<(String, usize, usize)> {
+    // Find separator line (starts with "========" and contains "RANGE:")
+    let lines: Vec<&str> = content.lines().collect();
+    let sep_idx = lines.iter().position(|l| l.starts_with("========"))?;
+    let sep_line = lines[sep_idx];
+
+    // Extract range from separator line
+    let range_part = sep_line.split("RANGE:").nth(1)?;
+    let mut parts = range_part.split('-');
+    let start: usize = parts.next()?.parse().ok()?;
+    let end: usize = parts.next()?.parse().ok()?;
+
+    if start == 0 || end == 0 || start > end {
+        return None;
+    }
+
+    // Extract comment body (everything before separator, trimmed)
+    let body = lines[..sep_idx].join("\n").trim().to_string();
+
+    Some((body, start, end))
 }
 
 async fn add_pending_file_comment_flow(mode: &PrDiff, file_path: &str) -> Result<()> {
@@ -1516,5 +1620,78 @@ diff --git a/other.rs b/other.rs
         };
         let current_sha = "def456";
         assert_ne!(persisted.head_sha, current_sha);
+    }
+
+    // -- format_diff_lines_for_buffer tests --
+
+    #[test]
+    fn format_diff_lines_basic() {
+        let lines = make_lines_for_range_tests();
+        let formatted = format_diff_lines_for_buffer(&lines);
+        assert_eq!(formatted.len(), 6);
+        assert_eq!(formatted[0], "  10   20  context1");
+        assert_eq!(formatted[1], "  11      -removed1");
+        assert_eq!(formatted[2], "  12      -removed2");
+        assert_eq!(formatted[3], "       21 +added1");
+        assert_eq!(formatted[4], "       22 +added2");
+        assert_eq!(formatted[5], "  13   23  context2");
+    }
+
+    // -- parse_nvim_comment_buffer tests --
+
+    #[test]
+    fn parse_nvim_comment_buffer_with_comment_and_range() {
+        let content = "\
+This is my comment.
+It spans multiple lines.
+========================================RANGE:2-4
+  10   20  context1
+       21 +added1
+       22 +added2
+  11      -removed1
+  13   23  context2";
+        let (body, start, end) = parse_nvim_comment_buffer(content).unwrap();
+        assert_eq!(body, "This is my comment.\nIt spans multiple lines.");
+        assert_eq!(start, 2);
+        assert_eq!(end, 4);
+    }
+
+    #[test]
+    fn parse_nvim_comment_buffer_no_range() {
+        let content = "\
+\n========================================\n  10   20  context1";
+        // No RANGE in separator → None
+        assert!(parse_nvim_comment_buffer(content).is_none());
+    }
+
+    #[test]
+    fn parse_nvim_comment_buffer_empty_comment() {
+        let content = "\
+\n========================================RANGE:1-3\n  10   20  context1";
+        let (body, start, end) = parse_nvim_comment_buffer(content).unwrap();
+        assert_eq!(body, "");
+        assert_eq!(start, 1);
+        assert_eq!(end, 3);
+    }
+
+    #[test]
+    fn parse_nvim_comment_buffer_single_line_range() {
+        let content = "\
+Fix this bug
+========================================RANGE:3-3
+  10   20  context1
+       21 +added1
+       22 +added2";
+        let (body, start, end) = parse_nvim_comment_buffer(content).unwrap();
+        assert_eq!(body, "Fix this bug");
+        assert_eq!(start, 3);
+        assert_eq!(end, 3);
+    }
+
+    #[test]
+    fn parse_nvim_comment_buffer_invalid_range() {
+        // start > end
+        let content = "comment\n========================================RANGE:5-2\ndiff";
+        assert!(parse_nvim_comment_buffer(content).is_none());
     }
 }
