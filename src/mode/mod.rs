@@ -15,6 +15,7 @@ pub mod livegrep;
 pub mod mark;
 pub mod menu;
 pub mod mru;
+pub mod nas_worktree;
 pub mod pr_diff;
 pub mod pr_list;
 pub mod pr_threads;
@@ -228,6 +229,7 @@ pub fn all_modes() -> Vec<(String, MkMode)> {
         Box::pin(|| f(pr_list::GhPr::Open)),
         Box::pin(|| f(pr_list::GhPr::All)),
         Box::pin(|| f(pr_diff::PrDiff::new())),
+        Box::pin(|| f(nas_worktree::NasWorktree)),
         Box::pin(move || f(runner.clone())),
         Box::pin(move || f(runner_commands.clone())),
     ];
@@ -827,6 +829,9 @@ pub mod config_builder {
             ],
             "alt-b" => [
                 b.change_mode(super::browser_bookmark::BrowserBookmark::new().name(), false),
+            ],
+            "alt-n" => [
+                b.change_mode(super::nas_worktree::NasWorktree.name(), false),
             ],
             "ctrl-u" => [
                 b.execute_silent(|_mode, _env, _query, _item| {
