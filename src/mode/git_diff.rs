@@ -395,13 +395,6 @@ impl ModeDef for GitDiff {
                 }),
                 b.reload()
             ],
-            "ctrl-a" => [
-                execute_silent!(b, |mode,env,_query,item| {
-                    let opts = ExecOpts::Commit.value();
-                    mode.execute(env, item, opts).await
-                }),
-                b.reload()
-            ],
             "ctrl-v" => [
                 execute!(b, |mode,env,_query,item| {
                     let opts = ExecOpts::LazyGit.value();
