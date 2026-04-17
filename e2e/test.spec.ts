@@ -123,6 +123,19 @@ describe("fzfw e2e", () => {
     }
   });
 
+  it("pr-diffモードがメニューに表示される", async () => {
+    const session = await launchFzfw(ctx);
+    try {
+      await session.type("pr-diff");
+      await session.waitForText("pr-diff", { timeout: 5000 });
+
+      const items = await getItems(session);
+      expect(items.some((i) => i.includes("pr-diff"))).toBe(true);
+    } finally {
+      session.close();
+    }
+  });
+
   it("メニューで検索するとモード一覧がフィルタされる", async () => {
     const session = await launchFzfw(ctx);
     try {
