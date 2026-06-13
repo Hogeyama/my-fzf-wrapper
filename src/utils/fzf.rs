@@ -93,6 +93,10 @@ pub fn new(config: Config) -> Command {
     let mut fzf = Command::new("fzf");
     fzf.kill_on_drop(true);
 
+    // 環境の FZF_DEFAULT_OPTS / FZF_DEFAULT_OPTS_FILE に挙動を左右されないよう除去する
+    fzf.env_remove("FZF_DEFAULT_OPTS");
+    fzf.env_remove("FZF_DEFAULT_OPTS_FILE");
+
     fzf.env("FZF_DEFAULT_COMMAND", default_command);
     fzf.env("FZFW_LOG_FILE", log_file);
     fzf.env("FZFW_SOCKET", socket);
@@ -153,8 +157,11 @@ async fn run_fzf_in_popup(items: &str, extra_args: &[&str]) -> Result<String> {
         .collect::<Vec<_>>()
         .join(" ");
 
-    let script =
-        format!("fzf --ansi --no-sort --layout=reverse {extra} < '{input_path}' > '{output_path}'");
+    // 環境の FZF_DEFAULT_OPTS / FZF_DEFAULT_OPTS_FILE に挙動を左右されないよう除去する
+    let script = format!(
+        "unset FZF_DEFAULT_OPTS FZF_DEFAULT_OPTS_FILE; \
+         fzf --ansi --no-sort --layout=reverse {extra} < '{input_path}' > '{output_path}'"
+    );
 
     Command::new("tmux")
         .args([
@@ -205,6 +212,8 @@ pub async fn input_with_placeholder(
     placeholder: impl AsRef<str>,
 ) -> Result<String> {
     let fzf = Command::new("fzf")
+        .env_remove("FZF_DEFAULT_OPTS")
+        .env_remove("FZF_DEFAULT_OPTS_FILE")
         .arg("--ansi")
         .args(vec!["--header", header.as_ref()])
         .args(vec!["--layout", "reverse"])
