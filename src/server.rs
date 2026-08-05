@@ -86,7 +86,12 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
     // 統合バインディングをレンダリング
     let rendered_bindings = config.render_mode_bindings(&unified_bindings);
 
-    // 統合 fzf 設定で起動 (--no-sort + --multi を付与)
+    // 統合 fzf 設定で起動 (--multi を付与)
+    // sort は初期モードの wants_sort に合わせて起動し、以後 sort_enabled との差分で toggle-sort する
+    let mut extra_opts = vec!["--multi".to_string()];
+    if !initial_sort {
+        extra_opts.push("--no-sort".to_string());
+    }
     let fzf_config = fzf::Config {
         default_command: shellwords::join(&[config.myself.as_ref(), "load", "default", "", ""]),
         preview_command: format!("{} preview {{}}", config.myself),
@@ -95,7 +100,7 @@ pub async fn server(config: Config, nvim: Neovim, listener: UnixListener) -> Res
         initial_prompt,
         initial_query: "".to_string(),
         rendered_bindings,
-        extra_opts: vec!["--no-sort".to_string(), "--multi".to_string()],
+        extra_opts,
         listen_socket: Some(fzf_listen_socket),
     };
 
