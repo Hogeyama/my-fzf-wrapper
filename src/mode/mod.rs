@@ -522,8 +522,21 @@ pub mod config_builder {
             ModeAction::Fzf(fzf::Action::ChangePrompt(prompt.into()))
         }
 
-        pub fn toggle_sort(&self) -> ModeAction {
-            ModeAction::Fzf(fzf::Action::ToggleSort)
+        /// fzf に toggle-sort を送るだけでなく sort_enabled も反転する
+        /// (do_change_mode の toggle-sort 差分判定を実状態と一致させるため)
+        pub fn toggle_sort(&mut self) -> ModeAction {
+            self.execute_silent(|_mode_def, env, _query, _item| {
+                async move {
+                    {
+                        let mut mode = env.mode.write().await;
+                        let v = !mode.sort_enabled();
+                        mode.set_sort_enabled(v);
+                    }
+                    env.post_fzf_actions(&[ModeAction::Fzf(fzf::Action::ToggleSort)])
+                        .await
+                }
+                .boxed()
+            })
         }
 
         pub fn clear_query(&self) -> ModeAction {
