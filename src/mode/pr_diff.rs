@@ -18,6 +18,7 @@ use crate::nvim::NeovimExt;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
+use crate::utils::popup;
 use crate::utils::xsel;
 
 #[derive(Clone)]
@@ -694,12 +695,7 @@ async fn add_pending_comment_flow(mode: &PrDiff, hunk: &DiffHunk) -> Result<()> 
     let tmp_file = tempfile::Builder::new().suffix(".md").tempfile()?;
     std::fs::write(tmp_file.path(), &template)?;
 
-    Command::new("nvimw")
-        .arg("--tmux-popup")
-        .arg(tmp_file.path())
-        .spawn()?
-        .wait()
-        .await?;
+    popup::edit_file(tmp_file.path()).await?;
 
     let content = std::fs::read_to_string(tmp_file.path())?;
     let body = content
@@ -743,12 +739,7 @@ async fn add_pending_file_comment_flow(mode: &PrDiff, file_path: &str) -> Result
     let tmp_file = tempfile::Builder::new().suffix(".md").tempfile()?;
     std::fs::write(tmp_file.path(), &template)?;
 
-    Command::new("nvimw")
-        .arg("--tmux-popup")
-        .arg(tmp_file.path())
-        .spawn()?
-        .wait()
-        .await?;
+    popup::edit_file(tmp_file.path()).await?;
 
     let content = std::fs::read_to_string(tmp_file.path())?;
     let body = content
@@ -802,12 +793,7 @@ async fn submit_review_flow(mode: &PrDiff, env: &Env, meta: &PrMeta) -> Result<(
     let tmp_file = tempfile::Builder::new().suffix(".md").tempfile()?;
     std::fs::write(tmp_file.path(), &template)?;
 
-    Command::new("nvimw")
-        .arg("--tmux-popup")
-        .arg(tmp_file.path())
-        .spawn()?
-        .wait()
-        .await?;
+    popup::edit_file(tmp_file.path()).await?;
 
     let content = std::fs::read_to_string(tmp_file.path())?;
     let review_body = content

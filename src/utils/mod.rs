@@ -7,6 +7,7 @@ pub mod gh;
 pub mod git;
 pub mod glow;
 pub mod path;
+pub mod popup;
 pub mod rg;
 pub mod sqlite;
 pub mod vscode;

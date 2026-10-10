@@ -18,6 +18,7 @@ use crate::utils::browser;
 use crate::utils::fzf;
 use crate::utils::fzf::PreviewWindow;
 use crate::utils::git;
+use crate::utils::popup;
 use crate::utils::xsel;
 
 #[derive(Clone)]
@@ -357,12 +358,7 @@ async fn reply_to_thread(thread: &ReviewThreadItem) -> Result<()> {
     let tmp_file = tempfile::Builder::new().suffix(".md").tempfile()?;
     std::fs::write(tmp_file.path(), &template)?;
 
-    Command::new("nvimw")
-        .arg("--tmux-popup")
-        .arg(tmp_file.path())
-        .spawn()?
-        .wait()
-        .await?;
+    popup::edit_file(tmp_file.path()).await?;
 
     let content = std::fs::read_to_string(tmp_file.path())?;
     let reply_body = content

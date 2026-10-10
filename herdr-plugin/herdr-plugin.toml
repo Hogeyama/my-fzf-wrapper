@@ -1,0 +1,17 @@
+# fzfw がサーバープロセスから fzf / nvim をポップアップで開くための herdr プラグイン。
+# herdr は任意コマンドをポップアップで開く API を持たず、plugin pane 経由でしか
+# ポップアップを開けないため、実行するスクリプトを環境変数で受け取る踏み台を置く。
+#
+# 登録: herdr plugin link /path/to/my-fzf-wrapper/herdr-plugin
+id = "fzfw.popup"
+name = "fzfw popup"
+version = "0.1.0"
+min_herdr_version = "0.7.4"
+description = "Run fzfw popup scripts (fzf / nvim) in a herdr popup"
+platforms = ["linux", "macos"]
+
+[[panes]]
+id = "run"
+title = "fzfw"
+placement = "popup"
+command = ["sh", "-c", "eval \"$FZFW_POPUP_SCRIPT\""]

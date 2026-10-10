@@ -13,18 +13,12 @@ use tokio::io::BufReader;
 use tokio::process::Command;
 use tokio::signal;
 
-pub async fn edit_and_run(
-    placeholder: impl AsRef<[u8]>,
-) -> Result<(String, Output), std::io::Error> {
+use crate::utils::popup;
+
+pub async fn edit_and_run(placeholder: impl AsRef<[u8]>) -> Result<(String, Output)> {
     let tmp_file = tempfile::NamedTempFile::new().unwrap();
     std::fs::write(tmp_file.path(), placeholder).unwrap();
-    // TODO make configurable?
-    Command::new("nvimw")
-        .arg("--tmux-popup")
-        .arg(tmp_file.path())
-        .spawn()?
-        .wait()
-        .await?;
+    popup::edit_file(tmp_file.path()).await?;
     let cmd = std::fs::read_to_string(tmp_file.path())
         .unwrap()
         .trim()

@@ -11,6 +11,8 @@ use tokio::io::AsyncWriteExt;
 use tokio::net::UnixStream;
 use tokio::process::Command;
 
+use crate::utils::popup;
+
 pub struct Config {
     pub default_command: String,
     pub preview_command: String,
@@ -133,43 +135,32 @@ pub fn new(config: Config) -> Command {
 }
 
 // ---------------------------------------------------------------------------
-// tmux popup 経由の fzf select
+// ポップアップ経由の fzf select
 // ---------------------------------------------------------------------------
-//
-// サーバープロセスから直接 fzf を起動すると、親 fzf と /dev/tty を共有して
-// エスケープシーケンスが壊れる。tmux popup は独立した PTY を持つため、
-// この問題を根本的に回避できる。
 
-/// tmux popup 内で fzf を実行する共通実装。
+/// ポップアップ内で fzf を実行する共通実装 (理由は utils::popup を参照)。
 /// 入出力はテンポラリファイルで受け渡す。
 async fn run_fzf_in_popup(items: &str, extra_args: &[&str]) -> Result<String> {
     let input_file = tempfile::Builder::new().prefix("fzf-in-").tempfile()?;
     let output_file = tempfile::Builder::new().prefix("fzf-out-").tempfile()?;
     std::fs::write(input_file.path(), items)?;
 
-    let input_path = input_file.path().to_string_lossy();
-    let output_path = output_file.path().to_string_lossy();
+    let input_path = popup::shell_quote(&input_file.path().to_string_lossy());
+    let output_path = popup::shell_quote(&output_file.path().to_string_lossy());
 
-    // 各引数をシングルクォートでエスケープしてシェルに渡す
     let extra = extra_args
         .iter()
-        .map(|a| format!("'{}'", a.replace('\'', "'\\''")))
+        .map(|a| popup::shell_quote(a))
         .collect::<Vec<_>>()
         .join(" ");
 
     // 環境の FZF_DEFAULT_OPTS / FZF_DEFAULT_OPTS_FILE に挙動を左右されないよう除去する
     let script = format!(
         "unset FZF_DEFAULT_OPTS FZF_DEFAULT_OPTS_FILE; \
-         fzf --ansi --no-sort --layout=reverse {extra} < '{input_path}' > '{output_path}'"
+         fzf --ansi --no-sort --layout=reverse {extra} < {input_path} > {output_path}"
     );
 
-    Command::new("tmux")
-        .args([
-            "popup", "-E", "-w", "80%", "-h", "50%", "--", "sh", "-c", &script,
-        ])
-        .spawn()?
-        .wait()
-        .await?;
+    popup::run(&script, "80%", "50%").await?;
 
     Ok(std::fs::read_to_string(output_file.path())?
         .trim()
